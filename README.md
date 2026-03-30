@@ -1,36 +1,143 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Loja Neon da Live
 
-## Getting Started
+Loja de resgates para streams do YouTube com:
 
-First, run the development server:
+- Next.js 16 + App Router
+- Tailwind CSS v4
+- Auth.js com Google
+- Neon Postgres via Drizzle
+- APIs internas para Streamer.bot
+- Bridge local para executar `DoAction` no PC da stream
+
+## O que já está implementado
+
+- Landing page neon brutalist responsiva.
+- Catálogo público de resgates.
+- Ranking público de viewers e pontos.
+- Área autenticada do viewer com saldo e histórico.
+- Painel admin com catálogo, fila e estado do bridge.
+- Fluxo de vínculo por código de chat.
+- Endpoints internos para eventos, snapshots, heartbeat e fila do bridge.
+- Regras de saldo, cooldown, débito e reembolso.
+- Modo demo quando `DATABASE_URL` não está configurada.
+
+## Estrutura
+
+- `src/app`: páginas e route handlers.
+- `src/components`: UI da web app.
+- `src/lib/db`: schema Drizzle, cliente Neon e repositório.
+- `src/lib/streamerbot`: schemas e validação HMAC.
+- `src/lib/redemptions`: regras de resgate.
+- `bridge/`: serviço local que conversa com a API hospedada e com o Streamer.bot.
+
+## Setup local
+
+1. Instale dependências:
+
+```bash
+npm install
+```
+
+2. Copie as variáveis:
+
+```bash
+copy .env.example .env.local
+copy bridge\\.env.example bridge\\.env
+```
+
+3. Preencha no mínimo:
+
+- `NEXTAUTH_SECRET`
+- `BRIDGE_SHARED_SECRET`
+- `STREAMERBOT_SHARED_SECRET`
+
+4. Para usar Neon + Google de verdade, preencha também:
+
+- `DATABASE_URL`
+- `AUTH_GOOGLE_ID`
+- `AUTH_GOOGLE_SECRET`
+- `ADMIN_EMAILS`
+
+5. Rode a web app:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+6. Rode o bridge local:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run bridge:dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Scripts
 
-## Learn More
+```bash
+npm run dev
+npm run build
+npm run lint
+npm test
+npm run db:generate
+npm run db:push
+npm run bridge:dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Banco e Drizzle
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+O schema fica em [`src/lib/db/schema.ts`](./src/lib/db/schema.ts).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Para gerar/push de schema:
 
-## Deploy on Vercel
+```bash
+npm run db:generate
+npm run db:push
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Fluxo do Streamer.bot
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Eventos de entrada
+
+O Streamer.bot deve enviar requests assinadas para:
+
+- `POST /api/internal/streamerbot/events`
+- `POST /api/internal/streamerbot/snapshots`
+
+Headers obrigatórios:
+
+- `x-timestamp`
+- `x-signature`
+
+Assinatura:
+
+- HMAC SHA-256 de `timestamp.body`
+- Secret: `STREAMERBOT_SHARED_SECRET`
+
+### Bridge
+
+O bridge faz:
+
+- heartbeat em `POST /api/internal/bridge/heartbeat`
+- pull da fila em `POST /api/internal/bridge/pull`
+- claim/complete/fail por resgate
+- chamada local ao Streamer.bot HTTP Server em `127.0.0.1`
+
+Veja [`bridge/README.md`](./bridge/README.md) para configuração operacional.
+
+## Modo demo
+
+Sem `DATABASE_URL`, o projeto usa um store em memória com:
+
+- viewers de exemplo
+- catálogo inicial
+- leaderboard
+- fila simulada
+
+Isso permite validar o fluxo visual e a API sem depender do Neon.
+
+## Verificações executadas
+
+```bash
+npm run lint
+npm test
+npm run build
+```
