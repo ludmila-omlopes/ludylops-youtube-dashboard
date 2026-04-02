@@ -5,7 +5,7 @@ import { adminEmails } from "@/lib/env";
 
 export async function requireSession() {
   const session = await auth();
-  if (!session?.user?.email) {
+  if (!session?.user?.email || !session.user.activeViewerId) {
     redirect("/");
   }
   return session;

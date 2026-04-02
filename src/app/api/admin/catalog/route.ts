@@ -1,4 +1,4 @@
-import { fail, ok, requireAdminApiSession } from "@/lib/api";
+import { fail, isTrustedAppMutationRequest, ok, requireAdminApiSession } from "@/lib/api";
 import { createCatalogItemFromInput, getCatalog } from "@/lib/db/repository";
 import { catalogItemSchema } from "@/lib/streamerbot/schemas";
 
@@ -11,6 +11,10 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!isTrustedAppMutationRequest(request)) {
+    return fail("Forbidden", 403);
+  }
+
   const session = await requireAdminApiSession();
   if (!session) {
     return fail("Forbidden", 403);

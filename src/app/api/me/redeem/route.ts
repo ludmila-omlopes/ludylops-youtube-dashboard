@@ -1,10 +1,14 @@
-import { fail, ok, requireApiSession } from "@/lib/api";
+import { fail, isTrustedAppMutationRequest, ok, requireApiSession } from "@/lib/api";
 import { redeemItem } from "@/lib/db/repository";
 import { redeemSchema } from "@/lib/streamerbot/schemas";
 
 export async function POST(request: Request) {
+  if (!isTrustedAppMutationRequest(request)) {
+    return fail("Forbidden", 403);
+  }
+
   const session = await requireApiSession();
-  if (!session?.user?.email) {
+  if (!session?.user?.activeViewerId) {
     return fail("Unauthorized", 401);
   }
 
@@ -13,7 +17,7 @@ export async function POST(request: Request) {
 
   try {
     const redemption = await redeemItem({
-      email: session.user.email,
+      viewerId: session.user.activeViewerId,
       itemId: payload.itemId,
       source: payload.source,
     });

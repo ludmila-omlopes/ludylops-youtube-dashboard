@@ -1,52 +1,104 @@
 import { randomUUID } from "node:crypto";
 
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 
+import {
+  calculateBetPayouts,
+  evaluateBetLifecycleAction,
+  evaluateBetPlacement,
+  shouldRefundBetOnResolve,
+} from "@/lib/bets/service";
 import { getDb } from "@/lib/db/client";
 import {
+  betEntries,
+  betOptions,
+  bets,
   bridgeClients,
   catalogItems,
+  gameSuggestionBoosts,
+  gameSuggestions,
+  googleAccounts,
+  googleAccountViewers,
   pointLedger,
   redemptions,
-  streamerbotBalanceSnapshots,
   streamerbotEventLog,
   users,
   viewerBalances,
-  viewerLinks,
 } from "@/lib/db/schema";
 import {
   demoBalances,
+  demoBetEntries,
+  demoBetOptions,
+  demoBetRecords,
   demoBridgeClients,
   demoCatalog,
+  demoGameSuggestionBoosts,
+  demoGameSuggestions,
+  demoGoogleAccounts,
+  demoGoogleAccountViewers,
   demoLedger,
-  demoLinkCodes,
   demoRedemptions,
-  demoSnapshots,
   demoViewers,
 } from "@/lib/demo-data";
-import { isDemoMode } from "@/lib/env";
-import { evaluateRedeemability, reconcileSnapshot } from "@/lib/redemptions/service";
+import { adminEmails, isDemoMode } from "@/lib/env";
 import {
-  BalanceSnapshotRecord,
+  eventRequiresActiveLivestream,
+  isStreamerbotLivestreamActive,
+} from "@/lib/streamerbot/live-status";
+import { evaluateRedeemability } from "@/lib/redemptions/service";
+import {
+  BetEntryRecord,
+  BetOptionRecord,
+  BetRecord,
+  BetWithOptionsRecord,
+  BetViewerPositionRecord,
   BridgeClientRecord,
   CatalogItemRecord,
+  GameSuggestionBoostRecord,
+  GameSuggestionRecord,
+  GameSuggestionWithMeta,
+  GoogleAccountRecord,
+  GoogleAccountViewerRecord,
   LedgerEntryRecord,
-  LinkCodeRecord,
   RedemptionRecord,
+  ViewerChannelOptionRecord,
   ViewerBalanceRecord,
   ViewerRecord,
 } from "@/lib/types";
-import { shortCode, slugify } from "@/lib/utils";
+import { slugify } from "@/lib/utils";
+
+function buildSyntheticYoutubeChannelId(input: { googleUserId: string | null; email: string }) {
+  const base = input.googleUserId ?? input.email.toLowerCase();
+  return `session:${base}`.slice(0, 128);
+}
+
+function normalizeYoutubeHandle(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.startsWith("@") ? trimmed : `@${trimmed}`;
+}
+
+function shouldExcludeFromRanking(email: string | null) {
+  return !email || adminEmails.has(email.toLowerCase());
+}
 
 type DemoStore = {
   viewers: ViewerRecord[];
+  googleAccounts: GoogleAccountRecord[];
+  googleAccountViewers: GoogleAccountViewerRecord[];
   balances: ViewerBalanceRecord[];
   catalog: CatalogItemRecord[];
   ledger: LedgerEntryRecord[];
   redemptions: RedemptionRecord[];
+  bets: BetRecord[];
+  betOptions: BetOptionRecord[];
+  betEntries: BetEntryRecord[];
+  gameSuggestions: GameSuggestionRecord[];
+  gameSuggestionBoosts: GameSuggestionBoostRecord[];
   bridgeClients: BridgeClientRecord[];
-  linkCodes: LinkCodeRecord[];
-  snapshots: BalanceSnapshotRecord[];
 };
 
 declare global {
@@ -57,13 +109,18 @@ function getDemoStore(): DemoStore {
   if (!globalThis.__lojaDemoStore) {
     globalThis.__lojaDemoStore = {
       viewers: structuredClone(demoViewers),
+      googleAccounts: structuredClone(demoGoogleAccounts),
+      googleAccountViewers: structuredClone(demoGoogleAccountViewers),
       balances: structuredClone(demoBalances),
       catalog: structuredClone(demoCatalog),
       ledger: structuredClone(demoLedger),
       redemptions: structuredClone(demoRedemptions),
+      bets: structuredClone(demoBetRecords),
+      betOptions: structuredClone(demoBetOptions),
+      betEntries: structuredClone(demoBetEntries),
+      gameSuggestions: structuredClone(demoGameSuggestions),
+      gameSuggestionBoosts: structuredClone(demoGameSuggestionBoosts),
       bridgeClients: structuredClone(demoBridgeClients),
-      linkCodes: structuredClone(demoLinkCodes),
-      snapshots: structuredClone(demoSnapshots),
     };
   }
 
@@ -100,82 +157,1120 @@ function createLedgerEntry(
   return created;
 }
 
-async function withUserByEmail(email: string) {
-  const db = getDb();
+type SessionYoutubeChannel = {
+  youtubeChannelId: string;
+  youtubeDisplayName: string;
+  youtubeHandle?: string | null;
+};
 
-  if (isDemoMode || !db) {
-    const store = getDemoStore();
-    const user = store.viewers.find((viewer) => viewer.email === email) ?? null;
-    return user;
-  }
-
-  const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  return user
-    ? {
-        id: user.id,
-        googleUserId: user.googleUserId,
-        email: user.email,
-        youtubeChannelId: user.youtubeChannelId,
-        youtubeDisplayName: user.youtubeDisplayName,
-        avatarUrl: user.avatarUrl,
-        isLinked: user.isLinked,
-        createdAt: user.createdAt.toISOString(),
-      }
-    : null;
-}
-
-export async function ensureViewerFromSession(input: {
+type SessionBootstrapInput = {
   googleUserId: string | null;
   email: string | null;
   name: string | null;
   image: string | null;
+  youtubeChannels?: SessionYoutubeChannel[] | null;
+};
+
+type GoogleAccountSessionState = {
+  googleAccount: GoogleAccountRecord;
+  activeViewer: ViewerRecord;
+};
+
+function serializeViewer(row: typeof users.$inferSelect): ViewerRecord {
+  return {
+    id: row.id,
+    googleUserId: row.googleUserId,
+    email: row.email,
+    youtubeChannelId: row.youtubeChannelId,
+    youtubeDisplayName: row.youtubeDisplayName,
+    youtubeHandle: row.youtubeHandle ?? null,
+    avatarUrl: row.avatarUrl,
+    isLinked: row.isLinked,
+    excludeFromRanking: row.excludeFromRanking,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function serializeViewerBalance(row: typeof viewerBalances.$inferSelect): ViewerBalanceRecord {
+  return {
+    viewerId: row.viewerId,
+    currentBalance: row.currentBalance,
+    lifetimeEarned: row.lifetimeEarned,
+    lifetimeSpent: row.lifetimeSpent,
+    lastSyncedAt: row.lastSyncedAt.toISOString(),
+  };
+}
+
+function serializeGoogleAccount(row: typeof googleAccounts.$inferSelect): GoogleAccountRecord {
+  return {
+    id: row.id,
+    googleUserId: row.googleUserId,
+    email: row.email,
+    displayName: row.displayName,
+    avatarUrl: row.avatarUrl,
+    activeViewerId: row.activeViewerId,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function serializeGoogleAccountViewer(row: typeof googleAccountViewers.$inferSelect): GoogleAccountViewerRecord {
+  return {
+    id: row.id,
+    googleAccountId: row.googleAccountId,
+    viewerId: row.viewerId,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function buildViewerChannelOption(viewer: ViewerRecord, balance: ViewerBalanceRecord): ViewerChannelOptionRecord {
+  return {
+    id: viewer.id,
+    youtubeChannelId: viewer.youtubeChannelId,
+    youtubeDisplayName: viewer.youtubeDisplayName,
+    youtubeHandle: viewer.youtubeHandle ?? null,
+    isLinked: viewer.isLinked,
+    currentBalance: balance.currentBalance,
+    lifetimeEarned: balance.lifetimeEarned,
+    lifetimeSpent: balance.lifetimeSpent,
+    hasPlatformData:
+      balance.currentBalance !== 0 || balance.lifetimeEarned !== 0 || balance.lifetimeSpent !== 0,
+  };
+}
+
+function buildViewerRecord(input: {
+  googleUserId: string | null;
+  email: string | null;
+  name: string | null;
+  image: string | null;
+  youtubeChannelId: string;
+  youtubeDisplayName: string;
+  youtubeHandle?: string | null;
+  isLinked: boolean;
 }) {
+  return {
+    id: randomUUID(),
+    googleUserId: input.googleUserId,
+    email: input.email,
+    youtubeChannelId: input.youtubeChannelId,
+    youtubeDisplayName: input.youtubeDisplayName,
+    youtubeHandle: normalizeYoutubeHandle(input.youtubeHandle),
+    avatarUrl: input.image,
+    isLinked: input.isLinked,
+    excludeFromRanking: shouldExcludeFromRanking(input.email),
+    createdAt: new Date().toISOString(),
+  } satisfies ViewerRecord;
+}
+
+function buildGoogleAccountRecord(input: {
+  googleUserId: string | null;
+  email: string;
+  name: string | null;
+  image: string | null;
+}) {
+  return {
+    id: randomUUID(),
+    googleUserId: input.googleUserId,
+    email: input.email,
+    displayName: input.name,
+    avatarUrl: input.image,
+    activeViewerId: null,
+    createdAt: new Date().toISOString(),
+  } satisfies GoogleAccountRecord;
+}
+
+function buildGoogleAccountViewerLink(input: { googleAccountId: string; viewerId: string }) {
+  return {
+    id: randomUUID(),
+    googleAccountId: input.googleAccountId,
+    viewerId: input.viewerId,
+    createdAt: new Date().toISOString(),
+  } satisfies GoogleAccountViewerRecord;
+}
+
+function normalizeSessionYoutubeChannels(channels: SessionBootstrapInput["youtubeChannels"]) {
+  const seen = new Set<string>();
+  return (channels ?? []).flatMap((channel) => {
+    const youtubeChannelId = channel.youtubeChannelId.trim();
+    if (!youtubeChannelId || seen.has(youtubeChannelId)) {
+      return [];
+    }
+    seen.add(youtubeChannelId);
+    return [
+      {
+        youtubeChannelId,
+        youtubeDisplayName: channel.youtubeDisplayName.trim() || youtubeChannelId,
+        youtubeHandle: normalizeYoutubeHandle(channel.youtubeHandle),
+      } satisfies SessionYoutubeChannel,
+    ];
+  });
+}
+
+function isSyntheticYoutubeChannelId(youtubeChannelId: string) {
+  return youtubeChannelId.startsWith("session:");
+}
+
+function isSyntheticViewer(viewer: ViewerRecord | null) {
+  return Boolean(viewer && isSyntheticYoutubeChannelId(viewer.youtubeChannelId));
+}
+
+function filterVisibleViewerChannels(channels: ViewerChannelOptionRecord[]) {
+  const hasRealChannels = channels.some((channel) => !isSyntheticYoutubeChannelId(channel.youtubeChannelId));
+  if (!hasRealChannels) {
+    return channels;
+  }
+  return channels.filter((channel) => !isSyntheticYoutubeChannelId(channel.youtubeChannelId));
+}
+
+function viewerHasStoredActivity(input: {
+  currentBalance: number;
+  lifetimeEarned: number;
+  lifetimeSpent: number;
+  hasLedger: boolean;
+  hasRedemptions: boolean;
+  hasBetEntries: boolean;
+}) {
+  return (
+    input.currentBalance !== 0 ||
+    input.lifetimeEarned !== 0 ||
+    input.lifetimeSpent !== 0 ||
+    input.hasLedger ||
+    input.hasRedemptions ||
+    input.hasBetEntries
+  );
+}
+
+function getDemoViewerActivity(store: DemoStore, viewerId: string) {
+  const balance = getBalance(store, viewerId);
+  return {
+    currentBalance: balance.currentBalance,
+    lifetimeEarned: balance.lifetimeEarned,
+    lifetimeSpent: balance.lifetimeSpent,
+    hasLedger: store.ledger.some((entry) => entry.viewerId === viewerId),
+    hasRedemptions: store.redemptions.some((entry) => entry.viewerId === viewerId),
+    hasBetEntries: store.betEntries.some((entry) => entry.viewerId === viewerId),
+  };
+}
+
+function pruneDemoSyntheticViewersForGoogleAccount(store: DemoStore, googleAccountId: string, preservedViewerIds: string[]) {
+  const viewers = listDemoViewersForGoogleAccount(store, googleAccountId);
+  const hasRealViewer = viewers.some((viewer) => !isSyntheticYoutubeChannelId(viewer.youtubeChannelId));
+  if (!hasRealViewer) {
+    return;
+  }
+
+  const protectedIds = new Set(preservedViewerIds);
+  const removableIds = new Set(
+    viewers
+      .filter((viewer) => isSyntheticYoutubeChannelId(viewer.youtubeChannelId) && !protectedIds.has(viewer.id))
+      .filter((viewer) => !viewerHasStoredActivity(getDemoViewerActivity(store, viewer.id)))
+      .map((viewer) => viewer.id),
+  );
+  if (removableIds.size === 0) {
+    return;
+  }
+
+  store.googleAccountViewers = store.googleAccountViewers.filter((entry) => !removableIds.has(entry.viewerId));
+  store.balances = store.balances.filter((entry) => !removableIds.has(entry.viewerId));
+  store.viewers = store.viewers.filter((entry) => !removableIds.has(entry.id));
+}
+
+function getDemoGoogleAccountByIdentity(
+  store: DemoStore,
+  input: Pick<SessionBootstrapInput, "googleUserId" | "email">,
+) {
+  if (input.googleUserId) {
+    const account = store.googleAccounts.find((entry) => entry.googleUserId === input.googleUserId);
+    if (account) {
+      return account;
+    }
+  }
+
   if (!input.email) {
     return null;
   }
 
-  const existing = await withUserByEmail(input.email);
-  if (existing) {
-    return existing;
+  return store.googleAccounts.find((entry) => entry.email === input.email) ?? null;
+}
+
+function getDemoViewerById(store: DemoStore, viewerId: string) {
+  return store.viewers.find((entry) => entry.id === viewerId) ?? null;
+}
+
+function getDemoViewerByYoutubeChannelId(store: DemoStore, youtubeChannelId: string) {
+  return store.viewers.find((entry) => entry.youtubeChannelId === youtubeChannelId) ?? null;
+}
+
+function getDemoGoogleAccountViewerLinks(store: DemoStore, googleAccountId: string) {
+  return store.googleAccountViewers.filter((entry) => entry.googleAccountId === googleAccountId);
+}
+
+function getDemoViewerGoogleAccountLink(store: DemoStore, viewerId: string) {
+  return store.googleAccountViewers.find((entry) => entry.viewerId === viewerId) ?? null;
+}
+
+function listDemoViewersForGoogleAccount(store: DemoStore, googleAccountId: string) {
+  return getDemoGoogleAccountViewerLinks(store, googleAccountId)
+    .map((entry) => getDemoViewerById(store, entry.viewerId))
+    .filter((entry): entry is ViewerRecord => Boolean(entry));
+}
+
+function listDemoViewerChannels(googleAccountId: string) {
+  const store = getDemoStore();
+  return listDemoViewersForGoogleAccount(store, googleAccountId).map((viewer) =>
+    buildViewerChannelOption(viewer, getBalance(store, viewer.id)),
+  );
+}
+
+function serializeBet(row: typeof bets.$inferSelect): BetRecord {
+  return {
+    id: row.id,
+    question: row.question,
+    status: row.status as BetRecord["status"],
+    openedAt: row.openedAt?.toISOString() ?? null,
+    closesAt: row.closesAt.toISOString(),
+    lockedAt: row.lockedAt?.toISOString() ?? null,
+    resolvedAt: row.resolvedAt?.toISOString() ?? null,
+    cancelledAt: row.cancelledAt?.toISOString() ?? null,
+    winningOptionId: row.winningOptionId,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function serializeBetOption(row: typeof betOptions.$inferSelect): BetOptionRecord {
+  return {
+    id: row.id,
+    betId: row.betId,
+    label: row.label,
+    sortOrder: row.sortOrder,
+    poolAmount: row.poolAmount,
+  };
+}
+
+function serializeBetEntry(row: typeof betEntries.$inferSelect): BetEntryRecord {
+  return {
+    id: row.id,
+    betId: row.betId,
+    optionId: row.optionId,
+    viewerId: row.viewerId,
+    amount: row.amount,
+    payoutAmount: row.payoutAmount,
+    settledAt: row.settledAt?.toISOString() ?? null,
+    refundedAt: row.refundedAt?.toISOString() ?? null,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function buildViewerPosition(
+  bet: BetRecord,
+  entry: BetEntryRecord | null,
+): BetViewerPositionRecord | null {
+  if (!entry) {
+    return null;
   }
 
-  const viewer: ViewerRecord = {
-    id: randomUUID(),
-    googleUserId: input.googleUserId,
-    email: input.email,
-    youtubeChannelId: null,
-    youtubeDisplayName: input.name ?? input.email.split("@")[0],
-    avatarUrl: input.image,
-    isLinked: false,
-    createdAt: new Date().toISOString(),
+  return {
+    amount: entry.amount,
+    optionId: entry.optionId,
+    payoutAmount: entry.payoutAmount,
+    refundedAt: entry.refundedAt,
+    settledAt: entry.settledAt,
+    isWinner:
+      bet.status === "resolved" && bet.winningOptionId
+        ? bet.winningOptionId === entry.optionId
+        : null,
   };
+}
+
+function buildBetWithOptions(params: {
+  bet: BetRecord;
+  options: BetOptionRecord[];
+  viewerEntry?: BetEntryRecord | null;
+}): BetWithOptionsRecord {
+  const options = [...params.options].sort((a, b) => a.sortOrder - b.sortOrder);
+  return {
+    ...params.bet,
+    totalPool: options.reduce((sum, option) => sum + option.poolAmount, 0),
+    options,
+    viewerPosition: buildViewerPosition(params.bet, params.viewerEntry ?? null),
+  };
+}
+
+function serializeGameSuggestion(row: typeof gameSuggestions.$inferSelect): GameSuggestionRecord {
+  return {
+    id: row.id,
+    viewerId: row.viewerId,
+    slug: row.slug,
+    name: row.name,
+    description: row.description ?? null,
+    linkUrl: row.linkUrl ?? null,
+    status: row.status as GameSuggestionRecord["status"],
+    totalVotes: row.totalVotes,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function serializeGameSuggestionBoost(
+  row: typeof gameSuggestionBoosts.$inferSelect,
+): GameSuggestionBoostRecord {
+  return {
+    id: row.id,
+    suggestionId: row.suggestionId,
+    viewerId: row.viewerId,
+    amount: row.amount,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function buildGameSuggestionWithMeta(params: {
+  suggestion: GameSuggestionRecord;
+  viewer: ViewerRecord | null;
+  boosts?: GameSuggestionBoostRecord[];
+}): GameSuggestionWithMeta {
+  const boosts = params.boosts ?? [];
+  return {
+    ...params.suggestion,
+    suggestedBy: params.viewer?.youtubeDisplayName ?? "Viewer",
+    suggestedByYoutubeHandle: params.viewer?.youtubeHandle ?? null,
+    viewerBoostTotal: boosts.reduce((sum, entry) => sum + entry.amount, 0),
+  };
+}
+
+function listDemoGameSuggestions(viewerId?: string | null) {
+  const store = getDemoStore();
+  const viewerBoosts = viewerId
+    ? store.gameSuggestionBoosts.filter((entry) => entry.viewerId === viewerId)
+    : [];
+
+  return [...store.gameSuggestions]
+    .sort((a, b) => {
+      if (b.totalVotes !== a.totalVotes) {
+        return b.totalVotes - a.totalVotes;
+      }
+
+      return +new Date(b.createdAt) - +new Date(a.createdAt);
+    })
+    .map((suggestion) =>
+      buildGameSuggestionWithMeta({
+        suggestion,
+        viewer: getDemoViewerById(store, suggestion.viewerId),
+        boosts: viewerBoosts.filter((entry) => entry.suggestionId === suggestion.id),
+      }),
+    );
+}
+
+function resolveChatTargetBet(input: {
+  bets: BetWithOptionsRecord[];
+  betId?: string | null;
+  now?: Date;
+}) {
+  if (input.betId) {
+    const targetBet = input.bets.find((bet) => bet.id === input.betId);
+    if (!targetBet) {
+      throw new Error("Aposta nao encontrada.");
+    }
+
+    return targetBet;
+  }
+
+  const nowMs = (input.now ?? new Date()).getTime();
+  const openBets = input.bets.filter(
+    (bet) => bet.status === "open" && new Date(bet.closesAt).getTime() > nowMs,
+  );
+
+  if (openBets.length === 0) {
+    throw new Error("Aposta nao encontrada.");
+  }
+
+  if (openBets.length > 1) {
+    throw new Error("multiple_open_bets");
+  }
+
+  return openBets[0];
+}
+
+function resolveChatBetOption(input: {
+  bet: BetWithOptionsRecord;
+  optionId?: string | null;
+  optionIndex?: number | null;
+  optionLabel?: string | null;
+}) {
+  if (input.optionId) {
+    const option = input.bet.options.find((entry) => entry.id === input.optionId);
+    if (option) {
+      return option;
+    }
+  }
+
+  const parsedLabelIndex =
+    input.optionLabel && /^\d+$/.test(input.optionLabel.trim())
+      ? Number.parseInt(input.optionLabel.trim(), 10)
+      : null;
+  const optionIndex = Number.isInteger(input.optionIndex) ? input.optionIndex : parsedLabelIndex;
+  if (typeof optionIndex === "number" && optionIndex >= 1) {
+    const option = input.bet.options[optionIndex - 1];
+    if (option) {
+      return option;
+    }
+  }
+
+  const normalizedLabel = input.optionLabel ? slugify(input.optionLabel) : "";
+  if (normalizedLabel) {
+    const option = input.bet.options.find((entry) => slugify(entry.label) === normalizedLabel);
+    if (option) {
+      return option;
+    }
+  }
+
+  throw new Error("invalid_option");
+}
+
+function listDemoBets(viewer: ViewerRecord | null) {
+  const store = getDemoStore();
+  return store.bets
+    .map((bet) =>
+      buildBetWithOptions({
+        bet,
+        options: store.betOptions.filter((option) => option.betId === bet.id),
+        viewerEntry: viewer
+          ? store.betEntries.find((entry) => entry.betId === bet.id && entry.viewerId === viewer.id) ?? null
+          : null,
+      }),
+    )
+    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+}
+
+function isMissingBetSchemaError(error: unknown) {
+  const tableNames = ['"bets"', '"bet_options"', '"bet_entries"', "bets", "bet_options", "bet_entries"];
+  const queue: unknown[] = [error];
+  const visited = new Set<unknown>();
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+
+    const message =
+      current instanceof Error ? current.message : typeof current === "string" ? current : "";
+    const normalized = message.toLowerCase();
+    const mentionsBetTables = tableNames.some((tableName) => normalized.includes(tableName));
+    if (
+      mentionsBetTables &&
+      (normalized.includes("does not exist") ||
+        normalized.includes("relation") ||
+        normalized.includes("table") ||
+        normalized.includes("failed query"))
+    ) {
+      return true;
+    }
+
+    if (typeof current === "object" && current && "cause" in current) {
+      queue.push((current as { cause?: unknown }).cause);
+    }
+  }
+
+  return false;
+}
+
+function isMissingGameSuggestionSchemaError(error: unknown) {
+  const tableNames = [
+    '"game_suggestions"',
+    '"game_suggestion_boosts"',
+    "game_suggestions",
+    "game_suggestion_boosts",
+  ];
+  const queue: unknown[] = [error];
+  const visited = new Set<unknown>();
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+
+    const message =
+      current instanceof Error ? current.message : typeof current === "string" ? current : "";
+    const normalized = message.toLowerCase();
+    const mentionsTables = tableNames.some((tableName) => normalized.includes(tableName));
+    if (
+      mentionsTables &&
+      (normalized.includes("does not exist") ||
+        normalized.includes("relation") ||
+        normalized.includes("table") ||
+        normalized.includes("failed query"))
+    ) {
+      return true;
+    }
+
+    if (typeof current === "object" && current && "cause" in current) {
+      queue.push((current as { cause?: unknown }).cause);
+    }
+  }
+
+  return false;
+}
+
+async function withGoogleAccountById(googleAccountId: string) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    return getDemoStore().googleAccounts.find((entry) => entry.id === googleAccountId) ?? null;
+  }
+
+  const [account] = await db.select().from(googleAccounts).where(eq(googleAccounts.id, googleAccountId)).limit(1);
+  return account ? serializeGoogleAccount(account) : null;
+}
+
+async function withGoogleAccountByIdentity(input: Pick<SessionBootstrapInput, "googleUserId" | "email">) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    return getDemoGoogleAccountByIdentity(getDemoStore(), input);
+  }
+
+  if (input.googleUserId) {
+    const [byGoogleId] = await db
+      .select()
+      .from(googleAccounts)
+      .where(eq(googleAccounts.googleUserId, input.googleUserId))
+      .limit(1);
+    if (byGoogleId) {
+      return serializeGoogleAccount(byGoogleId);
+    }
+  }
+
+  if (!input.email) {
+    return null;
+  }
+
+  const [byEmail] = await db.select().from(googleAccounts).where(eq(googleAccounts.email, input.email)).limit(1);
+  return byEmail ? serializeGoogleAccount(byEmail) : null;
+}
+
+async function withViewerById(viewerId: string) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    return getDemoViewerById(getDemoStore(), viewerId);
+  }
+
+  const [viewer] = await db.select().from(users).where(eq(users.id, viewerId)).limit(1);
+  return viewer ? serializeViewer(viewer) : null;
+}
+
+async function withViewerByYoutubeChannelId(youtubeChannelId: string) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    return getDemoViewerByYoutubeChannelId(getDemoStore(), youtubeChannelId);
+  }
+
+  const [viewer] = await db.select().from(users).where(eq(users.youtubeChannelId, youtubeChannelId)).limit(1);
+  return viewer ? serializeViewer(viewer) : null;
+}
+
+async function withGoogleAccountViewerLinkByViewerId(viewerId: string) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    return getDemoViewerGoogleAccountLink(getDemoStore(), viewerId);
+  }
+
+  const [link] = await db
+    .select()
+    .from(googleAccountViewers)
+    .where(eq(googleAccountViewers.viewerId, viewerId))
+    .limit(1);
+  return link ? serializeGoogleAccountViewer(link) : null;
+}
+
+async function listViewersForGoogleAccount(googleAccountId: string) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    return listDemoViewersForGoogleAccount(getDemoStore(), googleAccountId);
+  }
+
+  const rows = await db
+    .select({
+      viewer: users,
+    })
+    .from(googleAccountViewers)
+    .innerJoin(users, eq(googleAccountViewers.viewerId, users.id))
+    .where(eq(googleAccountViewers.googleAccountId, googleAccountId))
+    .orderBy(desc(googleAccountViewers.createdAt));
+
+  return rows.map(({ viewer }) => serializeViewer(viewer));
+}
+
+async function pruneSyntheticViewersForGoogleAccount(googleAccountId: string, preservedViewerIds: string[]) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    pruneDemoSyntheticViewersForGoogleAccount(getDemoStore(), googleAccountId, preservedViewerIds);
+    return;
+  }
+
+  const viewers = await listViewersForGoogleAccount(googleAccountId);
+  const hasRealViewer = viewers.some((viewer) => !isSyntheticYoutubeChannelId(viewer.youtubeChannelId));
+  if (!hasRealViewer) {
+    return;
+  }
+
+  const protectedIds = new Set(preservedViewerIds);
+  const removableViewerIds: string[] = [];
+
+  for (const viewer of viewers) {
+    if (!isSyntheticYoutubeChannelId(viewer.youtubeChannelId) || protectedIds.has(viewer.id)) {
+      continue;
+    }
+
+    const [balance, ledger, redemption, betEntry] = await Promise.all([
+      db.select().from(viewerBalances).where(eq(viewerBalances.viewerId, viewer.id)).limit(1),
+      db.select({ id: pointLedger.id }).from(pointLedger).where(eq(pointLedger.viewerId, viewer.id)).limit(1),
+      db.select({ id: redemptions.id }).from(redemptions).where(eq(redemptions.viewerId, viewer.id)).limit(1),
+      db.select({ id: betEntries.id }).from(betEntries).where(eq(betEntries.viewerId, viewer.id)).limit(1),
+    ]);
+
+    const storedActivity = viewerHasStoredActivity({
+      currentBalance: balance[0]?.currentBalance ?? 0,
+      lifetimeEarned: balance[0]?.lifetimeEarned ?? 0,
+      lifetimeSpent: balance[0]?.lifetimeSpent ?? 0,
+      hasLedger: Boolean(ledger[0]),
+      hasRedemptions: Boolean(redemption[0]),
+      hasBetEntries: Boolean(betEntry[0]),
+    });
+    if (!storedActivity) {
+      removableViewerIds.push(viewer.id);
+    }
+  }
+
+  if (removableViewerIds.length === 0) {
+    return;
+  }
+
+  for (const viewerId of removableViewerIds) {
+    await db.delete(googleAccountViewers).where(eq(googleAccountViewers.viewerId, viewerId));
+    await db.delete(viewerBalances).where(eq(viewerBalances.viewerId, viewerId));
+    await db.delete(users).where(eq(users.id, viewerId));
+  }
+}
+
+export async function listViewerChannelsForGoogleAccount(googleAccountId: string) {
+  const googleAccount = await withGoogleAccountById(googleAccountId);
+  if (!googleAccount) {
+    return [];
+  }
+
+  const sortChannels = (channels: ViewerChannelOptionRecord[]) =>
+    [...channels].sort((a, b) => {
+      const activeDelta = Number(b.id === googleAccount.activeViewerId) - Number(a.id === googleAccount.activeViewerId);
+      if (activeDelta !== 0) {
+        return activeDelta;
+      }
+      return a.youtubeDisplayName.localeCompare(b.youtubeDisplayName);
+    });
+
+  const db = getDb();
+  if (isDemoMode || !db) {
+    return sortChannels(filterVisibleViewerChannels(listDemoViewerChannels(googleAccountId)));
+  }
+
+  const rows = await db
+    .select({
+      viewer: users,
+      balance: viewerBalances,
+    })
+    .from(googleAccountViewers)
+    .innerJoin(users, eq(googleAccountViewers.viewerId, users.id))
+    .innerJoin(viewerBalances, eq(users.id, viewerBalances.viewerId))
+    .where(eq(googleAccountViewers.googleAccountId, googleAccountId))
+    .orderBy(desc(googleAccountViewers.createdAt));
+
+  return sortChannels(
+    filterVisibleViewerChannels(
+      rows.map(({ viewer, balance }) => buildViewerChannelOption(serializeViewer(viewer), serializeViewerBalance(balance))),
+    ),
+  );
+}
+
+export async function setActiveViewerForGoogleAccount(googleAccountId: string, viewerId: string) {
+  const channels = await listViewerChannelsForGoogleAccount(googleAccountId);
+  if (!channels.some((entry) => entry.id === viewerId)) {
+    return null;
+  }
 
   const db = getDb();
   if (isDemoMode || !db) {
     const store = getDemoStore();
-    store.viewers.push(viewer);
-    getBalance(store, viewer.id);
-    return viewer;
+    const account = store.googleAccounts.find((entry) => entry.id === googleAccountId);
+    if (!account) {
+      return null;
+    }
+    account.activeViewerId = viewerId;
+    return getDemoViewerById(store, viewerId);
   }
 
-  await db.insert(users).values({
-    id: viewer.id,
-    googleUserId: viewer.googleUserId,
-    email: viewer.email,
-    youtubeChannelId: null,
-    youtubeDisplayName: viewer.youtubeDisplayName,
-    avatarUrl: viewer.avatarUrl,
-    isLinked: false,
-  });
+  await db
+    .update(googleAccounts)
+    .set({
+      activeViewerId: viewerId,
+    })
+    .where(eq(googleAccounts.id, googleAccountId));
 
-  await db.insert(viewerBalances).values({
-    viewerId: viewer.id,
-    currentBalance: 0,
-    lifetimeEarned: 0,
-    lifetimeSpent: 0,
-  });
+  return withViewerById(viewerId);
+}
 
-  return viewer;
+export async function getSessionViewerState(
+  input: Pick<SessionBootstrapInput, "googleUserId" | "email">,
+): Promise<GoogleAccountSessionState | null> {
+  if (!input.email) {
+    return null;
+  }
+
+  const googleAccount = await withGoogleAccountByIdentity(input);
+  if (!googleAccount) {
+    return null;
+  }
+
+  const visibleChannels = await listViewerChannelsForGoogleAccount(googleAccount.id);
+  const activeViewerId = visibleChannels.some((channel) => channel.id === googleAccount.activeViewerId)
+    ? googleAccount.activeViewerId
+    : visibleChannels[0]?.id;
+  if (!activeViewerId) {
+    return null;
+  }
+
+  const activeViewer = await withViewerById(activeViewerId);
+  if (!activeViewer) {
+    return null;
+  }
+
+  return {
+    googleAccount,
+    activeViewer,
+  };
+}
+
+export async function ensureViewerFromSession(input: SessionBootstrapInput) {
+  if (!input.email) {
+    return null;
+  }
+
+  const youtubeChannels = normalizeSessionYoutubeChannels(input.youtubeChannels);
+  const db = getDb();
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    let googleAccount = getDemoGoogleAccountByIdentity(store, input);
+
+    if (!googleAccount) {
+      googleAccount = buildGoogleAccountRecord({
+        googleUserId: input.googleUserId,
+        email: input.email,
+        name: input.name,
+        image: input.image,
+      });
+      store.googleAccounts.push(googleAccount);
+    }
+
+    const activeViewer = googleAccount.activeViewerId ? getDemoViewerById(store, googleAccount.activeViewerId) : null;
+    let reusableSyntheticViewer = isSyntheticViewer(activeViewer) ? activeViewer : null;
+    const syncedViewerIds: string[] = [];
+
+    for (const channel of youtubeChannels) {
+      let viewer = getDemoViewerByYoutubeChannelId(store, channel.youtubeChannelId);
+      let existingOwner = viewer ? getDemoViewerGoogleAccountLink(store, viewer.id) : null;
+      if (existingOwner && existingOwner.googleAccountId !== googleAccount.id) {
+        continue;
+      }
+
+      if (!viewer && reusableSyntheticViewer) {
+        viewer = reusableSyntheticViewer;
+        reusableSyntheticViewer = null;
+        existingOwner = getDemoViewerGoogleAccountLink(store, viewer.id);
+      }
+
+      if (!viewer) {
+        viewer = buildViewerRecord({
+          googleUserId: input.googleUserId,
+          email: input.email,
+          name: input.name,
+          image: input.image,
+          youtubeChannelId: channel.youtubeChannelId,
+          youtubeDisplayName: channel.youtubeDisplayName,
+          youtubeHandle: channel.youtubeHandle,
+          isLinked: true,
+        });
+        store.viewers.push(viewer);
+        getBalance(store, viewer.id);
+      }
+
+      viewer.googleUserId = input.googleUserId;
+      viewer.email = input.email;
+      viewer.avatarUrl = input.image ?? viewer.avatarUrl;
+      viewer.youtubeChannelId = channel.youtubeChannelId;
+      viewer.youtubeDisplayName = channel.youtubeDisplayName;
+      viewer.youtubeHandle = channel.youtubeHandle ?? viewer.youtubeHandle ?? null;
+      viewer.isLinked = true;
+      viewer.excludeFromRanking = shouldExcludeFromRanking(input.email);
+
+      if (!existingOwner) {
+        store.googleAccountViewers.push(
+          buildGoogleAccountViewerLink({
+            googleAccountId: googleAccount.id,
+            viewerId: viewer.id,
+          }),
+        );
+      }
+
+      syncedViewerIds.push(viewer.id);
+    }
+
+    if (youtubeChannels.length > 0) {
+      pruneDemoSyntheticViewersForGoogleAccount(store, googleAccount.id, syncedViewerIds);
+    }
+
+    let preferredViewer =
+      activeViewer && syncedViewerIds.includes(activeViewer.id)
+        ? activeViewer
+        : syncedViewerIds[0]
+          ? getDemoViewerById(store, syncedViewerIds[0])
+          : activeViewer ?? listDemoViewersForGoogleAccount(store, googleAccount.id)[0] ?? null;
+
+    if (!preferredViewer) {
+      preferredViewer = buildViewerRecord({
+        googleUserId: input.googleUserId,
+        email: input.email,
+        name: input.name,
+        image: input.image,
+        youtubeChannelId: buildSyntheticYoutubeChannelId({
+          googleUserId: input.googleUserId,
+          email: input.email,
+        }),
+        youtubeDisplayName: input.name ?? input.email.split("@")[0],
+        isLinked: false,
+      });
+      store.viewers.push(preferredViewer);
+      getBalance(store, preferredViewer.id);
+    }
+
+    preferredViewer.googleUserId = input.googleUserId;
+    preferredViewer.email = input.email;
+    preferredViewer.avatarUrl = input.image ?? preferredViewer.avatarUrl;
+    preferredViewer.excludeFromRanking = shouldExcludeFromRanking(input.email);
+
+    const ownerLink = getDemoViewerGoogleAccountLink(store, preferredViewer.id);
+    if (!ownerLink) {
+      store.googleAccountViewers.push(
+        buildGoogleAccountViewerLink({
+          googleAccountId: googleAccount.id,
+          viewerId: preferredViewer.id,
+        }),
+      );
+    }
+
+    googleAccount.googleUserId = input.googleUserId;
+    googleAccount.email = input.email;
+    googleAccount.displayName = input.name;
+    googleAccount.avatarUrl = input.image;
+    googleAccount.activeViewerId = preferredViewer.id;
+
+    return preferredViewer;
+  }
+
+  let googleAccount = await withGoogleAccountByIdentity(input);
+  if (!googleAccount) {
+    googleAccount = buildGoogleAccountRecord({
+      googleUserId: input.googleUserId,
+      email: input.email,
+      name: input.name,
+      image: input.image,
+    });
+
+    await db.insert(googleAccounts).values({
+      id: googleAccount.id,
+      googleUserId: googleAccount.googleUserId,
+      email: googleAccount.email,
+      displayName: googleAccount.displayName,
+      avatarUrl: googleAccount.avatarUrl,
+      activeViewerId: null,
+      createdAt: new Date(googleAccount.createdAt),
+    });
+  }
+
+  const activeViewer = googleAccount.activeViewerId ? await withViewerById(googleAccount.activeViewerId) : null;
+  let reusableSyntheticViewer = isSyntheticViewer(activeViewer) ? activeViewer : null;
+  const syncedViewerIds: string[] = [];
+
+  for (const channel of youtubeChannels) {
+    let viewer = await withViewerByYoutubeChannelId(channel.youtubeChannelId);
+    let existingOwner = viewer ? await withGoogleAccountViewerLinkByViewerId(viewer.id) : null;
+    if (existingOwner && existingOwner.googleAccountId !== googleAccount.id) {
+      continue;
+    }
+
+    if (!viewer && reusableSyntheticViewer) {
+      viewer = reusableSyntheticViewer;
+      reusableSyntheticViewer = null;
+      existingOwner = await withGoogleAccountViewerLinkByViewerId(viewer.id);
+    }
+
+    if (!viewer) {
+      viewer = buildViewerRecord({
+        googleUserId: input.googleUserId,
+        email: input.email,
+        name: input.name,
+        image: input.image,
+        youtubeChannelId: channel.youtubeChannelId,
+        youtubeDisplayName: channel.youtubeDisplayName,
+        youtubeHandle: channel.youtubeHandle,
+        isLinked: true,
+      });
+
+      await db.insert(users).values({
+        id: viewer.id,
+        googleUserId: viewer.googleUserId,
+        email: viewer.email,
+        youtubeChannelId: viewer.youtubeChannelId,
+        youtubeDisplayName: viewer.youtubeDisplayName,
+        youtubeHandle: viewer.youtubeHandle,
+        avatarUrl: viewer.avatarUrl,
+        isLinked: viewer.isLinked,
+        excludeFromRanking: viewer.excludeFromRanking,
+        createdAt: new Date(viewer.createdAt),
+      });
+
+      await db.insert(viewerBalances).values({
+        viewerId: viewer.id,
+        currentBalance: 0,
+        lifetimeEarned: 0,
+        lifetimeSpent: 0,
+        lastSyncedAt: new Date(),
+      });
+    }
+
+    await db
+      .update(users)
+      .set({
+        googleUserId: input.googleUserId,
+        email: input.email,
+        youtubeChannelId: channel.youtubeChannelId,
+        youtubeDisplayName: channel.youtubeDisplayName,
+        youtubeHandle: channel.youtubeHandle ?? viewer.youtubeHandle ?? null,
+        avatarUrl: input.image ?? viewer.avatarUrl,
+        isLinked: true,
+        excludeFromRanking: shouldExcludeFromRanking(input.email),
+      })
+      .where(eq(users.id, viewer.id));
+
+    if (!existingOwner) {
+      const link = buildGoogleAccountViewerLink({
+        googleAccountId: googleAccount.id,
+        viewerId: viewer.id,
+      });
+      await db.insert(googleAccountViewers).values({
+        id: link.id,
+        googleAccountId: link.googleAccountId,
+        viewerId: link.viewerId,
+        createdAt: new Date(link.createdAt),
+      });
+    }
+
+    syncedViewerIds.push(viewer.id);
+  }
+
+  if (youtubeChannels.length > 0) {
+    await pruneSyntheticViewersForGoogleAccount(googleAccount.id, syncedViewerIds);
+  }
+
+  let preferredViewer =
+    activeViewer && syncedViewerIds.includes(activeViewer.id)
+      ? activeViewer
+      : syncedViewerIds[0]
+        ? await withViewerById(syncedViewerIds[0])
+        : activeViewer;
+
+  if (!preferredViewer) {
+    const firstLinkedViewer = (await listViewerChannelsForGoogleAccount(googleAccount.id))[0];
+    preferredViewer = firstLinkedViewer ? await withViewerById(firstLinkedViewer.id) : null;
+  }
+
+  if (!preferredViewer) {
+    preferredViewer = buildViewerRecord({
+      googleUserId: input.googleUserId,
+      email: input.email,
+      name: input.name,
+      image: input.image,
+      youtubeChannelId: buildSyntheticYoutubeChannelId({
+        googleUserId: input.googleUserId,
+        email: input.email,
+      }),
+      youtubeDisplayName: input.name ?? input.email.split("@")[0],
+      isLinked: false,
+    });
+
+    await db.insert(users).values({
+      id: preferredViewer.id,
+      googleUserId: preferredViewer.googleUserId,
+      email: preferredViewer.email,
+      youtubeChannelId: preferredViewer.youtubeChannelId,
+      youtubeDisplayName: preferredViewer.youtubeDisplayName,
+      youtubeHandle: preferredViewer.youtubeHandle,
+      avatarUrl: preferredViewer.avatarUrl,
+      isLinked: preferredViewer.isLinked,
+      excludeFromRanking: preferredViewer.excludeFromRanking,
+      createdAt: new Date(preferredViewer.createdAt),
+    });
+
+    await db.insert(viewerBalances).values({
+      viewerId: preferredViewer.id,
+      currentBalance: 0,
+      lifetimeEarned: 0,
+      lifetimeSpent: 0,
+      lastSyncedAt: new Date(),
+    });
+  }
+
+  await db
+    .update(users)
+    .set({
+      googleUserId: input.googleUserId,
+      email: input.email,
+      avatarUrl: input.image ?? preferredViewer.avatarUrl,
+      isLinked: preferredViewer.isLinked,
+      excludeFromRanking: shouldExcludeFromRanking(input.email),
+    })
+    .where(eq(users.id, preferredViewer.id));
+
+  const ownerLink = await withGoogleAccountViewerLinkByViewerId(preferredViewer.id);
+  if (!ownerLink) {
+    const link = buildGoogleAccountViewerLink({
+      googleAccountId: googleAccount.id,
+      viewerId: preferredViewer.id,
+    });
+    await db.insert(googleAccountViewers).values({
+      id: link.id,
+      googleAccountId: link.googleAccountId,
+      viewerId: link.viewerId,
+      createdAt: new Date(link.createdAt),
+    });
+  }
+
+  await db
+    .update(googleAccounts)
+    .set({
+      googleUserId: input.googleUserId,
+      email: input.email,
+      displayName: input.name,
+      avatarUrl: input.image,
+      activeViewerId: preferredViewer.id,
+    })
+    .where(eq(googleAccounts.id, googleAccount.id));
+
+  return withViewerById(preferredViewer.id);
 }
 
 export async function getCatalog() {
@@ -213,6 +1308,7 @@ export async function getLeaderboard() {
       id: users.id,
       youtubeChannelId: users.youtubeChannelId,
       youtubeDisplayName: users.youtubeDisplayName,
+      youtubeHandle: users.youtubeHandle,
       avatarUrl: users.avatarUrl,
       currentBalance: viewerBalances.currentBalance,
       lifetimeEarned: viewerBalances.lifetimeEarned,
@@ -221,6 +1317,7 @@ export async function getLeaderboard() {
     })
     .from(users)
     .innerJoin(viewerBalances, eq(users.id, viewerBalances.viewerId))
+    .where(eq(users.excludeFromRanking, false))
     .orderBy(desc(viewerBalances.currentBalance));
 
   return rows;
@@ -247,6 +1344,7 @@ export async function getViewerByYoutubeChannelId(youtubeChannelId: string) {
       id: users.id,
       youtubeChannelId: users.youtubeChannelId,
       youtubeDisplayName: users.youtubeDisplayName,
+      youtubeHandle: users.youtubeHandle,
       avatarUrl: users.avatarUrl,
       currentBalance: viewerBalances.currentBalance,
       lifetimeEarned: viewerBalances.lifetimeEarned,
@@ -261,29 +1359,33 @@ export async function getViewerByYoutubeChannelId(youtubeChannelId: string) {
   return row ?? null;
 }
 
-export async function getViewerDashboard(email: string) {
-  const user = await withUserByEmail(email);
-  if (!user) {
+export async function getViewerDashboard(viewerId: string) {
+  const viewer = await withViewerById(viewerId);
+  if (!viewer) {
     return null;
   }
 
   const db = getDb();
   if (isDemoMode || !db) {
     const store = getDemoStore();
-    const balance = getBalance(store, user.id);
+    const balance = getBalance(store, viewer.id);
     const redemptions = store.redemptions
-      .filter((entry) => entry.viewerId === user.id)
+      .filter((entry) => entry.viewerId === viewer.id)
       .sort((a, b) => +new Date(b.queuedAt) - +new Date(a.queuedAt));
 
-    return { viewer: user, balance, redemptions };
+    return { viewer, balance, redemptions };
   }
 
-  const [balance] = await db.select().from(viewerBalances).where(eq(viewerBalances.viewerId, user.id)).limit(1);
-  const history = await db.select().from(redemptions).where(eq(redemptions.viewerId, user.id)).orderBy(desc(redemptions.queuedAt));
+  const [balance] = await db.select().from(viewerBalances).where(eq(viewerBalances.viewerId, viewer.id)).limit(1);
+  const history = await db
+    .select()
+    .from(redemptions)
+    .where(eq(redemptions.viewerId, viewer.id))
+    .orderBy(desc(redemptions.queuedAt));
   return {
-    viewer: user,
+    viewer,
     balance: {
-      viewerId: user.id,
+      viewerId: viewer.id,
       currentBalance: balance?.currentBalance ?? 0,
       lifetimeEarned: balance?.lifetimeEarned ?? 0,
       lifetimeSpent: balance?.lifetimeSpent ?? 0,
@@ -300,77 +1402,1088 @@ export async function getViewerDashboard(email: string) {
   };
 }
 
-export async function startLinkCode(email: string) {
-  const user = await withUserByEmail(email);
-  if (!user) {
-    return null;
+export async function listBets(viewerId?: string | null) {
+  const viewer = viewerId ? await withViewerById(viewerId) : null;
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    return listDemoBets(viewer);
   }
 
-  const created: LinkCodeRecord = {
-    id: randomUUID(),
-    code: shortCode(),
-    userId: user.id,
-    expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-    claimedAt: null,
-  };
+  let betRows: Array<typeof bets.$inferSelect>;
+  let optionRows: Array<typeof betOptions.$inferSelect>;
+  let entryRows: Array<typeof betEntries.$inferSelect>;
+
+  try {
+    [betRows, optionRows, entryRows] = await Promise.all([
+      db.select().from(bets).orderBy(desc(bets.createdAt)),
+      db.select().from(betOptions),
+      viewer ? db.select().from(betEntries).where(eq(betEntries.viewerId, viewer.id)) : Promise.resolve([]),
+    ]);
+  } catch (error) {
+    if (isMissingBetSchemaError(error)) {
+      return listDemoBets(viewer);
+    }
+    throw error;
+  }
+
+  const options = optionRows.map(serializeBetOption);
+  const entries = entryRows.map(serializeBetEntry);
+
+  return betRows.map((row) =>
+    buildBetWithOptions({
+      bet: serializeBet(row),
+      options: options.filter((option) => option.betId === row.id),
+      viewerEntry: viewer ? entries.find((entry) => entry.betId === row.id && entry.viewerId === viewer.id) ?? null : null,
+    }),
+  );
+}
+
+export async function listAdminBets() {
+  return listBets();
+}
+
+export async function listGameSuggestions(viewerId?: string | null) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    return listDemoGameSuggestions(viewerId);
+  }
+
+  let suggestionRows: Array<typeof gameSuggestions.$inferSelect>;
+  let boostRows: Array<typeof gameSuggestionBoosts.$inferSelect>;
+
+  try {
+    [suggestionRows, boostRows] = await Promise.all([
+      db.select().from(gameSuggestions).orderBy(desc(gameSuggestions.totalVotes), desc(gameSuggestions.createdAt)),
+      viewerId
+        ? db.select().from(gameSuggestionBoosts).where(eq(gameSuggestionBoosts.viewerId, viewerId))
+        : Promise.resolve([]),
+    ]);
+  } catch (error) {
+    if (isMissingGameSuggestionSchemaError(error)) {
+      return listDemoGameSuggestions(viewerId);
+    }
+    throw error;
+  }
+
+  const serializedSuggestions = suggestionRows.map(serializeGameSuggestion);
+  const viewerIds = [...new Set(serializedSuggestions.map((entry) => entry.viewerId))];
+  const suggestionViewers = viewerIds.length
+    ? await db.select().from(users).where(inArray(users.id, viewerIds))
+    : [];
+  const viewerMap = new Map(suggestionViewers.map((row) => [row.id, serializeViewer(row)]));
+  const serializedBoosts = boostRows.map(serializeGameSuggestionBoost);
+
+  return serializedSuggestions.map((suggestion) =>
+    buildGameSuggestionWithMeta({
+      suggestion,
+      viewer: viewerMap.get(suggestion.viewerId) ?? null,
+      boosts: serializedBoosts.filter((entry) => entry.suggestionId === suggestion.id),
+    }),
+  );
+}
+
+export async function listAdminGameSuggestions() {
+  return listGameSuggestions();
+}
+
+export async function createGameSuggestion(input: {
+  viewerId: string;
+  name: string;
+  description?: string | null;
+  linkUrl?: string | null;
+}) {
+  const viewer = await withViewerById(input.viewerId);
+  if (!viewer) {
+    throw new Error("Viewer nao encontrado.");
+  }
+
+  const name = input.name.trim();
+  const slug = slugify(name);
+  const description = input.description?.trim() || null;
+  const linkUrl = input.linkUrl?.trim() || null;
+  if (!slug) {
+    throw new Error("invalid_name");
+  }
 
   const db = getDb();
   if (isDemoMode || !db) {
     const store = getDemoStore();
-    store.linkCodes = store.linkCodes.filter((entry) => entry.userId !== user.id);
-    store.linkCodes.push(created);
-    globalThis.__lojaDemoStore = store;
-    return created;
+    const duplicate = store.gameSuggestions.find(
+      (entry) => entry.slug === slug && (entry.status === "open" || entry.status === "accepted"),
+    );
+    if (duplicate) {
+      throw new Error("suggestion_already_exists");
+    }
+
+    const createdAt = new Date().toISOString();
+    const suggestion: GameSuggestionRecord = {
+      id: randomUUID(),
+      viewerId: input.viewerId,
+      slug,
+      name,
+      description,
+      linkUrl,
+      status: "open",
+      totalVotes: 0,
+      createdAt,
+      updatedAt: createdAt,
+    };
+    store.gameSuggestions.unshift(suggestion);
+    return buildGameSuggestionWithMeta({ suggestion, viewer, boosts: [] });
   }
 
-  await db.delete(viewerLinks).where(eq(viewerLinks.userId, user.id));
-  await db.insert(viewerLinks).values({
-    id: created.id,
-    userId: created.userId,
-    linkCode: created.code,
-    expiresAt: new Date(created.expiresAt),
-    claimedAt: null,
+  const [existing] = await db
+    .select()
+    .from(gameSuggestions)
+    .where(and(eq(gameSuggestions.slug, slug), inArray(gameSuggestions.status, ["open", "accepted"])))
+    .limit(1);
+  if (existing) {
+    throw new Error("suggestion_already_exists");
+  }
+
+  const createdAt = new Date();
+  await db.insert(gameSuggestions).values({
+    id: randomUUID(),
+    viewerId: input.viewerId,
+    slug,
+    name,
+    description,
+    linkUrl,
+    status: "open",
+    totalVotes: 0,
+    createdAt,
+    updatedAt: createdAt,
   });
+
+  const created = (await listGameSuggestions(input.viewerId)).find((entry) => entry.slug === slug);
+  if (!created) {
+    throw new Error("Falha ao criar sugestao.");
+  }
   return created;
 }
 
-export async function getLinkStatus(email: string) {
-  const user = await withUserByEmail(email);
-  if (!user) {
-    return null;
+export async function boostGameSuggestion(input: {
+  suggestionId: string;
+  viewerId: string;
+  amount: number;
+  source: string;
+}) {
+  if (!Number.isInteger(input.amount) || input.amount <= 0) {
+    throw new Error("invalid_amount");
+  }
+
+  const viewer = await withViewerById(input.viewerId);
+  if (!viewer) {
+    throw new Error("Viewer nao encontrado.");
   }
 
   const db = getDb();
   if (isDemoMode || !db) {
     const store = getDemoStore();
-    return store.linkCodes
-      .filter((entry) => entry.userId === user.id)
-      .sort((a, b) => +new Date(b.expiresAt) - +new Date(a.expiresAt))[0] ?? null;
+    const suggestion = store.gameSuggestions.find((entry) => entry.id === input.suggestionId);
+    if (!suggestion) {
+      throw new Error("suggestion_not_found");
+    }
+    if (suggestion.status !== "open") {
+      throw new Error("suggestion_not_open");
+    }
+
+    const balance = getBalance(store, input.viewerId);
+    if (balance.currentBalance < input.amount) {
+      throw new Error("saldo_insuficiente");
+    }
+
+    const now = new Date().toISOString();
+    balance.currentBalance -= input.amount;
+    balance.lifetimeSpent += input.amount;
+    balance.lastSyncedAt = now;
+
+    suggestion.totalVotes += input.amount;
+    suggestion.updatedAt = now;
+
+    const boost: GameSuggestionBoostRecord = {
+      id: randomUUID(),
+      suggestionId: suggestion.id,
+      viewerId: input.viewerId,
+      amount: input.amount,
+      createdAt: now,
+    };
+    store.gameSuggestionBoosts.unshift(boost);
+
+    createLedgerEntry(store, {
+      viewerId: input.viewerId,
+      kind: "game_suggestion_boost",
+      amount: -input.amount,
+      source: input.source,
+      externalEventId: null,
+      metadata: { suggestionId: suggestion.id },
+      createdAt: now,
+    });
+
+    return buildGameSuggestionWithMeta({
+      suggestion,
+      viewer: getDemoViewerById(store, suggestion.viewerId),
+      boosts: store.gameSuggestionBoosts.filter(
+        (entry) => entry.viewerId === input.viewerId && entry.suggestionId === suggestion.id,
+      ),
+    });
   }
 
-  const [entry] = await db.select().from(viewerLinks).where(eq(viewerLinks.userId, user.id)).limit(1);
-  if (!entry) {
-    return null;
+  await db.transaction(async (tx) => {
+    const [suggestion] = await tx
+      .select()
+      .from(gameSuggestions)
+      .where(eq(gameSuggestions.id, input.suggestionId))
+      .limit(1);
+    if (!suggestion) {
+      throw new Error("suggestion_not_found");
+    }
+    if (suggestion.status !== "open") {
+      throw new Error("suggestion_not_open");
+    }
+
+    const now = new Date();
+    const [debited] = await tx
+      .update(viewerBalances)
+      .set({
+        currentBalance: sql`${viewerBalances.currentBalance} - ${input.amount}`,
+        lifetimeSpent: sql`${viewerBalances.lifetimeSpent} + ${input.amount}`,
+        lastSyncedAt: now,
+      })
+      .where(
+        and(
+          eq(viewerBalances.viewerId, input.viewerId),
+          gte(viewerBalances.currentBalance, input.amount),
+        ),
+      )
+      .returning({ viewerId: viewerBalances.viewerId });
+    if (!debited) {
+      throw new Error("saldo_insuficiente");
+    }
+
+    await tx.insert(gameSuggestionBoosts).values({
+      id: randomUUID(),
+      suggestionId: input.suggestionId,
+      viewerId: input.viewerId,
+      amount: input.amount,
+      createdAt: now,
+    });
+
+    await tx
+      .update(gameSuggestions)
+      .set({
+        totalVotes: sql`${gameSuggestions.totalVotes} + ${input.amount}`,
+        updatedAt: now,
+      })
+      .where(eq(gameSuggestions.id, input.suggestionId));
+
+    await tx.insert(pointLedger).values({
+      id: randomUUID(),
+      viewerId: input.viewerId,
+      kind: "game_suggestion_boost",
+      amount: -input.amount,
+      source: input.source,
+      externalEventId: null,
+      metadata: { suggestionId: input.suggestionId },
+      createdAt: now,
+    });
+  });
+
+  const updated = (await listGameSuggestions(input.viewerId)).find((entry) => entry.id === input.suggestionId);
+  if (!updated) {
+    throw new Error("suggestion_not_found");
   }
+  return updated;
+}
+
+export async function updateGameSuggestionStatus(input: {
+  suggestionId: string;
+  status: GameSuggestionRecord["status"];
+}) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const suggestion = store.gameSuggestions.find((entry) => entry.id === input.suggestionId);
+    if (!suggestion) {
+      throw new Error("suggestion_not_found");
+    }
+    suggestion.status = input.status;
+    suggestion.updatedAt = new Date().toISOString();
+    return buildGameSuggestionWithMeta({
+      suggestion,
+      viewer: getDemoViewerById(store, suggestion.viewerId),
+    });
+  }
+
+  const updatedAt = new Date();
+  const [updated] = await db
+    .update(gameSuggestions)
+    .set({
+      status: input.status,
+      updatedAt,
+    })
+    .where(eq(gameSuggestions.id, input.suggestionId))
+    .returning();
+  if (!updated) {
+    throw new Error("suggestion_not_found");
+  }
+
+  const result = (await listAdminGameSuggestions()).find((entry) => entry.id === input.suggestionId);
+  if (!result) {
+    throw new Error("suggestion_not_found");
+  }
+  return result;
+}
+
+export async function createBet(input: {
+  question: string;
+  closesAt: string;
+  options: string[];
+  startOpen?: boolean;
+}) {
+  const createdAt = new Date().toISOString();
+  const bet: BetRecord = {
+    id: randomUUID(),
+    question: input.question,
+    status: input.startOpen === false ? "draft" : "open",
+    openedAt: input.startOpen === false ? null : createdAt,
+    closesAt: input.closesAt,
+    lockedAt: null,
+    resolvedAt: null,
+    cancelledAt: null,
+    winningOptionId: null,
+    createdAt,
+  };
+  const options = input.options.map((label, index) => ({
+    id: randomUUID(),
+    betId: bet.id,
+    label,
+    sortOrder: index,
+    poolAmount: 0,
+  }));
+
+  const db = getDb();
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    store.bets.unshift(bet);
+    store.betOptions.push(...options);
+    return buildBetWithOptions({ bet, options, viewerEntry: null });
+  }
+
+  await db.transaction(async (tx) => {
+    await tx.insert(bets).values({
+      id: bet.id,
+      question: bet.question,
+      status: bet.status,
+      openedAt: bet.openedAt ? new Date(bet.openedAt) : null,
+      closesAt: new Date(bet.closesAt),
+      lockedAt: null,
+      resolvedAt: null,
+      cancelledAt: null,
+      winningOptionId: null,
+      createdAt: new Date(bet.createdAt),
+    });
+
+    await tx.insert(betOptions).values(
+      options.map((option) => ({
+        id: option.id,
+        betId: option.betId,
+        label: option.label,
+        sortOrder: option.sortOrder,
+        poolAmount: option.poolAmount,
+      })),
+    );
+  });
+
+  return buildBetWithOptions({ bet, options, viewerEntry: null });
+}
+
+async function ensureViewerFromStreamerbotIdentity(input: {
+  viewerExternalId: string;
+  youtubeDisplayName?: string | null;
+  youtubeHandle?: string | null;
+}) {
+  const youtubeDisplayName = input.youtubeDisplayName?.trim() || undefined;
+  const youtubeHandle = normalizeYoutubeHandle(input.youtubeHandle);
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    let viewer = getDemoViewerByYoutubeChannelId(store, input.viewerExternalId);
+
+    if (!viewer) {
+      viewer = buildViewerRecord({
+        googleUserId: null,
+        email: null,
+        name: null,
+        image: null,
+        youtubeChannelId: input.viewerExternalId,
+        youtubeDisplayName: youtubeDisplayName ?? input.viewerExternalId,
+        youtubeHandle,
+        isLinked: false,
+      });
+      store.viewers.push(viewer);
+      getBalance(store, viewer.id);
+      return viewer;
+    }
+
+    if (youtubeDisplayName) {
+      viewer.youtubeDisplayName = youtubeDisplayName;
+    }
+    if (youtubeHandle) {
+      viewer.youtubeHandle = youtubeHandle;
+    }
+
+    return viewer;
+  }
+
+  let viewer = await withViewerByYoutubeChannelId(input.viewerExternalId);
+  if (!viewer) {
+    viewer = buildViewerRecord({
+      googleUserId: null,
+      email: null,
+      name: null,
+      image: null,
+      youtubeChannelId: input.viewerExternalId,
+      youtubeDisplayName: youtubeDisplayName ?? input.viewerExternalId,
+      youtubeHandle,
+      isLinked: false,
+    });
+
+    await db.insert(users).values({
+      id: viewer.id,
+      googleUserId: viewer.googleUserId,
+      email: viewer.email,
+      youtubeChannelId: viewer.youtubeChannelId,
+      youtubeDisplayName: viewer.youtubeDisplayName,
+      youtubeHandle: viewer.youtubeHandle,
+      avatarUrl: viewer.avatarUrl,
+      isLinked: viewer.isLinked,
+      excludeFromRanking: viewer.excludeFromRanking,
+      createdAt: new Date(viewer.createdAt),
+    });
+
+    await db.insert(viewerBalances).values({
+      viewerId: viewer.id,
+      currentBalance: 0,
+      lifetimeEarned: 0,
+      lifetimeSpent: 0,
+      lastSyncedAt: new Date(),
+    });
+
+    return viewer;
+  }
+
+  const shouldUpdateDisplayName = Boolean(
+    youtubeDisplayName && viewer.youtubeDisplayName !== youtubeDisplayName,
+  );
+  const shouldUpdateHandle = Boolean(youtubeHandle && viewer.youtubeHandle !== youtubeHandle);
+  if (shouldUpdateDisplayName || shouldUpdateHandle) {
+    await db
+      .update(users)
+      .set({
+        ...(shouldUpdateDisplayName ? { youtubeDisplayName } : {}),
+        ...(shouldUpdateHandle ? { youtubeHandle } : {}),
+      })
+      .where(eq(users.id, viewer.id));
+
+    viewer = {
+      ...viewer,
+      youtubeDisplayName: youtubeDisplayName ?? viewer.youtubeDisplayName,
+      youtubeHandle: youtubeHandle ?? viewer.youtubeHandle,
+    };
+  }
+
+  return viewer;
+}
+
+async function placeBetForViewer(input: {
+  viewer: ViewerRecord;
+  betId: string;
+  optionId: string;
+  amount: number;
+  source: string;
+  requireLinkedViewer: boolean;
+}) {
+  const dashboard = await getViewerDashboard(input.viewer.id);
+  if (!dashboard) {
+    throw new Error("Viewer not found.");
+  }
+  if (input.requireLinkedViewer && !dashboard.viewer.isLinked) {
+    throw new Error("Conta ainda nao vinculada ao chat.");
+  }
+
+  const existingBets = await listBets(input.viewer.id);
+  const existingBet = existingBets.find((bet) => bet.id === input.betId);
+  if (!existingBet) {
+    throw new Error("Aposta nao encontrada.");
+  }
+
+  const existingEntry = existingBet.viewerPosition
+    ? {
+        id: "viewer-position",
+        betId: input.betId,
+        optionId: existingBet.viewerPosition.optionId,
+        viewerId: dashboard.viewer.id,
+        amount: existingBet.viewerPosition.amount,
+        payoutAmount: existingBet.viewerPosition.payoutAmount,
+        settledAt: existingBet.viewerPosition.settledAt,
+        refundedAt: existingBet.viewerPosition.refundedAt,
+        createdAt: existingBet.createdAt,
+      }
+    : null;
+
+  const validation = evaluateBetPlacement({
+    bet: existingBet,
+    amount: input.amount,
+    optionId: input.optionId,
+    balance: dashboard.balance.currentBalance,
+    existingEntry,
+  });
+  if (!validation.canPlace) {
+    throw new Error(validation.reason);
+  }
+
+  const createdEntry: BetEntryRecord = {
+    id: randomUUID(),
+    betId: input.betId,
+    optionId: input.optionId,
+    viewerId: dashboard.viewer.id,
+    amount: input.amount,
+    payoutAmount: null,
+    settledAt: null,
+    refundedAt: null,
+    createdAt: new Date().toISOString(),
+  };
+
+  const db = getDb();
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const bet = store.bets.find((entry) => entry.id === input.betId);
+    const option = store.betOptions.find(
+      (entry) => entry.id === input.optionId && entry.betId === input.betId,
+    );
+    if (!bet || !option) {
+      throw new Error("Aposta nao encontrada.");
+    }
+
+    const duplicate = store.betEntries.find(
+      (entry) => entry.betId === input.betId && entry.viewerId === dashboard.viewer.id,
+    );
+    if (duplicate) {
+      throw new Error("aposta_ja_registrada");
+    }
+
+    const balance = getBalance(store, dashboard.viewer.id);
+    if (balance.currentBalance < input.amount) {
+      throw new Error("saldo_insuficiente");
+    }
+
+    balance.currentBalance -= input.amount;
+    balance.lifetimeSpent += input.amount;
+    balance.lastSyncedAt = new Date().toISOString();
+    option.poolAmount += input.amount;
+    store.betEntries.unshift(createdEntry);
+    createLedgerEntry(store, {
+      viewerId: dashboard.viewer.id,
+      kind: "bet_debit",
+      amount: -input.amount,
+      source: input.source,
+      externalEventId: null,
+      metadata: { betId: input.betId, optionId: input.optionId },
+    });
+    return createdEntry;
+  }
+
+  await db.transaction(async (tx) => {
+    const [betRow] = await tx.select().from(bets).where(eq(bets.id, input.betId)).limit(1);
+    const [optionRow] = await tx
+      .select()
+      .from(betOptions)
+      .where(eq(betOptions.id, input.optionId))
+      .limit(1);
+
+    if (!betRow || !optionRow || optionRow.betId !== input.betId) {
+      throw new Error("Aposta nao encontrada.");
+    }
+    if (betRow.status !== "open") {
+      throw new Error("bet_not_open");
+    }
+    if (betRow.closesAt.getTime() <= Date.now()) {
+      throw new Error("bet_closed");
+    }
+
+    const insertedEntries = await tx
+      .insert(betEntries)
+      .values({
+        id: createdEntry.id,
+        betId: input.betId,
+        optionId: input.optionId,
+        viewerId: dashboard.viewer.id,
+        amount: input.amount,
+        payoutAmount: null,
+        settledAt: null,
+        refundedAt: null,
+        createdAt: new Date(createdEntry.createdAt),
+      })
+      .onConflictDoNothing({
+        target: [betEntries.betId, betEntries.viewerId],
+      })
+      .returning({ id: betEntries.id });
+
+    if (insertedEntries.length === 0) {
+      throw new Error("aposta_ja_registrada");
+    }
+
+    const debitedBalances = await tx
+      .update(viewerBalances)
+      .set({
+        currentBalance: sql`${viewerBalances.currentBalance} - ${input.amount}`,
+        lifetimeSpent: sql`${viewerBalances.lifetimeSpent} + ${input.amount}`,
+        lastSyncedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(viewerBalances.viewerId, dashboard.viewer.id),
+          gte(viewerBalances.currentBalance, input.amount),
+        ),
+      )
+      .returning({ viewerId: viewerBalances.viewerId });
+
+    if (debitedBalances.length === 0) {
+      throw new Error("saldo_insuficiente");
+    }
+
+    await tx
+      .update(betOptions)
+      .set({
+        poolAmount: sql`${betOptions.poolAmount} + ${input.amount}`,
+      })
+      .where(eq(betOptions.id, input.optionId));
+
+    await tx.insert(pointLedger).values({
+      id: randomUUID(),
+      viewerId: dashboard.viewer.id,
+      kind: "bet_debit",
+      amount: -input.amount,
+      source: input.source,
+      externalEventId: null,
+      metadata: { betId: input.betId, optionId: input.optionId },
+    });
+  });
+
+  return createdEntry;
+}
+
+export async function placeBet({
+  viewerId,
+  betId,
+  optionId,
+  amount,
+  source,
+}: {
+  viewerId: string;
+  betId: string;
+  optionId: string;
+  amount: number;
+  source: string;
+}) {
+  const viewer = await withViewerById(viewerId);
+  if (!viewer) {
+    throw new Error("Viewer not found.");
+  }
+
+  return placeBetForViewer({
+    viewer,
+    betId,
+    optionId,
+    amount,
+    source,
+    requireLinkedViewer: true,
+  });
+}
+
+export async function placeBetFromChatCommand(input: {
+  viewerExternalId: string;
+  youtubeDisplayName?: string | null;
+  youtubeHandle?: string | null;
+  betId?: string | null;
+  optionId?: string | null;
+  optionIndex?: number | null;
+  optionLabel?: string | null;
+  amount: number;
+  source: string;
+}) {
+  const viewer = await ensureViewerFromStreamerbotIdentity({
+    viewerExternalId: input.viewerExternalId,
+    youtubeDisplayName: input.youtubeDisplayName,
+    youtubeHandle: input.youtubeHandle,
+  });
+  const bets = await listBets();
+  const bet = resolveChatTargetBet({
+    bets,
+    betId: input.betId,
+  });
+  const option = resolveChatBetOption({
+    bet,
+    optionId: input.optionId,
+    optionIndex: input.optionIndex,
+    optionLabel: input.optionLabel,
+  });
+  const entry = await placeBetForViewer({
+    viewer,
+    betId: bet.id,
+    optionId: option.id,
+    amount: input.amount,
+    source: input.source,
+    requireLinkedViewer: false,
+  });
+
   return {
-    id: entry.id,
-    code: entry.linkCode,
-    userId: entry.userId,
-    expiresAt: entry.expiresAt.toISOString(),
-    claimedAt: entry.claimedAt?.toISOString() ?? null,
+    entry,
+    viewer,
+    bet,
+    option,
   };
 }
 
+export async function lockBet(betId: string) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const bet = store.bets.find((entry) => entry.id === betId);
+    if (!bet) {
+      throw new Error("Aposta nao encontrada.");
+    }
+    const transition = evaluateBetLifecycleAction({ action: "lock", status: bet.status });
+    if (!transition.canTransition) {
+      throw new Error(transition.reason);
+    }
+    bet.status = "locked";
+    bet.lockedAt = new Date().toISOString();
+    return buildBetWithOptions({
+      bet,
+      options: store.betOptions.filter((option) => option.betId === betId),
+      viewerEntry: null,
+    });
+  }
+
+  const [betRow] = await db.select().from(bets).where(eq(bets.id, betId)).limit(1);
+  if (!betRow) {
+    throw new Error("Aposta nao encontrada.");
+  }
+  const currentBet = serializeBet(betRow);
+  const transition = evaluateBetLifecycleAction({ action: "lock", status: currentBet.status });
+  if (!transition.canTransition) {
+    throw new Error(transition.reason);
+  }
+  const lockedAt = new Date();
+
+  await db
+    .update(bets)
+    .set({
+      status: "locked",
+      lockedAt,
+    })
+    .where(eq(bets.id, betId));
+
+  const optionRows = await db.select().from(betOptions).where(eq(betOptions.betId, betId));
+  return buildBetWithOptions({
+    bet: { ...currentBet, status: "locked", lockedAt: lockedAt.toISOString() },
+    options: optionRows.map(serializeBetOption),
+    viewerEntry: null,
+  });
+}
+
+export async function resolveBet({
+  betId,
+  winningOptionId,
+}: {
+  betId: string;
+  winningOptionId: string;
+}) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const bet = store.bets.find((entry) => entry.id === betId);
+    if (!bet) {
+      throw new Error("Aposta nao encontrada.");
+    }
+    const transition = evaluateBetLifecycleAction({ action: "resolve", status: bet.status });
+    if (!transition.canTransition) {
+      throw new Error(transition.reason);
+    }
+    const options = store.betOptions.filter((entry) => entry.betId === betId);
+    if (!options.some((option) => option.id === winningOptionId)) {
+      throw new Error("Opcao vencedora invalida.");
+    }
+    const entries = store.betEntries.filter((entry) => entry.betId === betId);
+    const shouldRefundAll = shouldRefundBetOnResolve({ entries, winningOptionId });
+    const payouts = calculateBetPayouts({ entries, options, winningOptionId });
+    const resolvedAt = new Date().toISOString();
+
+    bet.status = "resolved";
+    bet.winningOptionId = winningOptionId;
+    bet.lockedAt ??= new Date().toISOString();
+    bet.resolvedAt = resolvedAt;
+
+    for (const entry of entries) {
+      if (shouldRefundAll) {
+        entry.payoutAmount = null;
+        entry.settledAt = null;
+        entry.refundedAt = resolvedAt;
+
+        const balance = getBalance(store, entry.viewerId);
+        balance.currentBalance += entry.amount;
+        balance.lastSyncedAt = resolvedAt;
+        createLedgerEntry(store, {
+          viewerId: entry.viewerId,
+          kind: "bet_refund",
+          amount: entry.amount,
+          source: "admin",
+          externalEventId: null,
+          metadata: { betId, optionId: entry.optionId, winningOptionId },
+        });
+        continue;
+      }
+
+      const settled = payouts.find((candidate) => candidate.entryId === entry.id);
+      entry.payoutAmount = settled?.payoutAmount ?? 0;
+      entry.settledAt = resolvedAt;
+      entry.refundedAt = null;
+      if ((settled?.payoutAmount ?? 0) > 0) {
+        const balance = getBalance(store, entry.viewerId);
+        balance.currentBalance += settled!.payoutAmount;
+        balance.lifetimeEarned += settled!.payoutAmount;
+        balance.lastSyncedAt = resolvedAt;
+        createLedgerEntry(store, {
+          viewerId: entry.viewerId,
+          kind: "bet_payout",
+          amount: settled!.payoutAmount,
+          source: "admin",
+          externalEventId: null,
+          metadata: { betId, optionId: entry.optionId },
+        });
+      }
+    }
+
+    return buildBetWithOptions({ bet, options, viewerEntry: null });
+  }
+
+  await db.transaction(async (tx) => {
+    const [betRow] = await tx.select().from(bets).where(eq(bets.id, betId)).limit(1);
+    if (!betRow) {
+      throw new Error("Aposta nao encontrada.");
+    }
+    const currentBet = serializeBet(betRow);
+    const transition = evaluateBetLifecycleAction({ action: "resolve", status: currentBet.status });
+    if (!transition.canTransition) {
+      throw new Error(transition.reason);
+    }
+
+    const optionRows = (await tx.select().from(betOptions).where(eq(betOptions.betId, betId))).map(serializeBetOption);
+    if (!optionRows.some((option) => option.id === winningOptionId)) {
+      throw new Error("Opcao vencedora invalida.");
+    }
+
+    const entryRows = (await tx.select().from(betEntries).where(eq(betEntries.betId, betId))).map(serializeBetEntry);
+    const shouldRefundAll = shouldRefundBetOnResolve({ entries: entryRows, winningOptionId });
+    const payouts = calculateBetPayouts({ entries: entryRows, options: optionRows, winningOptionId });
+    const settledAt = new Date();
+
+    await tx
+      .update(bets)
+      .set({
+        status: "resolved",
+        winningOptionId,
+        lockedAt: betRow.lockedAt ?? settledAt,
+        resolvedAt: settledAt,
+      })
+      .where(eq(bets.id, betId));
+
+    for (const entry of entryRows) {
+      if (shouldRefundAll) {
+        await tx
+          .update(betEntries)
+          .set({
+            payoutAmount: null,
+            settledAt: null,
+            refundedAt: settledAt,
+          })
+          .where(eq(betEntries.id, entry.id));
+
+        await tx
+          .update(viewerBalances)
+          .set({
+            currentBalance: sql`${viewerBalances.currentBalance} + ${entry.amount}`,
+            lastSyncedAt: settledAt,
+          })
+          .where(eq(viewerBalances.viewerId, entry.viewerId));
+
+        await tx.insert(pointLedger).values({
+          id: randomUUID(),
+          viewerId: entry.viewerId,
+          kind: "bet_refund",
+          amount: entry.amount,
+          source: "admin",
+          externalEventId: null,
+          metadata: { betId, optionId: entry.optionId, winningOptionId },
+        });
+        continue;
+      }
+
+      const payout = payouts.find((candidate) => candidate.entryId === entry.id)?.payoutAmount ?? 0;
+
+      await tx
+        .update(betEntries)
+        .set({
+          payoutAmount: payout,
+          settledAt,
+          refundedAt: null,
+        })
+        .where(eq(betEntries.id, entry.id));
+
+      if (payout > 0) {
+        await tx
+          .update(viewerBalances)
+          .set({
+            currentBalance: sql`${viewerBalances.currentBalance} + ${payout}`,
+            lifetimeEarned: sql`${viewerBalances.lifetimeEarned} + ${payout}`,
+            lastSyncedAt: settledAt,
+          })
+          .where(eq(viewerBalances.viewerId, entry.viewerId));
+
+        await tx.insert(pointLedger).values({
+          id: randomUUID(),
+          viewerId: entry.viewerId,
+          kind: "bet_payout",
+          amount: payout,
+          source: "admin",
+          externalEventId: null,
+          metadata: { betId, optionId: entry.optionId },
+        });
+      }
+    }
+  });
+
+  const resolvedBet = (await listBets()).find((bet) => bet.id === betId);
+  if (!resolvedBet) {
+    throw new Error("Aposta nao encontrada.");
+  }
+  return resolvedBet;
+}
+
+export async function cancelBet(betId: string) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const bet = store.bets.find((entry) => entry.id === betId);
+    if (!bet) {
+      throw new Error("Aposta nao encontrada.");
+    }
+    const transition = evaluateBetLifecycleAction({ action: "cancel", status: bet.status });
+    if (!transition.canTransition) {
+      throw new Error(transition.reason);
+    }
+    const entries = store.betEntries.filter((entry) => entry.betId === betId && !entry.refundedAt);
+    bet.status = "cancelled";
+    bet.cancelledAt = new Date().toISOString();
+
+    for (const entry of entries) {
+      entry.refundedAt = new Date().toISOString();
+      const balance = getBalance(store, entry.viewerId);
+      balance.currentBalance += entry.amount;
+      balance.lastSyncedAt = new Date().toISOString();
+      createLedgerEntry(store, {
+        viewerId: entry.viewerId,
+        kind: "bet_refund",
+        amount: entry.amount,
+        source: "admin",
+        externalEventId: null,
+        metadata: { betId, optionId: entry.optionId },
+      });
+    }
+
+    return buildBetWithOptions({
+      bet,
+      options: store.betOptions.filter((option) => option.betId === betId),
+      viewerEntry: null,
+    });
+  }
+
+  await db.transaction(async (tx) => {
+    const [betRow] = await tx.select().from(bets).where(eq(bets.id, betId)).limit(1);
+    if (!betRow) {
+      throw new Error("Aposta nao encontrada.");
+    }
+    const currentBet = serializeBet(betRow);
+    const transition = evaluateBetLifecycleAction({ action: "cancel", status: currentBet.status });
+    if (!transition.canTransition) {
+      throw new Error(transition.reason);
+    }
+
+    const entryRows = (await tx.select().from(betEntries).where(eq(betEntries.betId, betId))).map(serializeBetEntry);
+    const refundedAt = new Date();
+
+    await tx
+      .update(bets)
+      .set({
+        status: "cancelled",
+        cancelledAt: refundedAt,
+      })
+      .where(eq(bets.id, betId));
+
+    for (const entry of entryRows.filter((item) => !item.refundedAt)) {
+      await tx
+        .update(betEntries)
+        .set({
+          refundedAt,
+        })
+        .where(eq(betEntries.id, entry.id));
+
+      await tx
+        .update(viewerBalances)
+        .set({
+          currentBalance: sql`${viewerBalances.currentBalance} + ${entry.amount}`,
+          lastSyncedAt: refundedAt,
+        })
+        .where(eq(viewerBalances.viewerId, entry.viewerId));
+
+      await tx.insert(pointLedger).values({
+        id: randomUUID(),
+        viewerId: entry.viewerId,
+        kind: "bet_refund",
+        amount: entry.amount,
+        source: "admin",
+        externalEventId: null,
+        metadata: { betId, optionId: entry.optionId },
+      });
+    }
+  });
+
+  const cancelledBet = (await listBets()).find((bet) => bet.id === betId);
+  if (!cancelledBet) {
+    throw new Error("Aposta nao encontrada.");
+  }
+  return cancelledBet;
+}
+
 export async function redeemItem({
-  email,
+  viewerId,
   itemId,
   source,
 }: {
-  email: string;
+  viewerId: string;
   itemId: string;
   source: string;
 }) {
-  const dashboard = await getViewerDashboard(email);
+  const dashboard = await getViewerDashboard(viewerId);
   if (!dashboard) {
     throw new Error("Viewer not found.");
   }
@@ -682,15 +2795,16 @@ export async function getBridgeStatus() {
 
 export async function ingestStreamerbotEvent(input: {
   eventId: string;
-  eventType: "presence_tick" | "chat_bonus" | "manual_adjustment" | "link_code_seen" | "balance_snapshot";
+  eventType: "presence_tick" | "chat_bonus" | "manual_adjustment";
   viewerExternalId?: string;
   youtubeDisplayName?: string;
+  youtubeHandle?: string;
   amount?: number;
   balance?: number;
-  linkCode?: string;
   occurredAt: string;
   payload: Record<string, unknown>;
 }) {
+  const youtubeHandle = normalizeYoutubeHandle(input.youtubeHandle);
   const db = getDb();
   if (isDemoMode || !db) {
     const store = getDemoStore();
@@ -707,28 +2821,6 @@ export async function ingestStreamerbotEvent(input: {
       };
     }
 
-    if (input.eventType === "link_code_seen" && input.linkCode && input.viewerExternalId) {
-      const link = store.linkCodes.find((entry) => entry.code === input.linkCode);
-      if (link) {
-        link.claimedAt = new Date().toISOString();
-        const viewer = store.viewers.find((entry) => entry.id === link.userId);
-        if (viewer) {
-          viewer.youtubeChannelId = input.viewerExternalId;
-          viewer.youtubeDisplayName = input.youtubeDisplayName ?? viewer.youtubeDisplayName;
-          viewer.isLinked = true;
-        }
-      }
-      return {
-        mode: "demo" as const,
-        deduped: false,
-        eventLogInserted: false,
-        viewerCreated: false,
-        balanceUpdated: false,
-        ledgerInserted: false,
-        linkMatched: Boolean(link),
-      };
-    }
-
     const viewer = store.viewers.find((entry) => entry.youtubeChannelId === input.viewerExternalId);
     if (!viewer || typeof input.amount !== "number") {
       return {
@@ -741,6 +2833,13 @@ export async function ingestStreamerbotEvent(input: {
         linkMatched: false,
         ignoredReason: !viewer ? "viewer_not_found" : "missing_amount",
       };
+    }
+
+    if (input.youtubeDisplayName && viewer.youtubeDisplayName !== input.youtubeDisplayName) {
+      viewer.youtubeDisplayName = input.youtubeDisplayName;
+    }
+    if (youtubeHandle && viewer.youtubeHandle !== youtubeHandle) {
+      viewer.youtubeHandle = youtubeHandle;
     }
 
     const balance = getBalance(store, viewer.id);
@@ -774,6 +2873,22 @@ export async function ingestStreamerbotEvent(input: {
     };
   }
 
+  if (eventRequiresActiveLivestream(input.eventType)) {
+    const isLive = await isStreamerbotLivestreamActive();
+    if (!isLive) {
+      return {
+        mode: "database" as const,
+        deduped: false,
+        eventLogInserted: false,
+        viewerCreated: false,
+        balanceUpdated: false,
+        ledgerInserted: false,
+        linkMatched: false,
+        ignoredReason: "livestream_not_live",
+      };
+    }
+  }
+
   const [existing] = await db
     .select()
     .from(streamerbotEventLog)
@@ -801,42 +2916,6 @@ export async function ingestStreamerbotEvent(input: {
     signatureValid: true,
   });
 
-  if (input.eventType === "link_code_seen" && input.linkCode && input.viewerExternalId) {
-    const [link] = await db
-      .select()
-      .from(viewerLinks)
-      .where(eq(viewerLinks.linkCode, input.linkCode))
-      .limit(1);
-
-    if (link) {
-      await db
-        .update(viewerLinks)
-        .set({
-          claimedAt: new Date(),
-        })
-        .where(eq(viewerLinks.id, link.id));
-
-      await db
-        .update(users)
-        .set({
-          youtubeChannelId: input.viewerExternalId,
-          youtubeDisplayName: input.youtubeDisplayName ?? "Viewer vinculado",
-          isLinked: true,
-        })
-        .where(eq(users.id, link.userId));
-    }
-
-    return {
-      mode: "database" as const,
-      deduped: false,
-      eventLogInserted: true,
-      viewerCreated: false,
-      balanceUpdated: false,
-      ledgerInserted: false,
-      linkMatched: Boolean(link),
-    };
-  }
-
   if (typeof input.amount === "number" && input.viewerExternalId) {
     let viewerCreated = false;
     let [viewer] = await db
@@ -853,8 +2932,10 @@ export async function ingestStreamerbotEvent(input: {
         email: null,
         youtubeChannelId: input.viewerExternalId,
         youtubeDisplayName: input.youtubeDisplayName ?? input.viewerExternalId,
+        youtubeHandle,
         avatarUrl: null,
         isLinked: false,
+        excludeFromRanking: false,
       });
       await db.insert(viewerBalances).values({
         viewerId: newId,
@@ -864,6 +2945,22 @@ export async function ingestStreamerbotEvent(input: {
       });
       viewerCreated = true;
       [viewer] = await db.select().from(users).where(eq(users.id, newId)).limit(1);
+    } else {
+      const shouldUpdateDisplayName = Boolean(
+        input.youtubeDisplayName && viewer.youtubeDisplayName !== input.youtubeDisplayName,
+      );
+      const shouldUpdateHandle = Boolean(youtubeHandle && viewer.youtubeHandle !== youtubeHandle);
+      if (!shouldUpdateDisplayName && !shouldUpdateHandle) {
+        // No viewer profile fields changed from this event.
+      } else {
+        await db
+          .update(users)
+          .set({
+            ...(shouldUpdateDisplayName ? { youtubeDisplayName: input.youtubeDisplayName } : {}),
+            ...(shouldUpdateHandle ? { youtubeHandle } : {}),
+          })
+          .where(eq(users.id, viewer.id));
+      }
     }
 
     await db
@@ -919,156 +3016,6 @@ export async function ingestStreamerbotEvent(input: {
     ledgerInserted: false,
     linkMatched: false,
     ignoredReason: "missing_amount_or_viewer_external_id",
-  };
-}
-
-export async function ingestBalanceSnapshot(input: {
-  eventId: string;
-  occurredAt: string;
-  viewers: Array<{ youtubeChannelId: string; youtubeDisplayName: string; balance: number }>;
-}) {
-  const db = getDb();
-  if (isDemoMode || !db) {
-    const store = getDemoStore();
-    let createdViewers = 0;
-    let reconciledBalances = 0;
-    for (const entry of input.viewers) {
-      let viewer = store.viewers.find((item) => item.youtubeChannelId === entry.youtubeChannelId);
-      if (!viewer) {
-        viewer = {
-          id: randomUUID(),
-          googleUserId: null,
-          email: null,
-          youtubeChannelId: entry.youtubeChannelId,
-          youtubeDisplayName: entry.youtubeDisplayName,
-          avatarUrl: null,
-          isLinked: false,
-          createdAt: new Date().toISOString(),
-        };
-        store.viewers.push(viewer);
-        createdViewers += 1;
-      }
-
-      const balance = getBalance(store, viewer.id);
-      const result = reconcileSnapshot({
-        currentBalance: balance.currentBalance,
-        incomingBalance: entry.balance,
-      });
-
-      if (result.needsAdjust) {
-        balance.currentBalance = entry.balance;
-        balance.lastSyncedAt = new Date().toISOString();
-        reconciledBalances += 1;
-        store.snapshots.push({
-          viewerId: viewer.id,
-          balance: entry.balance,
-          sourceEventId: input.eventId,
-          createdAt: input.occurredAt,
-        });
-        createLedgerEntry(store, {
-          viewerId: viewer.id,
-          kind: "snapshot_reconcile",
-          amount: result.delta,
-          source: "streamerbot",
-          externalEventId: input.eventId,
-          metadata: { snapshot: true },
-          createdAt: input.occurredAt,
-        });
-      }
-    }
-    return {
-      mode: "demo" as const,
-      processed: input.viewers.length,
-      createdViewers,
-      reconciledBalances,
-      snapshotsInserted: reconciledBalances,
-    };
-  }
-
-  let createdViewers = 0;
-  let reconciledBalances = 0;
-  for (const entry of input.viewers) {
-    const [viewer] = await db
-      .select()
-      .from(users)
-      .where(eq(users.youtubeChannelId, entry.youtubeChannelId))
-      .limit(1);
-
-    if (!viewer) {
-      const viewerId = randomUUID();
-      await db.insert(users).values({
-        id: viewerId,
-        googleUserId: null,
-        email: null,
-        youtubeChannelId: entry.youtubeChannelId,
-        youtubeDisplayName: entry.youtubeDisplayName,
-        avatarUrl: null,
-        isLinked: false,
-      });
-      await db.insert(viewerBalances).values({
-        viewerId,
-        currentBalance: entry.balance,
-        lifetimeEarned: entry.balance,
-        lifetimeSpent: 0,
-      });
-      await db.insert(streamerbotBalanceSnapshots).values({
-        id: randomUUID(),
-        viewerId,
-        balance: entry.balance,
-        sourceEventId: input.eventId,
-        createdAt: new Date(input.occurredAt),
-      });
-      createdViewers += 1;
-      continue;
-    }
-
-    const [balance] = await db
-      .select()
-      .from(viewerBalances)
-      .where(eq(viewerBalances.viewerId, viewer.id))
-      .limit(1);
-    const result = reconcileSnapshot({
-      currentBalance: balance?.currentBalance ?? 0,
-      incomingBalance: entry.balance,
-    });
-
-    if (result.needsAdjust) {
-      await db
-        .update(viewerBalances)
-        .set({
-          currentBalance: entry.balance,
-          lastSyncedAt: new Date(),
-        })
-        .where(eq(viewerBalances.viewerId, viewer.id));
-
-      await db.insert(pointLedger).values({
-        id: randomUUID(),
-        viewerId: viewer.id,
-        kind: "snapshot_reconcile",
-        amount: result.delta,
-        source: "streamerbot",
-        externalEventId: input.eventId,
-        metadata: { snapshot: true },
-        createdAt: new Date(input.occurredAt),
-      });
-      reconciledBalances += 1;
-    }
-
-    await db.insert(streamerbotBalanceSnapshots).values({
-      id: randomUUID(),
-      viewerId: viewer.id,
-      balance: entry.balance,
-      sourceEventId: input.eventId,
-      createdAt: new Date(input.occurredAt),
-    });
-  }
-
-  return {
-    mode: "database" as const,
-    processed: input.viewers.length,
-    createdViewers,
-    reconciledBalances,
-    snapshotsInserted: input.viewers.length,
   };
 }
 
@@ -1200,6 +3147,7 @@ export async function bridgePull() {
       youtubeDisplayName: entry.viewerDisplayName,
       avatarUrl: null,
       isLinked: true,
+      excludeFromRanking: false,
       createdAt: new Date().toISOString(),
     },
   }));

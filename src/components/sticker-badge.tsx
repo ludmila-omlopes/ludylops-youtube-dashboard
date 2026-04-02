@@ -16,35 +16,35 @@ const stickerStyles: Record<
   }
 > = {
   star: {
-    fill: "#ffe156",
-    shadow: "#ffb23f",
-    accent: "#2a2640",
+    fill: "var(--color-yellow)",
+    shadow: "var(--color-ticker-bg)",
+    accent: "var(--color-accent-ink)",
   },
   heart: {
-    fill: "#f4a3dd",
-    shadow: "#ee7fc6",
-    accent: "#2a2640",
+    fill: "var(--color-pink)",
+    shadow: "var(--color-pink-hot)",
+    accent: "var(--color-accent-ink)",
   },
   spark: {
-    fill: "#ffd7ff",
-    shadow: "#d98cff",
-    accent: "#2a2640",
+    fill: "var(--color-paper-pink)",
+    shadow: "var(--color-purple-mid)",
+    accent: "var(--color-accent-ink)",
   },
   flower: {
-    fill: "#9dc0ff",
-    shadow: "#6fa0ff",
-    accent: "#ffe156",
-    inner: "#d98cff",
+    fill: "var(--color-sky)",
+    shadow: "var(--color-blue)",
+    accent: "var(--color-accent-ink)",
+    inner: "var(--color-purple)",
   },
   bolt: {
-    fill: "#ffe156",
-    shadow: "#ffc933",
-    accent: "#2a2640",
+    fill: "var(--color-yellow)",
+    shadow: "var(--color-ticker-bg)",
+    accent: "var(--color-accent-ink)",
   },
   burst: {
-    fill: "#ffb53d",
-    shadow: "#ff8f1f",
-    accent: "#2a2640",
+    fill: "var(--color-paper-warm)",
+    shadow: "var(--color-yellow)",
+    accent: "var(--color-accent-ink)",
   },
 };
 

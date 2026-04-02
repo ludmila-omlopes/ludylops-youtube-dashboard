@@ -1,4 +1,4 @@
-import { fail, ok, requireAdminApiSession } from "@/lib/api";
+import { fail, isTrustedAppMutationRequest, ok, requireAdminApiSession } from "@/lib/api";
 import { getCatalog, upsertCatalogItem } from "@/lib/db/repository";
 import { catalogItemSchema } from "@/lib/streamerbot/schemas";
 import { slugify } from "@/lib/utils";
@@ -7,6 +7,10 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  if (!isTrustedAppMutationRequest(request)) {
+    return fail("Forbidden", 403);
+  }
+
   const session = await requireAdminApiSession();
   if (!session) {
     return fail("Forbidden", 403);

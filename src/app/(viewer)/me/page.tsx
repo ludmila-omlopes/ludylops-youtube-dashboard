@@ -10,14 +10,14 @@ const statusColorMap: Record<string, string> = {
   queued: "var(--color-lavender)",
   claimed: "var(--color-sky)",
   completed: "var(--color-mint)",
-  failed: "var(--color-pink)",
+  failed: "var(--color-rose)",
   cancelled: "var(--color-periwinkle)",
 };
 
 export default async function MePage() {
   const session = await requireSession();
   const [dashboard, catalog] = await Promise.all([
-    getViewerDashboard(session.user!.email!),
+    getViewerDashboard(session.user!.activeViewerId!),
     getCatalog(),
   ]);
 
@@ -38,16 +38,16 @@ export default async function MePage() {
       {/* Stats + Redemption timeline */}
       <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <div className="grid gap-4 self-start sm:grid-cols-2">
-          <div className="card-brutal bg-[var(--color-sky)] p-5">
-            <p className="mono text-[10px] uppercase tracking-[0.28em] text-[var(--color-ink)]/50">
+          <div className="card-brutal surface-card p-5">
+            <p className="mono text-[10px] uppercase tracking-[0.28em] text-[var(--color-ink-soft)]">
               Pipetz ganhos
             </p>
             <p className="mt-2 text-3xl font-bold" style={{ fontFamily: "var(--font-display)" }}>
               {formatPipetz(dashboard.balance.lifetimeEarned)}
             </p>
           </div>
-          <div className="card-brutal bg-[var(--color-periwinkle)] p-5">
-            <p className="mono text-[10px] uppercase tracking-[0.28em] text-[var(--color-ink)]/50">
+          <div className="card-brutal surface-card-alt p-5">
+            <p className="mono text-[10px] uppercase tracking-[0.28em] text-[var(--color-ink-soft)]">
               Pipetz gastos
             </p>
             <p className="mt-2 text-3xl font-bold" style={{ fontFamily: "var(--font-display)" }}>
@@ -56,8 +56,8 @@ export default async function MePage() {
           </div>
         </div>
 
-        <div className="panel bg-[var(--color-lilac)] p-6 sm:p-8">
-          <p className="mono text-xs uppercase tracking-[0.3em] text-[var(--color-ink)]/50">
+        <div className="panel surface-section p-6 sm:p-8">
+          <p className="mono text-xs uppercase tracking-[0.3em] text-[var(--color-ink-soft)]">
             Seus resgates
           </p>
           <div className="mt-5 grid gap-3">
@@ -78,15 +78,15 @@ export default async function MePage() {
                         {entry.status}
                       </span>
                     </div>
-                    <p className="mt-2 text-sm text-[var(--color-ink)]/60">
+                    <p className="mt-2 text-sm text-[var(--color-ink-soft)]">
                       {formatPipetz(entry.costAtPurchase)} pipetz &bull; {formatDateTime(entry.queuedAt)}
                     </p>
                   </div>
                 );
               })
             ) : (
-              <div className="card-brutal bg-[var(--color-lavender)] p-5 text-center">
-                <p className="text-sm font-bold text-[var(--color-ink)]/60">
+              <div className="card-brutal surface-card p-5 text-center">
+                <p className="text-sm font-bold text-[var(--color-ink-soft)]">
                   Nenhum resgate ainda. Gaste seus pipetz nos resgates!
                 </p>
               </div>

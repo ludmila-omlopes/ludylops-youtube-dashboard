@@ -3,8 +3,8 @@ import { getViewerDashboard } from "@/lib/db/repository";
 
 export async function GET() {
   const session = await requireApiSession();
-  if (!session?.user?.email) {
+  if (!session?.user?.activeViewerId) {
     return fail("Unauthorized", 401);
   }
-  return ok(await getViewerDashboard(session.user.email));
+  return ok(await getViewerDashboard(session.user.activeViewerId));
 }

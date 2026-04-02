@@ -1,4 +1,4 @@
-import { fail, ok, requireAdminApiSession } from "@/lib/api";
+import { fail, isTrustedAppMutationRequest, ok, requireAdminApiSession } from "@/lib/api";
 import { adjustViewerBalance } from "@/lib/db/repository";
 import { manualAdjustSchema } from "@/lib/streamerbot/schemas";
 
@@ -6,6 +6,10 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  if (!isTrustedAppMutationRequest(request)) {
+    return fail("Forbidden", 403);
+  }
+
   const session = await requireAdminApiSession();
   if (!session) {
     return fail("Forbidden", 403);

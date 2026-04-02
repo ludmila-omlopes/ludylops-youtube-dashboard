@@ -11,7 +11,17 @@ export type LedgerKind =
   | "manual_adjustment"
   | "redemption_debit"
   | "redemption_refund"
-  | "snapshot_reconcile";
+  | "bet_debit"
+  | "bet_payout"
+  | "bet_refund"
+  | "game_suggestion_boost";
+
+export type BetStatus =
+  | "draft"
+  | "open"
+  | "locked"
+  | "resolved"
+  | "cancelled";
 
 export type RedemptionStatus =
   | "queued"
@@ -23,19 +33,54 @@ export type RedemptionStatus =
 export type StreamerbotEventType =
   | "presence_tick"
   | "chat_bonus"
-  | "manual_adjustment"
-  | "link_code_seen"
-  | "balance_snapshot";
+  | "manual_adjustment";
+
+export type GameSuggestionStatus =
+  | "open"
+  | "accepted"
+  | "played"
+  | "rejected";
 
 export interface ViewerRecord {
   id: string;
   googleUserId: string | null;
   email: string | null;
-  youtubeChannelId: string | null;
+  youtubeChannelId: string;
   youtubeDisplayName: string;
+  youtubeHandle?: string | null;
   avatarUrl: string | null;
   isLinked: boolean;
+  excludeFromRanking: boolean;
   createdAt: string;
+}
+
+export interface GoogleAccountRecord {
+  id: string;
+  googleUserId: string | null;
+  email: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  activeViewerId: string | null;
+  createdAt: string;
+}
+
+export interface GoogleAccountViewerRecord {
+  id: string;
+  googleAccountId: string;
+  viewerId: string;
+  createdAt: string;
+}
+
+export interface ViewerChannelOptionRecord {
+  id: string;
+  youtubeChannelId: string;
+  youtubeDisplayName: string;
+  youtubeHandle?: string | null;
+  isLinked: boolean;
+  currentBalance: number;
+  lifetimeEarned: number;
+  lifetimeSpent: number;
+  hasPlatformData: boolean;
 }
 
 export interface ViewerBalanceRecord {
@@ -98,17 +143,77 @@ export interface BridgeClientRecord {
   lastSeenAt: string;
 }
 
-export interface LinkCodeRecord {
+export interface BetRecord {
   id: string;
-  code: string;
-  userId: string;
-  expiresAt: string;
-  claimedAt: string | null;
+  question: string;
+  status: BetStatus;
+  openedAt: string | null;
+  closesAt: string;
+  lockedAt: string | null;
+  resolvedAt: string | null;
+  cancelledAt: string | null;
+  winningOptionId: string | null;
+  createdAt: string;
 }
 
-export interface BalanceSnapshotRecord {
+export interface BetOptionRecord {
+  id: string;
+  betId: string;
+  label: string;
+  sortOrder: number;
+  poolAmount: number;
+}
+
+export interface BetEntryRecord {
+  id: string;
+  betId: string;
+  optionId: string;
   viewerId: string;
-  balance: number;
-  sourceEventId: string;
+  amount: number;
+  payoutAmount: number | null;
+  settledAt: string | null;
+  refundedAt: string | null;
   createdAt: string;
+}
+
+export interface BetViewerPositionRecord {
+  amount: number;
+  optionId: string;
+  payoutAmount: number | null;
+  refundedAt: string | null;
+  settledAt: string | null;
+  isWinner: boolean | null;
+}
+
+export interface BetWithOptionsRecord extends BetRecord {
+  totalPool: number;
+  options: BetOptionRecord[];
+  viewerPosition: BetViewerPositionRecord | null;
+}
+
+export interface GameSuggestionRecord {
+  id: string;
+  viewerId: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  linkUrl: string | null;
+  status: GameSuggestionStatus;
+  totalVotes: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GameSuggestionBoostRecord {
+  id: string;
+  suggestionId: string;
+  viewerId: string;
+  amount: number;
+  createdAt: string;
+}
+
+export interface GameSuggestionWithMeta extends GameSuggestionRecord {
+  suggestedBy: string;
+  suggestedByYoutubeHandle: string | null;
+  viewerBoostTotal: number;
 }

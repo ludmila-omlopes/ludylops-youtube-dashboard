@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Archivo_Black, IBM_Plex_Mono, DM_Sans } from "next/font/google";
+import Script from "next/script";
 
 import { auth } from "@/auth";
 import { AppChrome } from "@/components/app-chrome";
@@ -59,10 +60,10 @@ export default async function RootLayout({
       suppressHydrationWarning
       className={`${display.variable} ${body.variable} ${mono.variable} h-full antialiased`}
     >
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-      </head>
       <body className="min-h-full text-[var(--color-ink)]" style={{ fontFamily: "var(--font-body), var(--font-display), sans-serif" }}>
+        <Script id="pipetz-theme" strategy="beforeInteractive">
+          {themeScript}
+        </Script>
         <Providers>
           <AppChrome session={session}>{children}</AppChrome>
         </Providers>

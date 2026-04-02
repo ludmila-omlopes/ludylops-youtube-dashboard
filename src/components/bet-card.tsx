@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import type { DemoBet } from "@/lib/demo-data";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+
+import type { BetWithOptionsRecord } from "@/lib/types";
 import { formatPipetz } from "@/lib/utils";
 
-function timeLeft(deadline: Date): string {
-  const diff = deadline.getTime() - Date.now();
+function timeLeft(closesAt: string, nowMs: number): string {
+  const diff = new Date(closesAt).getTime() - nowMs;
   if (diff <= 0) return "Encerrada";
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -13,7 +15,32 @@ function timeLeft(deadline: Date): string {
   return `${mins}min restantes`;
 }
 
-/* Cores de acento para a borda lateral de cada bet card */
+function statusLabel(bet: BetWithOptionsRecord, nowMs: number) {
+  if (bet.status === "resolved") return "Resolvida";
+  if (bet.status === "cancelled") return "Cancelada";
+  if (bet.status === "locked") return "Travada";
+  return timeLeft(bet.closesAt, nowMs);
+}
+
+function mapError(message: string) {
+  switch (message) {
+    case "saldo_insuficiente":
+      return "Saldo insuficiente.";
+    case "aposta_ja_registrada":
+      return "Voce ja apostou nesta rodada.";
+    case "bet_not_open":
+      return "A aposta nao esta aberta.";
+    case "bet_closed":
+      return "A janela de aposta ja fechou.";
+    case "invalid_option":
+      return "Opcao invalida.";
+    case "invalid_amount":
+      return "Valor invalido.";
+    default:
+      return message;
+  }
+}
+
 const accentColors = [
   "var(--color-purple-mid)",
   "var(--color-blue)",
@@ -23,17 +50,15 @@ const accentColors = [
   "var(--color-periwinkle)",
 ];
 
-/* Fundos para opções — sem sombra, só cor */
 const optionBgs = [
-  "bg-[var(--color-lavender)]",
-  "bg-[var(--color-sky)]",
-  "bg-[var(--color-mint)]",
-  "bg-[var(--color-periwinkle)]",
-  "bg-[var(--color-rose)]",
-  "bg-[var(--color-yellow)]",
+  "surface-card",
+  "surface-card-alt",
+  "surface-card-accent",
+  "bg-[var(--color-paper)]",
+  "surface-card",
+  "surface-card-alt",
 ];
 
-/* Cores das barras de proporção */
 const barColors = [
   "var(--color-purple)",
   "var(--color-blue)",
@@ -46,23 +71,73 @@ const barColors = [
 export function BetCard({
   bet,
   index = 0,
+  viewerBalance,
+  loggedIn = false,
+  canBet = false,
 }: {
-  bet: DemoBet;
+  bet: BetWithOptionsRecord;
   index?: number;
+  viewerBalance?: number | null;
+  loggedIn?: boolean;
+  canBet?: boolean;
 }) {
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const router = useRouter();
+  const [selectedOption, setSelectedOption] = useState<string | null>(bet.viewerPosition?.optionId ?? null);
   const [amount, setAmount] = useState("");
-  const [placed, setPlaced] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [isPending, startTransition] = useTransition();
 
-  const isOpen = bet.status === "open";
+  useEffect(() => {
+    if (bet.status !== "open") {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 60_000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [bet.status]);
+
+  const isOpen = bet.status === "open" && new Date(bet.closesAt).getTime() > nowMs;
   const isResolved = bet.status === "resolved";
+  const hasViewerBet = Boolean(bet.viewerPosition);
   const accent = accentColors[index % accentColors.length];
 
   function handlePlace() {
-    if (!selectedOption || !amount) return;
-    setPlaced(true);
-    setSelectedOption(null);
-    setAmount("");
+    const parsed = Number.parseInt(amount, 10);
+    if (!selectedOption || !Number.isInteger(parsed) || parsed <= 0) {
+      setFeedback("Digite um valor valido.");
+      return;
+    }
+
+    setFeedback(null);
+    startTransition(async () => {
+      const response = await fetch(`/api/me/bets/${bet.id}`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          optionId: selectedOption,
+          amount: parsed,
+          source: "web",
+        }),
+      });
+
+      const payload = (await response.json()) as { ok: boolean; error?: string };
+      if (!response.ok || !payload.ok) {
+        setFeedback(mapError(payload.error ?? "Falha ao registrar aposta."));
+        return;
+      }
+
+      setAmount("");
+      setFeedback("Aposta registrada.");
+      router.refresh();
+    });
   }
 
   return (
@@ -73,7 +148,6 @@ export function BetCard({
         backgroundColor: isResolved ? "var(--color-lilac)" : "var(--color-paper)",
       }}
     >
-      {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3
@@ -82,26 +156,31 @@ export function BetCard({
           >
             {bet.question}
           </h3>
-          <p className="mono mt-1 text-xs uppercase tracking-[0.15em] text-[var(--color-muted)]">
-            {isResolved ? "Encerrada" : timeLeft(bet.deadline)}
+          <p className="mono mt-1 text-xs uppercase tracking-[0.15em] text-[var(--color-ink-soft)]">
+            {statusLabel(bet, nowMs)}
           </p>
         </div>
-        <div
-          className="badge-brutal px-3 py-1.5 text-xs text-[var(--color-ink)]"
-          style={{ backgroundColor: `color-mix(in srgb, ${accent} 25%, white)` }}
-        >
-          Pool: {formatPipetz(bet.totalPool)} pipetz
+        <div className="flex flex-wrap items-center gap-2">
+          <div
+            className="badge-brutal px-3 py-1.5 text-xs text-[var(--color-ink)]"
+            style={{
+              backgroundColor: `color-mix(in srgb, ${accent} 18%, var(--color-paper-warm) 82%)`,
+            }}
+          >
+            Pool: {formatPipetz(bet.totalPool)}
+          </div>
+          {typeof viewerBalance === "number" ? (
+            <div className="retro-label neutral-chip">
+              saldo {formatPipetz(viewerBalance)}
+            </div>
+          ) : null}
         </div>
       </div>
 
-      {/* Barra de proporção visual */}
       {bet.options.length > 0 && bet.totalPool > 0 ? (
         <div className="mt-4 flex h-4 overflow-hidden rounded-full border-2 border-[var(--color-ink)]">
           {bet.options.map((opt, i) => {
-            const pct = Math.max(
-              (opt.poolAmount / bet.totalPool) * 100,
-              2,
-            );
+            const pct = Math.max((opt.poolAmount / bet.totalPool) * 100, 2);
             return (
               <div
                 key={opt.id}
@@ -122,36 +201,29 @@ export function BetCard({
         </div>
       ) : null}
 
-      {/* Opções — flat, sem sombra */}
       <div className="mt-3 grid gap-1.5">
         {bet.options.map((opt, i) => {
           const isWinner = isResolved && bet.winningOptionId === opt.id;
-          const pct =
-            bet.totalPool > 0
-              ? Math.round((opt.poolAmount / bet.totalPool) * 100)
-              : 0;
+          const isViewerPick = bet.viewerPosition?.optionId === opt.id;
+          const pct = bet.totalPool > 0 ? Math.round((opt.poolAmount / bet.totalPool) * 100) : 0;
           const bgClass = optionBgs[i % optionBgs.length];
+          const selectable = isOpen && !hasViewerBet && canBet;
 
           return (
             <button
               key={opt.id}
               type="button"
-              disabled={!isOpen}
-              onClick={() =>
-                setSelectedOption(
-                  selectedOption === opt.id ? null : opt.id,
-                )
-              }
+              disabled={!selectable}
+              onClick={() => setSelectedOption(selectedOption === opt.id ? null : opt.id)}
               className={`card-flat relative flex items-center justify-between overflow-hidden p-3 text-left ${
                 isWinner
                   ? "border-[var(--color-ink)] bg-[var(--color-mint)] ring-2 ring-[var(--color-ink)]"
-                  : selectedOption === opt.id
+                  : selectedOption === opt.id || isViewerPick
                     ? "border-[var(--color-purple-bold)] bg-[var(--color-lavender)] ring-2 ring-[var(--color-purple-bold)]"
                     : bgClass
-              } ${isOpen ? "cursor-pointer" : "cursor-default"}`}
+              } ${selectable ? "cursor-pointer" : "cursor-default"}`}
             >
-              {/* Fill bar — fundo proporcional sutil */}
-              {!isWinner && selectedOption !== opt.id ? (
+              {!isWinner && selectedOption !== opt.id && !isViewerPick ? (
                 <div
                   className="pointer-events-none absolute inset-y-0 left-0 opacity-[0.12]"
                   style={{
@@ -162,6 +234,9 @@ export function BetCard({
               ) : null}
 
               <div className="relative flex items-center gap-2">
+                <span className="rounded-[var(--radius)] border-2 border-[var(--color-ink)] bg-[var(--color-paper)] px-2 py-0.5 text-[10px] font-black uppercase">
+                  #{i + 1}
+                </span>
                 <span
                   className="inline-block h-3 w-3 shrink-0 rounded-full border-2 border-[var(--color-ink)]"
                   style={{
@@ -169,13 +244,18 @@ export function BetCard({
                   }}
                 />
                 <span className="font-bold">
-                  {isWinner ? "🏆 " : ""}
+                  {isWinner ? "Venceu: " : ""}
                   {opt.label}
                 </span>
               </div>
 
               <div className="relative flex items-center gap-2">
-                <span className="mono text-xs font-bold text-[var(--color-muted)]">
+                {isViewerPick ? (
+                  <span className="mono text-[10px] uppercase tracking-[0.16em] text-[var(--color-ink-soft)]">
+                    sua aposta
+                  </span>
+                ) : null}
+                <span className="mono text-xs font-bold text-[var(--color-ink-soft)]">
                   {pct}%
                 </span>
                 <span className="rounded-[var(--radius)] border-2 border-[var(--color-ink)] bg-[var(--color-paper)] px-2 py-0.5 text-xs font-bold">
@@ -187,10 +267,33 @@ export function BetCard({
         })}
       </div>
 
-      {/* Formulário de aposta */}
-      {isOpen && selectedOption ? (
-        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-[var(--radius)] border-2 border-dashed border-[var(--color-ink)] bg-[var(--color-cream)] p-3">
-          <span className="text-xs font-bold uppercase tracking-wide text-[var(--color-muted)]">
+      {isOpen ? (
+        <p className="mono mt-3 text-[11px] uppercase tracking-[0.14em] text-[var(--color-ink-soft)]">
+          chat: !bet &lt;opcao&gt; &lt;valor&gt; ex.: !bet 1 100
+        </p>
+      ) : null}
+
+      {bet.viewerPosition ? (
+        <div className="surface-card mt-4 rounded-[var(--radius)] p-3 text-sm text-[var(--color-ink)]">
+          <p className="font-bold uppercase">Sua posicao</p>
+          <p className="mt-1">
+            {formatPipetz(bet.viewerPosition.amount)} em{" "}
+            {bet.options.find((option) => option.id === bet.viewerPosition?.optionId)?.label ?? "opcao"}
+          </p>
+          {bet.viewerPosition.payoutAmount !== null ? (
+            <p className="mt-1 text-[var(--color-ink-soft)]">
+              retorno: {formatPipetz(bet.viewerPosition.payoutAmount)}
+            </p>
+          ) : null}
+          {bet.viewerPosition.refundedAt ? (
+            <p className="mt-1 text-[var(--color-ink-soft)]">aposta reembolsada</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {isOpen && selectedOption && !hasViewerBet ? (
+        <div className="surface-card mt-4 flex flex-wrap items-center gap-3 rounded-[var(--radius)] border-2 border-dashed border-[var(--color-ink)] p-3">
+          <span className="text-xs font-bold uppercase tracking-wide text-[var(--color-ink-soft)]">
             Quanto apostar?
           </span>
           <input
@@ -204,16 +307,27 @@ export function BetCard({
           <button
             type="button"
             onClick={handlePlace}
-            className="btn-brutal bg-[var(--color-purple-mid)] px-5 py-2.5 text-xs text-white"
+            disabled={isPending}
+            className="btn-brutal ink-button px-5 py-2.5 text-xs disabled:opacity-60"
           >
-            Apostar 🎲
+            {isPending ? "Enviando..." : "Apostar"}
           </button>
         </div>
       ) : null}
 
-      {placed ? (
-        <div className="sticker sticker-pop mt-3 inline-flex bg-[var(--color-mint)] px-3 py-1.5 text-xs">
-          ✓ Aposta registrada!
+      {!loggedIn ? (
+        <p className="mt-3 text-xs font-bold uppercase tracking-[0.16em] text-[var(--color-ink-soft)]">
+          faca login para apostar
+        </p>
+      ) : null}
+      {loggedIn && !canBet && !bet.viewerPosition ? (
+        <p className="mt-3 text-xs font-bold uppercase tracking-[0.16em] text-[var(--color-ink-soft)]">
+          vincule sua conta ao chat para apostar
+        </p>
+      ) : null}
+      {feedback ? (
+        <div className="sticker sticker-pop accent-chip mt-3 inline-flex px-3 py-1.5 text-xs">
+          {feedback}
         </div>
       ) : null}
     </div>

@@ -7,34 +7,36 @@ const typeColorMap: Record<string, string> = {
   play_sound: "var(--color-lavender)",
   show_image: "var(--color-sky)",
   run_action: "var(--color-lilac)",
-  overlay_scene_trigger: "var(--color-pink)",
+  overlay_scene_trigger: "var(--color-rose)",
   tts: "var(--color-periwinkle)",
   generic_streamerbot_action: "var(--color-mint)",
 };
 
 const cardBgCycle = [
-  "bg-[var(--color-lavender)]",
-  "bg-[var(--color-sky)]",
-  "bg-[var(--color-periwinkle)]",
-  "bg-[var(--color-lilac)]",
-  "bg-[var(--color-mint)]",
-  "bg-[var(--color-rose)]",
+  "surface-card",
+  "surface-card-alt",
+  "surface-card-accent",
+  "surface-card",
+  "surface-card-alt",
+  "surface-card",
 ];
 
 export function RedemptionGrid({
   items,
   expanded = false,
   viewerBalance,
+  staticCards = false,
 }: {
   items: CatalogItemRecord[];
   expanded?: boolean;
   viewerBalance?: number;
+  staticCards?: boolean;
 }) {
   return (
-    <section className="panel bg-[var(--color-lilac)] p-6 sm:p-8">
+    <section className="panel surface-section p-6 sm:p-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="mono text-xs uppercase tracking-[0.32em] text-[var(--color-muted)]">
+          <p className="mono text-xs uppercase tracking-[0.32em] text-[var(--color-ink-soft)]">
             Resgates disponiveis
           </p>
           <h2 className="mt-2 text-3xl font-bold uppercase" style={{ fontFamily: "var(--font-display)" }}>
@@ -42,7 +44,7 @@ export function RedemptionGrid({
           </h2>
         </div>
         {typeof viewerBalance === "number" ? (
-          <div className="badge-brutal bg-[var(--color-mint)] px-4 py-2 text-sm text-[var(--color-ink)]">
+          <div className="badge-brutal accent-chip px-4 py-2 text-sm">
             Seus pipetz: {formatPipetz(viewerBalance)}
           </div>
         ) : null}
@@ -56,7 +58,7 @@ export function RedemptionGrid({
           return (
             <article
               key={item.id}
-              className={`card-brutal overflow-hidden ${cardBg}`}
+              className={`${staticCards ? "card-brutal-static" : "card-brutal"} overflow-hidden ${cardBg}`}
             >
               {item.previewImageUrl ? (
                 <div className="relative h-44 overflow-hidden border-b-[3px] border-[var(--color-ink)]">
@@ -73,7 +75,9 @@ export function RedemptionGrid({
                   <div>
                     <p
                       className="badge-brutal inline-flex px-2 py-0.5 text-[10px] text-[var(--color-ink)]"
-                      style={{ backgroundColor: typeBg }}
+                      style={{
+                        backgroundColor: `color-mix(in srgb, ${typeBg} 20%, var(--surface-card) 80%)`,
+                      }}
                     >
                       {item.type.replaceAll("_", " ")}
                     </p>
@@ -82,20 +86,22 @@ export function RedemptionGrid({
                     </h3>
                   </div>
                   <div
-                    className="badge-brutal shrink-0 px-3 py-1.5 text-sm text-[var(--color-ink)]"
-                    style={{ backgroundColor: item.accentColor }}
+                    className="badge-brutal shrink-0 px-3 py-1.5 text-sm text-[var(--color-accent-ink)]"
+                    style={{
+                      backgroundColor: `color-mix(in srgb, ${item.accentColor} 24%, var(--surface-card) 76%)`,
+                    }}
                   >
                     {formatPipetz(item.cost)}
                   </div>
                 </div>
-                <p className="text-sm leading-6 text-[var(--color-muted)]">{item.description}</p>
+                <p className="text-sm leading-6 text-[var(--color-ink-soft)]">{item.description}</p>
 
                 {canAfford !== null ? (
                   <div
                     className={`badge-brutal px-2 py-1 text-[10px] ${
                       canAfford
-                        ? "bg-[var(--color-mint)] text-[var(--color-ink)]"
-                        : "bg-[var(--color-pink)] text-[var(--color-ink)]"
+                        ? "accent-chip"
+                        : "surface-card-accent text-[var(--color-ink)]"
                     }`}
                   >
                     {canAfford
@@ -104,7 +110,7 @@ export function RedemptionGrid({
                   </div>
                 ) : null}
 
-                <div className="flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--color-muted)]">
+                <div className="flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--color-ink-soft)]">
                   <span className="rounded-[var(--radius)] border border-[var(--color-muted)]/40 px-2 py-0.5">
                     CD: {item.viewerCooldownSeconds}s
                   </span>

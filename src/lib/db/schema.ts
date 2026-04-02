@@ -9,16 +9,62 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
-export const users = pgTable("users", {
-  id: varchar("id", { length: 64 }).primaryKey(),
-  googleUserId: varchar("google_user_id", { length: 128 }),
-  email: varchar("email", { length: 255 }),
-  youtubeChannelId: varchar("youtube_channel_id", { length: 128 }),
-  youtubeDisplayName: varchar("youtube_display_name", { length: 255 }).notNull(),
-  avatarUrl: text("avatar_url"),
-  isLinked: boolean("is_linked").default(false).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const users = pgTable(
+  "users",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    googleUserId: varchar("google_user_id", { length: 128 }),
+    email: varchar("email", { length: 255 }),
+    youtubeChannelId: varchar("youtube_channel_id", { length: 128 }).notNull(),
+    youtubeDisplayName: varchar("youtube_display_name", { length: 255 }).notNull(),
+    youtubeHandle: varchar("youtube_handle", { length: 255 }),
+    avatarUrl: text("avatar_url"),
+    isLinked: boolean("is_linked").default(false).notNull(),
+    excludeFromRanking: boolean("exclude_from_ranking").default(false).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    youtubeChannelIdIdx: uniqueIndex("users_youtube_channel_id_idx").on(table.youtubeChannelId),
+  }),
+);
+
+export const googleAccounts = pgTable(
+  "google_accounts",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    googleUserId: varchar("google_user_id", { length: 128 }),
+    email: varchar("email", { length: 255 }).notNull(),
+    displayName: varchar("display_name", { length: 255 }),
+    avatarUrl: text("avatar_url"),
+    activeViewerId: varchar("active_viewer_id", { length: 64 }).references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    googleUserIdIdx: uniqueIndex("google_accounts_google_user_id_idx").on(table.googleUserId),
+    emailIdx: uniqueIndex("google_accounts_email_idx").on(table.email),
+  }),
+);
+
+export const googleAccountViewers = pgTable(
+  "google_account_viewers",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    googleAccountId: varchar("google_account_id", { length: 64 })
+      .references(() => googleAccounts.id)
+      .notNull(),
+    viewerId: varchar("viewer_id", { length: 64 })
+      .references(() => users.id)
+      .notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    googleAccountViewerIdx: uniqueIndex("google_account_viewers_account_viewer_idx").on(
+      table.googleAccountId,
+      table.viewerId,
+    ),
+    viewerIdIdx: uniqueIndex("google_account_viewers_viewer_id_idx").on(table.viewerId),
+  }),
+);
 
 export const viewerBalances = pgTable("viewer_balances", {
   viewerId: varchar("viewer_id", { length: 64 })
@@ -34,15 +80,15 @@ export const viewerLinks = pgTable(
   "viewer_links",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
-    userId: varchar("user_id", { length: 64 })
-      .references(() => users.id)
+    googleAccountId: varchar("google_account_id", { length: 64 })
+      .references(() => googleAccounts.id)
       .notNull(),
     linkCode: varchar("link_code", { length: 32 }).notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     claimedAt: timestamp("claimed_at", { withTimezone: true }),
   },
   (table) => ({
-    userIdIdx: uniqueIndex("viewer_links_user_id_idx").on(table.userId),
+    googleAccountIdIdx: uniqueIndex("viewer_links_google_account_id_idx").on(table.googleAccountId),
     codeIdx: uniqueIndex("viewer_links_code_idx").on(table.linkCode),
   }),
 );
@@ -89,6 +135,80 @@ export const pointLedger = pgTable(
     eventIdx: uniqueIndex("point_ledger_external_event_idx").on(table.externalEventId),
   }),
 );
+
+export const bets = pgTable("bets", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  question: text("question").notNull(),
+  status: varchar("status", { length: 32 }).notNull(),
+  openedAt: timestamp("opened_at", { withTimezone: true }),
+  closesAt: timestamp("closes_at", { withTimezone: true }).notNull(),
+  lockedAt: timestamp("locked_at", { withTimezone: true }),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  winningOptionId: varchar("winning_option_id", { length: 64 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const betOptions = pgTable("bet_options", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  betId: varchar("bet_id", { length: 64 })
+    .references(() => bets.id)
+    .notNull(),
+  label: varchar("label", { length: 255 }).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  poolAmount: integer("pool_amount").default(0).notNull(),
+});
+
+export const betEntries = pgTable(
+  "bet_entries",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    betId: varchar("bet_id", { length: 64 })
+      .references(() => bets.id)
+      .notNull(),
+    optionId: varchar("option_id", { length: 64 })
+      .references(() => betOptions.id)
+      .notNull(),
+    viewerId: varchar("viewer_id", { length: 64 })
+      .references(() => users.id)
+      .notNull(),
+    amount: integer("amount").notNull(),
+    payoutAmount: integer("payout_amount"),
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+    refundedAt: timestamp("refunded_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    betViewerIdx: uniqueIndex("bet_entries_bet_viewer_idx").on(table.betId, table.viewerId),
+  }),
+);
+
+export const gameSuggestions = pgTable("game_suggestions", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  viewerId: varchar("viewer_id", { length: 64 })
+    .references(() => users.id)
+    .notNull(),
+  slug: varchar("slug", { length: 160 }).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  linkUrl: text("link_url"),
+  status: varchar("status", { length: 32 }).notNull(),
+  totalVotes: integer("total_votes").default(0).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const gameSuggestionBoosts = pgTable("game_suggestion_boosts", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  suggestionId: varchar("suggestion_id", { length: 64 })
+    .references(() => gameSuggestions.id)
+    .notNull(),
+  viewerId: varchar("viewer_id", { length: 64 })
+    .references(() => users.id)
+    .notNull(),
+  amount: integer("amount").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
 
 export const redemptions = pgTable("redemptions", {
   id: varchar("id", { length: 64 }).primaryKey(),
@@ -138,13 +258,3 @@ export const streamerbotEventLog = pgTable(
     eventIdIdx: uniqueIndex("streamerbot_event_id_idx").on(table.eventId),
   }),
 );
-
-export const streamerbotBalanceSnapshots = pgTable("streamerbot_balance_snapshots", {
-  id: varchar("id", { length: 64 }).primaryKey(),
-  viewerId: varchar("viewer_id", { length: 64 })
-    .references(() => users.id)
-    .notNull(),
-  balance: integer("balance").notNull(),
-  sourceEventId: varchar("source_event_id", { length: 128 }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});

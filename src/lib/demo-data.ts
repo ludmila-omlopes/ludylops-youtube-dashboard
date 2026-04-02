@@ -1,9 +1,14 @@
 import {
-  BalanceSnapshotRecord,
+  BetEntryRecord,
+  BetOptionRecord,
+  BetRecord,
   BridgeClientRecord,
   CatalogItemRecord,
+  GameSuggestionBoostRecord,
+  GameSuggestionRecord,
+  GoogleAccountRecord,
+  GoogleAccountViewerRecord,
   LedgerEntryRecord,
-  LinkCodeRecord,
   RedemptionRecord,
   ViewerBalanceRecord,
   ViewerRecord,
@@ -18,9 +23,11 @@ export const demoViewers: ViewerRecord[] = [
     email: "ana@example.com",
     youtubeChannelId: "yt_ana",
     youtubeDisplayName: "Ana Neon",
+    youtubeHandle: "@ananeon",
     avatarUrl:
       "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80",
     isLinked: true,
+    excludeFromRanking: false,
     createdAt: new Date(now.getTime() - 1000 * 60 * 60 * 24 * 4).toISOString(),
   },
   {
@@ -29,9 +36,11 @@ export const demoViewers: ViewerRecord[] = [
     email: "caio@example.com",
     youtubeChannelId: "yt_caio",
     youtubeDisplayName: "Caio CRT",
+    youtubeHandle: "@caiocrt",
     avatarUrl:
       "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80",
     isLinked: true,
+    excludeFromRanking: false,
     createdAt: new Date(now.getTime() - 1000 * 60 * 60 * 24 * 2).toISOString(),
   },
   {
@@ -40,10 +49,50 @@ export const demoViewers: ViewerRecord[] = [
     email: null,
     youtubeChannelId: "yt_lia",
     youtubeDisplayName: "Lia Pixel",
+    youtubeHandle: "@liapixel",
     avatarUrl:
       "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80",
     isLinked: false,
+    excludeFromRanking: false,
     createdAt: new Date(now.getTime() - 1000 * 60 * 60 * 12).toISOString(),
+  },
+];
+
+export const demoGoogleAccounts: GoogleAccountRecord[] = [
+  {
+    id: "ga_ana",
+    googleUserId: "google_ana",
+    email: "ana@example.com",
+    displayName: "Ana",
+    avatarUrl:
+      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80",
+    activeViewerId: "viewer_ana",
+    createdAt: new Date(now.getTime() - 1000 * 60 * 60 * 24 * 4).toISOString(),
+  },
+  {
+    id: "ga_caio",
+    googleUserId: "google_caio",
+    email: "caio@example.com",
+    displayName: "Caio",
+    avatarUrl:
+      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80",
+    activeViewerId: "viewer_caio",
+    createdAt: new Date(now.getTime() - 1000 * 60 * 60 * 24 * 2).toISOString(),
+  },
+];
+
+export const demoGoogleAccountViewers: GoogleAccountViewerRecord[] = [
+  {
+    id: "gav_ana_1",
+    googleAccountId: "ga_ana",
+    viewerId: "viewer_ana",
+    createdAt: new Date(now.getTime() - 1000 * 60 * 60 * 24 * 4).toISOString(),
+  },
+  {
+    id: "gav_caio_1",
+    googleAccountId: "ga_caio",
+    viewerId: "viewer_caio",
+    createdAt: new Date(now.getTime() - 1000 * 60 * 60 * 24 * 2).toISOString(),
   },
 ];
 
@@ -193,9 +242,6 @@ export const demoBridgeClients: BridgeClientRecord[] = [
   },
 ];
 
-export const demoLinkCodes: LinkCodeRecord[] = [];
-export const demoSnapshots: BalanceSnapshotRecord[] = [];
-
 // ── Bets (mock) ──
 
 export interface DemoBetOption {
@@ -253,57 +299,106 @@ export const demoBets: DemoBet[] = [
   },
 ];
 
+export const demoBetRecords: BetRecord[] = demoBets.map((bet) => ({
+  id: bet.id,
+  question: bet.question,
+  status: bet.status,
+  openedAt: new Date(now.getTime() - 15 * 60 * 1000).toISOString(),
+  closesAt: bet.deadline.toISOString(),
+  lockedAt: bet.status === "locked" || bet.status === "resolved" ? bet.deadline.toISOString() : null,
+  resolvedAt: bet.status === "resolved" ? new Date(now.getTime() - 5 * 60 * 1000).toISOString() : null,
+  cancelledAt: bet.status === "cancelled" ? new Date(now.getTime() - 5 * 60 * 1000).toISOString() : null,
+  winningOptionId: bet.winningOptionId ?? null,
+  createdAt: new Date(now.getTime() - 30 * 60 * 1000).toISOString(),
+}));
+
+export const demoBetOptions: BetOptionRecord[] = demoBets.flatMap((bet) =>
+  bet.options.map((option, index) => ({
+    id: option.id,
+    betId: bet.id,
+    label: option.label,
+    sortOrder: index,
+    poolAmount: option.poolAmount,
+  })),
+);
+
+export const demoBetEntries: BetEntryRecord[] = [
+  {
+    id: "bet-entry-1",
+    betId: "bet-2",
+    optionId: "opt-2b",
+    viewerId: "viewer_ana",
+    amount: 400,
+    payoutAmount: 683,
+    settledAt: new Date(now.getTime() - 23 * 60 * 60 * 1000).toISOString(),
+    refundedAt: null,
+    createdAt: new Date(now.getTime() - 29 * 60 * 60 * 1000).toISOString(),
+  },
+];
+
 // ── Game Suggestions (mock) ──
 
-export interface DemoGameSuggestion {
-  id: string;
-  name: string;
-  description: string;
-  linkUrl?: string;
-  totalVotes: number;
-  status: "open" | "accepted" | "played" | "rejected";
-  suggestedBy: string;
-}
-
-export const demoGameSuggestions: DemoGameSuggestion[] = [
+export const demoGameSuggestions: GameSuggestionRecord[] = [
   {
     id: "gs-1",
+    viewerId: "viewer_ana",
+    slug: "hollow-knight-silksong",
     name: "Hollow Knight: Silksong",
     description: "Quando sair, bora de day one!",
+    linkUrl: null,
     totalVotes: 3200,
     status: "open",
-    suggestedBy: "Ana Neon",
+    createdAt: new Date(now.getTime() - 1000 * 60 * 60 * 72).toISOString(),
+    updatedAt: new Date(now.getTime() - 1000 * 60 * 60 * 2).toISOString(),
   },
   {
     id: "gs-2",
+    viewerId: "viewer_caio",
+    slug: "celeste",
     name: "Celeste",
     description: "Platformer indie que vai te fazer chorar e xingar ao mesmo tempo",
+    linkUrl: null,
     totalVotes: 1800,
     status: "accepted",
-    suggestedBy: "Caio CRT",
+    createdAt: new Date(now.getTime() - 1000 * 60 * 60 * 54).toISOString(),
+    updatedAt: new Date(now.getTime() - 1000 * 60 * 60 * 6).toISOString(),
   },
   {
     id: "gs-3",
+    viewerId: "viewer_lia",
+    slug: "elden-ring-dlc",
     name: "Elden Ring DLC",
     description: "Shadow of the Erdtree, pra sofrer junto",
+    linkUrl: null,
     totalVotes: 2950,
     status: "played",
-    suggestedBy: "Lia Pixel",
+    createdAt: new Date(now.getTime() - 1000 * 60 * 60 * 44).toISOString(),
+    updatedAt: new Date(now.getTime() - 1000 * 60 * 60 * 10).toISOString(),
   },
   {
     id: "gs-4",
+    viewerId: "viewer_caio",
+    slug: "hades-ii",
     name: "Hades II",
     description: "Early access ja ta incrivel",
+    linkUrl: null,
     totalVotes: 1200,
     status: "open",
-    suggestedBy: "Caio CRT",
+    createdAt: new Date(now.getTime() - 1000 * 60 * 60 * 20).toISOString(),
+    updatedAt: new Date(now.getTime() - 1000 * 60 * 30).toISOString(),
   },
   {
     id: "gs-5",
+    viewerId: "viewer_ana",
+    slug: "outer-wilds",
     name: "Outer Wilds",
     description: "Melhor jogo de exploracao que existe. Sem spoilers!",
+    linkUrl: null,
     totalVotes: 890,
     status: "open",
-    suggestedBy: "Ana Neon",
+    createdAt: new Date(now.getTime() - 1000 * 60 * 60 * 12).toISOString(),
+    updatedAt: new Date(now.getTime() - 1000 * 60 * 20).toISOString(),
   },
 ];
+
+export const demoGameSuggestionBoosts: GameSuggestionBoostRecord[] = [];

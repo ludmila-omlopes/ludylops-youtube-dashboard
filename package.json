@@ -11,7 +11,11 @@
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
-    "bridge:dev": "tsx bridge/src/index.ts"
+    "db:ensure-youtube-handle": "tsx scripts/ensure-youtube-handle-column.ts",
+    "bridge:dev": "tsx bridge/src/index.ts",
+    "backfill:youtube-names": "tsx scripts/backfill-youtube-display-names.ts",
+    "fix:users-ranking-state": "tsx scripts/fix-users-ranking-state.ts",
+    "merge:duplicate-youtube-users": "tsx scripts/merge-duplicate-youtube-users.ts"
   },
   "dependencies": {
     "@auth/core": "^0.41.1",

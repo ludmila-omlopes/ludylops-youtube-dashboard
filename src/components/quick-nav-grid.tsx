@@ -17,28 +17,28 @@ export function QuickNavGrid({ items }: { items: NavItem[] }) {
         <Link
           key={item.href}
           href={item.href}
-          className={`card-brutal group relative overflow-hidden p-5 ${item.bg} ${item.shadow ?? ""}`}
+          className={`card-brutal group flex h-full flex-col justify-between gap-6 overflow-hidden p-5 ${item.bg} ${item.shadow ?? ""}`}
         >
-          {/* Emoji grande decorativo */}
-          {item.emoji ? (
-            <span className="pointer-events-none absolute -bottom-2 -right-2 text-5xl opacity-20 transition-transform duration-300 group-hover:scale-125 group-hover:opacity-30">
-              {item.emoji}
-            </span>
-          ) : null}
+          <div className="flex items-start justify-between gap-3">
+            <div className="card-brutal flex h-12 w-12 items-center justify-center bg-[var(--color-paper)] px-2 text-[11px] font-black uppercase tracking-[0.16em]">
+              {item.emoji ?? "GO"}
+            </div>
+            <p className="mono text-right text-[10px] uppercase tracking-[0.28em] text-[var(--color-ink-soft)]">
+              {item.sublabel}
+            </p>
+          </div>
 
-          <p className="mono text-[10px] uppercase tracking-[0.28em] text-[var(--color-muted)]">
-            {item.sublabel}
-          </p>
-          <p
-            className="mt-1 text-2xl font-bold"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            {item.value}
-          </p>
-          <p className="mt-2 text-sm font-bold uppercase tracking-[0.1em] text-[var(--color-ink)]">
-            {item.emoji ? <span className="mr-1">{item.emoji}</span> : null}
-            {item.label} →
-          </p>
+          <div>
+            <p
+              className="text-3xl uppercase leading-none"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              {item.value}
+            </p>
+            <p className="mt-3 text-sm font-black uppercase tracking-[0.1em]">
+              {item.label} ↗
+            </p>
+          </div>
         </Link>
       ))}
     </div>

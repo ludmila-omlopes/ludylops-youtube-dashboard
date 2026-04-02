@@ -1,3 +1,5 @@
+import { AdminBetsPanel } from "@/components/admin-bets-panel";
+import { AdminGameSuggestionsPanel } from "@/components/admin-game-suggestions-panel";
 import { RedemptionGrid } from "@/components/redemption-grid";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { LiveStatusPanel } from "@/components/live-status-panel";
@@ -6,6 +8,8 @@ import {
   getBridgeStatus,
   getCatalog,
   getLeaderboard,
+  listAdminGameSuggestions,
+  listAdminBets,
   listAdminRedemptions,
 } from "@/lib/db/repository";
 import { formatDateTime, formatPipetz } from "@/lib/utils";
@@ -14,23 +18,25 @@ const statusColorMap: Record<string, string> = {
   queued: "var(--color-lavender)",
   claimed: "var(--color-sky)",
   completed: "var(--color-mint)",
-  failed: "var(--color-pink)",
+  failed: "var(--color-rose)",
   cancelled: "var(--color-periwinkle)",
 };
 
 export default async function AdminPage() {
   await requireAdminSession();
-  const [catalog, leaderboard, bridge, redemptions] = await Promise.all([
+  const [catalog, leaderboard, bridge, redemptions, bets, suggestions] = await Promise.all([
     getCatalog(),
     getLeaderboard(),
     getBridgeStatus(),
     listAdminRedemptions(),
+    listAdminBets(),
+    listAdminGameSuggestions(),
   ]);
 
   return (
     <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-8 px-4 py-8 sm:px-6 lg:px-10">
-      <section className="panel bg-[var(--color-lavender)] p-6 sm:p-8">
-        <p className="mono text-xs font-bold uppercase tracking-[0.32em] text-[var(--color-ink)]/50">
+      <section className="panel surface-hero p-6 sm:p-8">
+        <p className="mono text-xs font-bold uppercase tracking-[0.32em] text-[var(--color-ink-soft)]">
           Painel operacional
         </p>
         <h1
@@ -43,15 +49,15 @@ export default async function AdminPage() {
 
       <section className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <LiveStatusPanel bridge={bridge} />
-        <div className="panel bg-[var(--color-rose)] p-6">
-          <p className="mono text-xs uppercase tracking-[0.3em] text-[var(--color-ink)]/50">
+        <div className="panel surface-section p-6">
+          <p className="mono text-xs uppercase tracking-[0.3em] text-[var(--color-ink-soft)]">
             Fila recente
           </p>
           <div className="mt-6 grid gap-3">
             {redemptions.slice(0, 6).map((entry) => {
               const statusBg = statusColorMap[entry.status] ?? "var(--color-paper)";
               return (
-                <div key={entry.id} className="card-brutal p-4">
+                <div key={entry.id} className="card-brutal-static p-4">
                   <div className="flex items-center justify-between gap-3">
                     <span
                       className="badge-brutal px-2 py-1 text-[10px] text-[var(--color-ink)]"
@@ -63,7 +69,7 @@ export default async function AdminPage() {
                       {formatPipetz(entry.costAtPurchase)} pipetz
                     </span>
                   </div>
-                  <p className="mt-2 text-sm text-[var(--color-ink)]/60">
+                  <p className="mt-2 text-sm text-[var(--color-ink-soft)]">
                     {formatDateTime(entry.queuedAt)}
                   </p>
                 </div>
@@ -74,16 +80,19 @@ export default async function AdminPage() {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <div className="panel bg-[var(--color-lilac)] p-6">
-          <p className="mono text-xs uppercase tracking-[0.3em] text-[var(--color-ink)]/50">
+        <div className="panel surface-section p-6">
+          <p className="mono text-xs uppercase tracking-[0.3em] text-[var(--color-ink-soft)]">
             Ranking de pipetz
           </p>
           <div className="mt-6">
             <LeaderboardTable entries={leaderboard.slice(0, 10)} />
           </div>
         </div>
-        <RedemptionGrid items={catalog} expanded />
+        <RedemptionGrid items={catalog} expanded staticCards />
       </section>
+
+      <AdminBetsPanel bets={bets} />
+      <AdminGameSuggestionsPanel suggestions={suggestions} />
     </div>
   );
 }

@@ -14,13 +14,13 @@ export function PipetzBalanceCard({
   compact?: boolean;
 }) {
   return (
-    <div className="panel relative overflow-hidden bg-[var(--color-lavender)] p-6 sm:p-8">
+    <div className="panel surface-section relative overflow-hidden p-6 sm:p-8">
       {/* Dot pattern decorativo */}
       <div className="bg-dots-light pointer-events-none absolute inset-0 opacity-20" />
 
       <div className="relative flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="mono text-xs uppercase tracking-[0.3em] text-[var(--color-muted)]">
+          <p className="mono text-xs uppercase tracking-[0.3em] text-[var(--color-ink-soft)]">
             Meus Pipetz
           </p>
           <h1
@@ -43,7 +43,7 @@ export function PipetzBalanceCard({
               {formatPipetz(currentBalance)}
             </p>
           </div>
-          <p className="mono mt-2 text-xs uppercase tracking-[0.15em] text-[var(--color-muted)]">
+          <p className="mono mt-2 text-xs uppercase tracking-[0.15em] text-[var(--color-ink-soft)]">
             pipetz
           </p>
         </div>
@@ -51,10 +51,10 @@ export function PipetzBalanceCard({
 
       {!compact ? (
         <div className="relative mt-5 flex flex-wrap gap-3">
-          <span className="rounded-[var(--radius)] border-2 border-[var(--color-ink)] bg-[var(--color-mint)] px-3 py-1.5 text-sm font-bold">
+          <span className="accent-chip rounded-[var(--radius)] border-2 border-[var(--color-ink)] px-3 py-1.5 text-sm font-bold">
             ↗ Ganhos: {formatPipetz(lifetimeEarned)}
           </span>
-          <span className="rounded-[var(--radius)] border-2 border-[var(--color-ink)] bg-[var(--color-rose)] px-3 py-1.5 text-sm font-bold">
+          <span className="surface-card-accent rounded-[var(--radius)] border-2 border-[var(--color-ink)] px-3 py-1.5 text-sm font-bold">
             ↘ Gastos: {formatPipetz(lifetimeSpent)}
           </span>
         </div>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import { adminEmails } from "@/lib/env";
+export { isTrustedAppMutationRequest } from "@/lib/request-origin";
 
 export function ok(data: unknown, init?: ResponseInit) {
   return NextResponse.json({ ok: true, data }, init);

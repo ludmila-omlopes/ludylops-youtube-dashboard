@@ -3,6 +3,8 @@
 import { getProviders, signIn, signOut, useSession } from "next-auth/react";
 import { startTransition, useEffect, useState } from "react";
 
+import { ViewerChannelSwitcher } from "@/components/viewer-channel-switcher";
+
 export function AuthButtons() {
   const { data: session } = useSession();
   const [providers, setProviders] = useState<Record<string, { id: string; name: string }> | null>(null);
@@ -19,16 +21,14 @@ export function AuthButtons() {
 
   if (session?.user) {
     return (
-      <div className="flex items-center gap-3">
-        <span className="retro-label hidden bg-[var(--color-lilac)] text-[var(--color-ink)] sm:inline-flex">
-          {session.user.name ?? session.user.email}
-        </span>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <ViewerChannelSwitcher />
         <button
           type="button"
           onClick={() => signOut({ callbackUrl: "/" })}
-          className="btn-brutal bg-[var(--color-rose)] px-5 py-2.5 text-xs text-[var(--color-ink)]"
+          className="btn-brutal bg-[var(--color-paper)] px-5 py-2.5 text-xs text-[var(--color-ink)]"
         >
-          Sair
+          Sair ←
         </button>
       </div>
     );
@@ -43,18 +43,18 @@ export function AuthButtons() {
         <button
           type="button"
           onClick={() => signIn("google", { callbackUrl: "/" })}
-          className="btn-brutal bg-[var(--color-yellow)] px-6 py-2.5 text-sm text-[var(--color-ink)] shadow-[5px_5px_0_var(--shadow-color)]"
+          className="btn-brutal ink-button px-6 py-2.5 text-sm"
         >
-          ★ Entrar com Google
+          Entrar com Google ↗
         </button>
       ) : null}
       {hasCredentials ? (
         <button
           type="button"
           onClick={() => signIn("credentials", { email: "ana@example.com", callbackUrl: "/" })}
-          className="btn-brutal bg-[var(--color-surface-strong)] px-5 py-2.5 text-xs text-[var(--color-ink)]"
+          className="btn-brutal accent-button px-5 py-2.5 text-xs"
         >
-          Modo demo
+          Modo demo →
         </button>
       ) : null}
     </div>

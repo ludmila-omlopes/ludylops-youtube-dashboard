@@ -28,6 +28,44 @@ export const redeemSchema = z.object({
   source: z.string().default("web"),
 });
 
+export const placeBetSchema = z.object({
+  optionId: z.string().min(1),
+  amount: z.number().int().min(1),
+  source: z.string().default("web"),
+});
+
+export const streamerbotChatBetSchema = z
+  .object({
+    viewerExternalId: z.string().min(1),
+    youtubeDisplayName: z.string().min(1).optional(),
+    youtubeHandle: z.string().min(1).optional(),
+    betId: z.string().min(1).optional(),
+    optionId: z.string().min(1).optional(),
+    optionIndex: z.number().int().min(1).optional(),
+    optionLabel: z.string().min(1).optional(),
+    amount: z.number().int().min(1),
+    source: z.string().default("streamerbot_chat"),
+  })
+  .refine((value) => value.optionId || value.optionIndex || value.optionLabel, {
+    message: "Option selector is required.",
+    path: ["optionId"],
+  });
+
+export const setActiveViewerSchema = z.object({
+  viewerId: z.string().min(1),
+});
+
+export const createBetSchema = z.object({
+  question: z.string().min(6).max(255),
+  closesAt: z.string().datetime(),
+  options: z.array(z.string().min(1).max(255)).min(2).max(6),
+  startOpen: z.boolean().default(true),
+});
+
+export const resolveBetSchema = z.object({
+  winningOptionId: z.string().min(1),
+});
+
 export const manualAdjustSchema = z.object({
   amount: z.number().int().refine((value) => value !== 0, {
     message: "Amount cannot be zero.",
@@ -37,32 +75,14 @@ export const manualAdjustSchema = z.object({
 
 export const streamerbotEventSchema = z.object({
   eventId: z.string().min(3),
-  eventType: z.enum([
-    "presence_tick",
-    "chat_bonus",
-    "manual_adjustment",
-    "link_code_seen",
-    "balance_snapshot",
-  ]),
+  eventType: z.enum(["presence_tick", "chat_bonus", "manual_adjustment"]),
   viewerExternalId: z.string().min(1).optional(),
   youtubeDisplayName: z.string().min(1).optional(),
+  youtubeHandle: z.string().min(1).optional(),
   amount: z.number().int().optional(),
   balance: z.number().int().optional(),
-  linkCode: z.string().optional(),
   occurredAt: z.string().datetime(),
   payload: z.record(z.string(), z.unknown()).default({}),
-});
-
-export const snapshotSchema = z.object({
-  eventId: z.string().min(3),
-  occurredAt: z.string().datetime(),
-  viewers: z.array(
-    z.object({
-      youtubeChannelId: z.string().min(1),
-      youtubeDisplayName: z.string().min(1),
-      balance: z.number().int().min(0),
-    }),
-  ),
 });
 
 export const bridgeHeartbeatSchema = z.object({

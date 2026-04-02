@@ -5,8 +5,9 @@ type LeaderboardEntry =
   | { viewer: ViewerRecord; balance: ViewerBalanceRecord }
   | {
       id: string;
-      youtubeChannelId: string | null;
+      youtubeChannelId: string;
       youtubeDisplayName: string;
+      youtubeHandle?: string | null;
       avatarUrl: string | null;
       currentBalance: number;
       lifetimeEarned: number;
@@ -29,8 +30,8 @@ export function LeaderboardTable({
   compact?: boolean;
 }) {
   return (
-    <div className="overflow-hidden rounded-[var(--radius)] border-[3px] border-[var(--color-ink)]">
-      <div className="grid grid-cols-[60px_minmax(0,1fr)_110px] gap-3 border-b-[3px] border-[var(--color-ink)] bg-[var(--color-lavender)] px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] sm:grid-cols-[60px_minmax(0,1fr)_110px_150px]">
+    <div className="overflow-hidden rounded-[var(--radius)] border-[3px] border-[var(--color-ink)] shadow-[4px_4px_0_#000]">
+      <div className="grid grid-cols-[60px_minmax(0,1fr)_110px] gap-3 border-b-[3px] border-[var(--color-ink)] bg-[var(--color-blue)] px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] sm:grid-cols-[60px_minmax(0,1fr)_110px_150px]">
         <span>#</span>
         <span>Viewer</span>
         <span>Pipetz</span>
@@ -40,24 +41,27 @@ export function LeaderboardTable({
         {entries.map((entry, index) => {
           const viewer = "viewer" in entry ? entry.viewer : entry;
           const balance = "balance" in entry ? entry.balance : entry;
+          const handle = viewer.youtubeHandle?.trim();
           const podium = podiumClass(index);
           return (
             <div
               key={viewer.id ?? `${viewer.youtubeDisplayName}-${index}`}
-              className={`grid grid-cols-[60px_minmax(0,1fr)_110px] gap-3 border-b-2 border-[var(--color-ink)]/15 px-4 py-3.5 text-sm sm:grid-cols-[60px_minmax(0,1fr)_110px_150px] ${podium}`}
+              className={`grid grid-cols-[60px_minmax(0,1fr)_110px] gap-3 border-b-[3px] border-[var(--color-ink)] bg-[var(--color-paper)] px-4 py-3.5 text-sm sm:grid-cols-[60px_minmax(0,1fr)_110px_150px] ${podium}`}
             >
-              <span className="mono font-bold">#{index + 1}</span>
+              <span className="mono self-center font-bold">#{index + 1}</span>
               <div>
-                <p className="font-bold">{viewer.youtubeDisplayName}</p>
-                <p className="mt-0.5 text-xs uppercase tracking-[0.15em] text-[var(--color-muted)]">
-                  {viewer.youtubeChannelId ?? "nao vinculado"}
-                </p>
+                <p className="font-black uppercase">{viewer.youtubeDisplayName}</p>
+                {handle ? (
+                  <p className="mt-0.5 text-xs uppercase tracking-[0.15em] text-[var(--color-ink-soft)]">
+                    {handle}
+                  </p>
+                ) : null}
               </div>
-              <span className="badge-brutal self-center bg-[var(--color-paper)] px-2 py-1 text-xs">
+              <span className="badge-brutal bg-[var(--color-paper)] self-center px-2 py-1 text-xs text-[var(--color-ink)]">
                 {formatPipetz(balance.currentBalance)}
               </span>
               {!compact ? (
-                <span className="hidden text-[var(--color-muted)] sm:block">
+                <span className="hidden self-center text-[var(--color-ink-soft)] sm:block">
                   {formatDateTime(balance.lastSyncedAt)}
                 </span>
               ) : null}
