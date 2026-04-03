@@ -1,0 +1,45 @@
+name: Improvement
+description: Propose a product, reliability, or workflow improvement.
+title: "improvement: "
+labels:
+  - improvement
+  - priority:p2
+body:
+  - type: textarea
+    id: opportunity
+    attributes:
+      label: Opportunity
+      description: What feels weak or missing today?
+      placeholder: The admin area does not make bridge health obvious enough during a live stream.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What better experience or capability should exist?
+      placeholder: Admin can tell within a few seconds whether bridge execution is healthy.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Suggested scope
+      description: Keep this concrete and small enough to deliver.
+      placeholder: Add a more visible status panel, last heartbeat age, and a warning state.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Context or evidence
+      description: Notes, user feedback, screenshots, or logs that support this.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What should be true when this improvement is done?
+      placeholder: |
+        - Bridge health is visible at a glance
+        - Offline state is obvious on desktop and mobile
+        - Last-seen timestamp is shown
+    validations:
+      required: true

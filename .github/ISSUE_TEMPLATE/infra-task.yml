@@ -1,0 +1,40 @@
+name: Infra task
+description: Track deployment, environment, monitoring, security, or operations work.
+title: "infra: "
+labels:
+  - infra
+  - priority:p1
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: Task
+      description: What needs to be set up, hardened, or automated?
+      placeholder: Create a production release checklist for env vars, OAuth redirects, and smoke tests.
+    validations:
+      required: true
+  - type: textarea
+    id: reason
+    attributes:
+      label: Why now
+      description: Why is this important right now?
+      placeholder: Recreating the Vercel project caused avoidable production auth and env outages.
+    validations:
+      required: true
+  - type: textarea
+    id: risk
+    attributes:
+      label: Risk if skipped
+      description: What happens if this is not done?
+      placeholder: Future redeploys may fail again and live login may break without warning.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What should be true when this task is done?
+      placeholder: |
+        - Checklist exists in the repo
+        - Team can verify deploy readiness quickly
+        - Required secrets and OAuth settings are documented
+    validations:
+      required: true

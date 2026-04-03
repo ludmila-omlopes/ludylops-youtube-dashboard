@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Backlog playbook
+    url: https://github.com/ludmila-omlopes/ludylops-youtube-dashboard/blob/master/docs/backlog-playbook.md
+    about: Read the triage and priority rules before opening larger backlog items.

@@ -1,0 +1,40 @@
+name: UX feedback
+description: Capture confusion, friction, copy issues, and interface polish work.
+title: "ux: "
+labels:
+  - ux
+  - priority:p2
+body:
+  - type: textarea
+    id: friction
+    attributes:
+      label: Friction
+      description: What feels confusing, unclear, slow, or too hard?
+      placeholder: Viewers do not understand whether they are signed in, linked, or still in demo mode.
+    validations:
+      required: true
+  - type: textarea
+    id: audience
+    attributes:
+      label: Audience
+      description: Who experiences this the most?
+      placeholder: First-time viewers on mobile.
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested change
+      description: What would make the flow feel clearer?
+      placeholder: Add clearer signed-in state, active channel label, and more explicit status messages.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What should be measurably better after this change?
+      placeholder: |
+        - State is understandable without guessing
+        - Important actions are visible on mobile
+        - Support questions about this flow go down
+    validations:
+      required: true

@@ -1,0 +1,263 @@
+name: Bootstrap Backlog
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/workflows/bootstrap-backlog.yml"
+      - "docs/backlog-playbook.md"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Seed labels and starter issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const labels = [
+              { name: "bug", color: "d73a4a", description: "Broken behavior or regression" },
+              { name: "improvement", color: "0e8a16", description: "Product or workflow improvement" },
+              { name: "infra", color: "5319e7", description: "Deployment, monitoring, or operational work" },
+              { name: "ux", color: "fbca04", description: "User experience, clarity, and interface polish" },
+              { name: "priority:p0", color: "b60205", description: "Live-blocking or business-critical" },
+              { name: "priority:p1", color: "d93f0b", description: "Important, workaround exists or narrow blast radius" },
+              { name: "priority:p2", color: "fbca04", description: "Quality, reliability, and polish" },
+              { name: "priority:p3", color: "c2e0c6", description: "Nice-to-have or later exploration" },
+            ];
+
+            const starterIssues = [
+              {
+                title: "bug: add post-deploy auth smoke test",
+                labels: ["bug", "priority:p1"],
+                body: [
+                  "## Problem",
+                  "Production deploys can look healthy while Google authentication is still broken.",
+                  "",
+                  "## Impact",
+                  "Login failures block viewers and admins from using key platform flows.",
+                  "",
+                  "## Evidence",
+                  "Recent deploys required manual verification before auth issues became obvious.",
+                  "",
+                  "## Acceptance criteria",
+                  "- A short smoke test covers `/api/auth/providers` and a sign-in start path",
+                  "- The test is part of deploy verification",
+                  "- Auth failures are caught before a live session starts",
+                ].join("\n"),
+              },
+              {
+                title: "bug: surface OAuth configuration failures earlier",
+                labels: ["bug", "priority:p1"],
+                body: [
+                  "## Problem",
+                  "OAuth redirect mismatches and missing provider config are only discovered at sign-in time.",
+                  "",
+                  "## Impact",
+                  "Production login breaks in a way that is stressful to debug during deploys.",
+                  "",
+                  "## Evidence",
+                  "The Google flow failed after Vercel project recreation until redirect URIs were corrected.",
+                  "",
+                  "## Acceptance criteria",
+                  "- Deploy checklist explicitly covers Google callback URLs",
+                  "- Auth config errors are easier to identify quickly",
+                  "- Support/debug time for auth setup goes down",
+                ].join("\n"),
+              },
+              {
+                title: "infra: create a production release checklist",
+                labels: ["infra", "priority:p1"],
+                body: [
+                  "## Task",
+                  "Create a short release checklist for Vercel env vars, Google OAuth, and smoke tests.",
+                  "",
+                  "## Why now",
+                  "Recent deploy recovery required manual rediscovery of setup details.",
+                  "",
+                  "## Risk if skipped",
+                  "Future project recreations or auth edits may cause repeat outages.",
+                  "",
+                  "## Acceptance criteria",
+                  "- Checklist lives in the repo",
+                  "- Required env vars and callback URLs are listed",
+                  "- The team can run it in a few minutes before going live",
+                ].join("\n"),
+              },
+              {
+                title: "bug: expand public healthcheck to show dependency state clearly",
+                labels: ["bug", "priority:p2"],
+                body: [
+                  "## Problem",
+                  "The current healthcheck is too limited to explain auth or dependency failures quickly.",
+                  "",
+                  "## Impact",
+                  "Debugging production incidents takes longer than it should.",
+                  "",
+                  "## Evidence",
+                  "Recent deploy work required multiple manual checks to separate app, auth, and env problems.",
+                  "",
+                  "## Acceptance criteria",
+                  "- Health data makes demo vs database mode explicit",
+                  "- Bridge or auth readiness is easier to inspect safely",
+                  "- Output stays safe for public exposure",
+                ].join("\n"),
+              },
+              {
+                title: "improvement: make bridge offline state louder in admin",
+                labels: ["improvement", "ux", "priority:p2"],
+                body: [
+                  "## Opportunity",
+                  "Bridge health should be obvious at a glance during live operations.",
+                  "",
+                  "## Desired outcome",
+                  "Admins can quickly see whether redemption execution is healthy or stale.",
+                  "",
+                  "## Suggested scope",
+                  "Improve visual status, heartbeat age, and warning treatment in the admin panel.",
+                  "",
+                  "## Acceptance criteria",
+                  "- Bridge offline state is visually obvious",
+                  "- Last heartbeat age is visible",
+                  "- Warning state works on desktop and mobile",
+                ].join("\n"),
+              },
+              {
+                title: "improvement: add an audit trail for redemptions and bridge execution",
+                labels: ["improvement", "priority:p2"],
+                body: [
+                  "## Opportunity",
+                  "Operators need a clearer history of queued, claimed, completed, and failed redemptions.",
+                  "",
+                  "## Desired outcome",
+                  "It should be easy to answer what happened to a redemption without digging through logs.",
+                  "",
+                  "## Suggested scope",
+                  "Expose a timeline or event history in admin for each redemption.",
+                  "",
+                  "## Acceptance criteria",
+                  "- Admin can inspect redemption lifecycle",
+                  "- Failures are easier to understand",
+                  "- Manual support overhead is reduced",
+                ].join("\n"),
+              },
+              {
+                title: "ux: clarify signed-in state and active channel context",
+                labels: ["ux", "priority:p2"],
+                body: [
+                  "## Friction",
+                  "Viewers may not fully understand whether they are signed in, linked, or using the active channel they expect.",
+                  "",
+                  "## Audience",
+                  "First-time and returning viewers switching between channels.",
+                  "",
+                  "## Suggested change",
+                  "Tighten copy and state presentation around sign-in, linking, and active channel selection.",
+                  "",
+                  "## Acceptance criteria",
+                  "- Signed-in state is easy to understand",
+                  "- Active channel state is clearly visible",
+                  "- Confusion around linking and channel switching goes down",
+                ].join("\n"),
+              },
+              {
+                title: "improvement: add admin visibility for bet lifecycle and payout state",
+                labels: ["improvement", "priority:p2"],
+                body: [
+                  "## Opportunity",
+                  "Bet opening, locking, resolving, and payout outcomes should be easier to audit.",
+                  "",
+                  "## Desired outcome",
+                  "Admins can confirm the live betting state quickly and trust the payout flow.",
+                  "",
+                  "## Suggested scope",
+                  "Add clearer lifecycle status, timestamps, and payout summary in admin tools.",
+                  "",
+                  "## Acceptance criteria",
+                  "- Bet state is understandable at a glance",
+                  "- Resolve/cancel flows expose outcome clearly",
+                  "- Support time for betting incidents is reduced",
+                ].join("\n"),
+              },
+              {
+                title: "infra: define a lightweight weekly backlog triage ritual",
+                labels: ["infra", "priority:p3"],
+                body: [
+                  "## Task",
+                  "Define a repeatable weekly triage routine for new issues and backlog cleanup.",
+                  "",
+                  "## Why now",
+                  "A simple routine keeps the backlog useful instead of noisy.",
+                  "",
+                  "## Risk if skipped",
+                  "Backlog quality will decay and priorities will blur.",
+                  "",
+                  "## Acceptance criteria",
+                  "- Triage cadence is documented",
+                  "- Ready work is separated from raw inbox items",
+                  "- Priority labels are used consistently",
+                ].join("\n"),
+              },
+            ];
+
+            const existingLabels = await github.paginate(github.rest.issues.listLabelsForRepo, {
+              owner,
+              repo,
+              per_page: 100,
+            });
+            const existingLabelMap = new Map(existingLabels.map((label) => [label.name, label]));
+
+            for (const label of labels) {
+              if (existingLabelMap.has(label.name)) {
+                await github.rest.issues.updateLabel({
+                  owner,
+                  repo,
+                  name: label.name,
+                  color: label.color,
+                  description: label.description,
+                });
+              } else {
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name: label.name,
+                  color: label.color,
+                  description: label.description,
+                });
+              }
+            }
+
+            const existingIssues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: "all",
+              per_page: 100,
+            });
+            const existingIssueTitles = new Set(
+              existingIssues.filter((issue) => !issue.pull_request).map((issue) => issue.title.toLowerCase()),
+            );
+
+            for (const issue of starterIssues) {
+              if (existingIssueTitles.has(issue.title.toLowerCase())) {
+                core.info(`Issue already exists: ${issue.title}`);
+                continue;
+              }
+
+              await github.rest.issues.create({
+                owner,
+                repo,
+                title: issue.title,
+                body: issue.body,
+                labels: issue.labels,
+              });
+            }

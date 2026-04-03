@@ -1,0 +1,51 @@
+name: Bug report
+description: Report a broken behavior in auth, balances, bets, bridge, deploy, or admin flows.
+title: "bug: "
+labels:
+  - bug
+  - priority:p1
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is broken?
+      placeholder: Google sign-in fails after deploy with a redirect URI mismatch.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: Who feels this and how severe is it?
+      placeholder: All viewers are blocked from signing in on production.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Repro steps
+      description: List the shortest path to reproduce.
+      placeholder: |
+        1. Open the production site
+        2. Click "Entrar com Google"
+        3. Observe the OAuth error screen
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Logs, screenshots, deployment URLs, issue IDs, or user reports.
+      placeholder: Vercel deployment logs, browser screenshot, console output, or support messages.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: How will we know this is fixed?
+      placeholder: |
+        - Login completes successfully on production
+        - No Auth.js configuration errors are logged
+        - Smoke test covers the failing path
+    validations:
+      required: true
