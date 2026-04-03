@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "smoke:auth": "tsx scripts/auth-smoke.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:ensure-youtube-handle": "tsx scripts/ensure-youtube-handle-column.ts",
