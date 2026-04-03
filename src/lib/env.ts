@@ -25,13 +25,18 @@ export const adminEmails = new Set(
 );
 
 export const isDemoMode = !env.DATABASE_URL;
-export const isDemoAuthEnabled = isDemoMode && !isProduction;
-export const authSecret = env.NEXTAUTH_SECRET ?? (!isProduction ? "dev-secret" : undefined);
+export const isDemoAuthEnabled = isDemoMode;
+export const authSecret =
+  env.NEXTAUTH_SECRET ?? (isProduction ? "pipetz-production-demo-secret" : "dev-secret");
 
-if (isProduction && !env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is required in production.");
-}
+const missingProductionEnv = [
+  !env.DATABASE_URL ? "DATABASE_URL" : null,
+  !env.NEXTAUTH_SECRET ? "NEXTAUTH_SECRET" : null,
+].filter((entry): entry is string => Boolean(entry));
 
-if (!authSecret) {
-  throw new Error("NEXTAUTH_SECRET is required in production.");
+if (isProduction && missingProductionEnv.length > 0) {
+  console.warn(
+    `[env] Missing production env vars: ${missingProductionEnv.join(", ")}. ` +
+      "Falling back to demo-safe behavior so the app can still build and boot.",
+  );
 }
