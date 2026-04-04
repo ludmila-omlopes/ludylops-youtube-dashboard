@@ -20,6 +20,7 @@ import {
   googleAccounts,
   googleAccountViewers,
   pointLedger,
+  productRecommendations,
   redemptions,
   streamerbotEventLog,
   users,
@@ -37,6 +38,7 @@ import {
   demoGoogleAccounts,
   demoGoogleAccountViewers,
   demoLedger,
+  demoProductRecommendations,
   demoRedemptions,
   demoViewers,
 } from "@/lib/demo-data";
@@ -61,6 +63,7 @@ import {
   GoogleAccountRecord,
   GoogleAccountViewerRecord,
   LedgerEntryRecord,
+  ProductRecommendationRecord,
   RedemptionRecord,
   ViewerChannelOptionRecord,
   ViewerBalanceRecord,
@@ -90,6 +93,7 @@ type DemoStore = {
   betEntries: BetEntryRecord[];
   gameSuggestions: GameSuggestionRecord[];
   gameSuggestionBoosts: GameSuggestionBoostRecord[];
+  productRecommendations: ProductRecommendationRecord[];
   bridgeClients: BridgeClientRecord[];
 };
 
@@ -112,6 +116,7 @@ function getDemoStore(): DemoStore {
       betEntries: structuredClone(demoBetEntries),
       gameSuggestions: structuredClone(demoGameSuggestions),
       gameSuggestionBoosts: structuredClone(demoGameSuggestionBoosts),
+      productRecommendations: structuredClone(demoProductRecommendations),
       bridgeClients: structuredClone(demoBridgeClients),
     };
   }
@@ -514,6 +519,26 @@ function serializeGameSuggestionBoost(
   };
 }
 
+function serializeProductRecommendation(
+  row: typeof productRecommendations.$inferSelect,
+): ProductRecommendationRecord {
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    category: row.category as ProductRecommendationRecord["category"],
+    context: row.context,
+    imageUrl: row.imageUrl,
+    href: row.href,
+    storeLabel: row.storeLabel,
+    linkKind: row.linkKind as ProductRecommendationRecord["linkKind"],
+    isActive: row.isActive,
+    sortOrder: row.sortOrder,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
 function buildGameSuggestionWithMeta(params: {
   suggestion: GameSuggestionRecord;
   viewer: ViewerRecord | null;
@@ -673,6 +698,40 @@ function isMissingGameSuggestionSchemaError(error: unknown) {
     "game_suggestions",
     "game_suggestion_boosts",
   ];
+  const queue: unknown[] = [error];
+  const visited = new Set<unknown>();
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+
+    const message =
+      current instanceof Error ? current.message : typeof current === "string" ? current : "";
+    const normalized = message.toLowerCase();
+    const mentionsTables = tableNames.some((tableName) => normalized.includes(tableName));
+    if (
+      mentionsTables &&
+      (normalized.includes("does not exist") ||
+        normalized.includes("relation") ||
+        normalized.includes("table") ||
+        normalized.includes("failed query"))
+    ) {
+      return true;
+    }
+
+    if (typeof current === "object" && current && "cause" in current) {
+      queue.push((current as { cause?: unknown }).cause);
+    }
+  }
+
+  return false;
+}
+
+function isMissingProductRecommendationSchemaError(error: unknown) {
+  const tableNames = ['"product_recommendations"', "product_recommendations"];
   const queue: unknown[] = [error];
   const visited = new Set<unknown>();
 
@@ -1478,6 +1537,61 @@ export async function listGameSuggestions(viewerId?: string | null) {
 
 export async function listAdminGameSuggestions() {
   return listGameSuggestions();
+}
+
+export async function listProductRecommendations(options?: {
+  includeInactive?: boolean;
+}) {
+  const includeInactive = options?.includeInactive ?? false;
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const source = includeInactive
+      ? store.productRecommendations
+      : store.productRecommendations.filter((entry) => entry.isActive);
+
+    return [...source].sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) {
+        return a.sortOrder - b.sortOrder;
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  try {
+    const rows = includeInactive
+      ? await db
+          .select()
+          .from(productRecommendations)
+          .orderBy(productRecommendations.sortOrder, productRecommendations.name)
+      : await db
+          .select()
+          .from(productRecommendations)
+          .where(eq(productRecommendations.isActive, true))
+          .orderBy(productRecommendations.sortOrder, productRecommendations.name);
+
+    return rows.map(serializeProductRecommendation);
+  } catch (error) {
+    if (isMissingProductRecommendationSchemaError(error)) {
+      const store = getDemoStore();
+      const source = includeInactive
+        ? store.productRecommendations
+        : store.productRecommendations.filter((entry) => entry.isActive);
+
+      return [...source].sort((a, b) => {
+        if (a.sortOrder !== b.sortOrder) {
+          return a.sortOrder - b.sortOrder;
+        }
+        return a.name.localeCompare(b.name);
+      });
+    }
+    throw error;
+  }
+}
+
+export async function listAdminProductRecommendations() {
+  return listProductRecommendations({ includeInactive: true });
 }
 
 export async function createGameSuggestion(input: {
@@ -2699,6 +2813,209 @@ export async function createCatalogItemFromInput(
     ...input,
   };
   return upsertCatalogItem(item);
+}
+
+export async function upsertProductRecommendation(input: ProductRecommendationRecord) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const existingIndex = store.productRecommendations.findIndex((entry) => entry.id === input.id);
+    if (existingIndex >= 0) {
+      store.productRecommendations[existingIndex] = input;
+    } else {
+      store.productRecommendations.unshift(input);
+    }
+    return input;
+  }
+
+  try {
+    await db
+      .insert(productRecommendations)
+      .values({
+        id: input.id,
+        slug: input.slug,
+        name: input.name,
+        category: input.category,
+        context: input.context,
+        imageUrl: input.imageUrl,
+        href: input.href,
+        storeLabel: input.storeLabel,
+        linkKind: input.linkKind,
+        isActive: input.isActive,
+        sortOrder: input.sortOrder,
+        createdAt: new Date(input.createdAt),
+        updatedAt: new Date(input.updatedAt),
+      })
+      .onConflictDoUpdate({
+        target: productRecommendations.id,
+        set: {
+          slug: input.slug,
+          name: input.name,
+          category: input.category,
+          context: input.context,
+          imageUrl: input.imageUrl,
+          href: input.href,
+          storeLabel: input.storeLabel,
+          linkKind: input.linkKind,
+          isActive: input.isActive,
+          sortOrder: input.sortOrder,
+          updatedAt: new Date(input.updatedAt),
+        },
+      });
+  } catch (error) {
+    if (isMissingProductRecommendationSchemaError(error)) {
+      const store = getDemoStore();
+      const existingIndex = store.productRecommendations.findIndex((entry) => entry.id === input.id);
+      if (existingIndex >= 0) {
+        store.productRecommendations[existingIndex] = input;
+      } else {
+        store.productRecommendations.unshift(input);
+      }
+      return input;
+    }
+
+    throw error;
+  }
+
+  return input;
+}
+
+export async function createProductRecommendationFromInput(
+  input: Omit<ProductRecommendationRecord, "id" | "slug" | "createdAt" | "updatedAt"> & {
+    slug?: string;
+  },
+) {
+  const now = new Date().toISOString();
+  const item: ProductRecommendationRecord = {
+    id: randomUUID(),
+    slug: input.slug ?? slugify(input.name),
+    name: input.name.trim(),
+    category: input.category,
+    context: input.context.trim(),
+    imageUrl: input.imageUrl.trim(),
+    href: input.href.trim(),
+    storeLabel: input.storeLabel.trim(),
+    linkKind: input.linkKind,
+    isActive: input.isActive,
+    sortOrder: input.sortOrder,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  if (!item.slug) {
+    throw new Error("invalid_slug");
+  }
+
+  const existing = await listAdminProductRecommendations();
+  if (existing.some((entry) => entry.slug === item.slug)) {
+    throw new Error("recommendation_slug_exists");
+  }
+
+  return upsertProductRecommendation(item);
+}
+
+export async function updateProductRecommendationStatus(input: {
+  recommendationId: string;
+  isActive: boolean;
+}) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const recommendation = store.productRecommendations.find((entry) => entry.id === input.recommendationId);
+    if (!recommendation) {
+      throw new Error("recommendation_not_found");
+    }
+
+    recommendation.isActive = input.isActive;
+    recommendation.updatedAt = new Date().toISOString();
+    return recommendation;
+  }
+
+  try {
+    const [updated] = await db
+      .update(productRecommendations)
+      .set({
+        isActive: input.isActive,
+        updatedAt: new Date(),
+      })
+      .where(eq(productRecommendations.id, input.recommendationId))
+      .returning();
+
+    if (!updated) {
+      throw new Error("recommendation_not_found");
+    }
+
+    return serializeProductRecommendation(updated);
+  } catch (error) {
+    if (isMissingProductRecommendationSchemaError(error)) {
+      const store = getDemoStore();
+      const recommendation = store.productRecommendations.find((entry) => entry.id === input.recommendationId);
+      if (!recommendation) {
+        throw new Error("recommendation_not_found");
+      }
+
+      recommendation.isActive = input.isActive;
+      recommendation.updatedAt = new Date().toISOString();
+      return recommendation;
+    }
+
+    throw error;
+  }
+}
+
+export async function deleteProductRecommendation(recommendationId: string) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const recommendationIndex = store.productRecommendations.findIndex(
+      (entry) => entry.id === recommendationId,
+    );
+    if (recommendationIndex < 0) {
+      throw new Error("recommendation_not_found");
+    }
+
+    const [deleted] = store.productRecommendations.splice(recommendationIndex, 1);
+    if (!deleted) {
+      throw new Error("recommendation_not_found");
+    }
+
+    return deleted;
+  }
+
+  try {
+    const [deleted] = await db
+      .delete(productRecommendations)
+      .where(eq(productRecommendations.id, recommendationId))
+      .returning();
+
+    if (!deleted) {
+      throw new Error("recommendation_not_found");
+    }
+
+    return serializeProductRecommendation(deleted);
+  } catch (error) {
+    if (isMissingProductRecommendationSchemaError(error)) {
+      const store = getDemoStore();
+      const recommendationIndex = store.productRecommendations.findIndex(
+        (entry) => entry.id === recommendationId,
+      );
+      if (recommendationIndex < 0) {
+        throw new Error("recommendation_not_found");
+      }
+
+      const [deleted] = store.productRecommendations.splice(recommendationIndex, 1);
+      if (!deleted) {
+        throw new Error("recommendation_not_found");
+      }
+
+      return deleted;
+    }
+
+    throw error;
+  }
 }
 
 export async function listAdminRedemptions() {

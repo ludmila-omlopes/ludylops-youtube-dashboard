@@ -1,5 +1,6 @@
 import { AdminBetsPanel } from "@/components/admin-bets-panel";
 import { AdminGameSuggestionsPanel } from "@/components/admin-game-suggestions-panel";
+import { AdminRecommendationsPanel } from "@/components/admin-recommendations-panel";
 import { RedemptionGrid } from "@/components/redemption-grid";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { LiveStatusPanel } from "@/components/live-status-panel";
@@ -9,6 +10,7 @@ import {
   getCatalog,
   getLeaderboard,
   listAdminGameSuggestions,
+  listAdminProductRecommendations,
   listAdminBets,
   listAdminRedemptions,
 } from "@/lib/db/repository";
@@ -24,13 +26,14 @@ const statusColorMap: Record<string, string> = {
 
 export default async function AdminPage() {
   await requireAdminSession();
-  const [catalog, leaderboard, bridge, redemptions, bets, suggestions] = await Promise.all([
+  const [catalog, leaderboard, bridge, redemptions, bets, suggestions, recommendations] = await Promise.all([
     getCatalog(),
     getLeaderboard(),
     getBridgeStatus(),
     listAdminRedemptions(),
     listAdminBets(),
     listAdminGameSuggestions(),
+    listAdminProductRecommendations(),
   ]);
 
   return (
@@ -93,6 +96,7 @@ export default async function AdminPage() {
 
       <AdminBetsPanel bets={bets} />
       <AdminGameSuggestionsPanel suggestions={suggestions} />
+      <AdminRecommendationsPanel recommendations={recommendations} />
     </div>
   );
 }
