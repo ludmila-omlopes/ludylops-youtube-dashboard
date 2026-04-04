@@ -1,3 +1,4 @@
+import { getDistinctYoutubeHandle } from "@/lib/youtube/identity";
 import { ViewerBalanceRecord, ViewerRecord } from "@/lib/types";
 import { formatDateTime, formatPipetz } from "@/lib/utils";
 
@@ -41,7 +42,10 @@ export function LeaderboardTable({
         {entries.map((entry, index) => {
           const viewer = "viewer" in entry ? entry.viewer : entry;
           const balance = "balance" in entry ? entry.balance : entry;
-          const handle = viewer.youtubeHandle?.trim();
+          const handle = getDistinctYoutubeHandle({
+            youtubeDisplayName: viewer.youtubeDisplayName,
+            youtubeHandle: viewer.youtubeHandle,
+          });
           const podium = podiumClass(index);
           return (
             <div

@@ -45,6 +45,7 @@ import {
   eventRequiresActiveLivestream,
   isStreamerbotLivestreamActive,
 } from "@/lib/streamerbot/live-status";
+import { normalizeYoutubeHandle } from "@/lib/youtube/identity";
 import { evaluateRedeemability } from "@/lib/redemptions/service";
 import {
   BetEntryRecord,
@@ -70,15 +71,6 @@ import { slugify } from "@/lib/utils";
 function buildSyntheticYoutubeChannelId(input: { googleUserId: string | null; email: string }) {
   const base = input.googleUserId ?? input.email.toLowerCase();
   return `session:${base}`.slice(0, 128);
-}
-
-function normalizeYoutubeHandle(value: string | null | undefined) {
-  const trimmed = value?.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  return trimmed.startsWith("@") ? trimmed : `@${trimmed}`;
 }
 
 function shouldExcludeFromRanking(email: string | null) {
