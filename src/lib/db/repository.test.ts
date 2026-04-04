@@ -1226,6 +1226,48 @@ describe("ingestStreamerbotEvent", () => {
     expect(insertedLedger).toHaveLength(1);
   });
 
+  it("ignores an invalid live-event handle that looks like a display name", async () => {
+    const usersRows = [
+      {
+        id: "viewer-1",
+        googleUserId: null,
+        email: null,
+        youtubeChannelId: "UC123",
+        youtubeDisplayName: "UC123",
+        youtubeHandle: null,
+        avatarUrl: null,
+        isLinked: false,
+        excludeFromRanking: false,
+        createdAt: new Date("2026-03-31T10:00:00.000Z"),
+      },
+    ];
+    const balanceRows = [
+      {
+        viewerId: "viewer-1",
+        currentBalance: 10,
+        lifetimeEarned: 10,
+        lifetimeSpent: 0,
+        lastSyncedAt: new Date("2026-03-31T10:00:00.000Z"),
+      },
+    ];
+    const { db } = createStreamerbotEventDb({ usersRows, balanceRows });
+    getDbMock.mockReturnValue(db);
+
+    await ingestStreamerbotEvent({
+      eventId: "evt-display-handle",
+      eventType: "presence_tick",
+      viewerExternalId: "UC123",
+      youtubeDisplayName: "Viewer Name",
+      youtubeHandle: "Viewer Name",
+      amount: 5,
+      occurredAt: "2026-03-31T12:00:00.000Z",
+      payload: {},
+    });
+
+    expect(usersRows[0]?.youtubeDisplayName).toBe("Viewer Name");
+    expect(usersRows[0]?.youtubeHandle).toBeNull();
+  });
+
   it("stores the viewer handle when a live event creates a new viewer", async () => {
     const usersRows: Parameters<typeof createStreamerbotEventDb>[0]["usersRows"] = [];
     const balanceRows: Parameters<typeof createStreamerbotEventDb>[0]["balanceRows"] = [];
