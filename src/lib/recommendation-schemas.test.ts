@@ -9,11 +9,11 @@ import {
 describe("productRecommendationSchema", () => {
   it("accepts a public image path with an absolute product link", () => {
     const parsed = productRecommendationSchema.safeParse({
-      name: "Nintendo Switch OLED",
+      name: "Produto exemplo",
       category: "videogames",
       context: "Console facil de indicar para quem acompanha a live.",
-      imageUrl: "/recommendations/switch-oled.svg",
-      href: "https://example.com/switch-oled",
+      imageUrl: "/uploads/produto-exemplo.jpg",
+      href: "https://example.com/produto-exemplo",
       storeLabel: "Loja Teste",
       linkKind: "affiliate",
       sortOrder: 0,

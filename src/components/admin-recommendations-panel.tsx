@@ -211,7 +211,7 @@ export function AdminRecommendationsPanel({
                   setName(event.target.value);
                   clearFieldError("name");
                 }}
-                placeholder="Ex.: Nintendo Switch OLED"
+                placeholder="Ex.: Produto novo"
                 aria-invalid={Boolean(fieldErrors.name)}
                 className={getFieldClass("name")}
               />
@@ -265,7 +265,7 @@ export function AdminRecommendationsPanel({
                   setImageUrl(event.target.value);
                   clearFieldError("imageUrl");
                 }}
-                placeholder="/recommendations/switch-oled.svg ou https://..."
+                placeholder="/uploads/produto.jpg ou https://..."
                 aria-invalid={Boolean(fieldErrors.imageUrl)}
                 className={getFieldClass("imageUrl")}
               />

@@ -1325,7 +1325,7 @@ describe("product recommendations", () => {
       name: "Controle Pro",
       category: "perifericos",
       context: "Para jogar no setup da live.",
-      imageUrl: "/recommendations/pro-controller.svg",
+      imageUrl: "/uploads/pro-controller.jpg",
       href: "https://example.com/pro-controller",
       storeLabel: "Loja Teste",
       linkKind: "external",

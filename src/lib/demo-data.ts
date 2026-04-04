@@ -14,7 +14,6 @@ import {
   ViewerBalanceRecord,
   ViewerRecord,
 } from "@/lib/types";
-import { seedProductRecommendations } from "@/lib/recommendations";
 
 const now = new Date();
 
@@ -179,8 +178,7 @@ export const demoCatalog: CatalogItemRecord[] = [
   },
 ];
 
-export const demoProductRecommendations: ProductRecommendationRecord[] =
-  structuredClone(seedProductRecommendations);
+export const demoProductRecommendations: ProductRecommendationRecord[] = [];
 
 export const demoLedger: LedgerEntryRecord[] = [
   {
