@@ -1,0 +1,11 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="800" fill="#EFE7FF"/>
+  <rect x="180" y="290" width="840" height="220" rx="44" fill="#FFFFFF" stroke="#000000" stroke-width="18"/>
+  <rect x="250" y="348" width="150" height="104" rx="16" fill="#111111"/>
+  <rect x="440" y="330" width="72" height="140" rx="16" fill="#40A9FF"/>
+  <rect x="548" y="330" width="72" height="140" rx="16" fill="#FF79C6"/>
+  <rect x="656" y="330" width="72" height="140" rx="16" fill="#95FF82"/>
+  <rect x="764" y="330" width="72" height="140" rx="16" fill="#40A9FF"/>
+  <circle cx="920" cy="400" r="34" fill="#111111"/>
+  <text x="120" y="738" fill="#000000" font-family="Arial, sans-serif" font-size="64" font-weight="700">UGREEN REVODOK</text>
+</svg>

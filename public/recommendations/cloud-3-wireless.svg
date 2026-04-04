@@ -1,0 +1,10 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="800" fill="#EFE7FF"/>
+  <path d="M380 435V340C380 218.497 478.497 120 600 120V120C721.503 120 820 218.497 820 340V435" stroke="#000000" stroke-width="22"/>
+  <rect x="315" y="365" width="120" height="220" rx="40" fill="#FFFFFF" stroke="#000000" stroke-width="18"/>
+  <rect x="765" y="365" width="120" height="220" rx="40" fill="#FFFFFF" stroke="#000000" stroke-width="18"/>
+  <rect x="338" y="392" width="74" height="166" rx="28" fill="#FF79C6"/>
+  <rect x="788" y="392" width="74" height="166" rx="28" fill="#40A9FF"/>
+  <path d="M765 560L708 620" stroke="#000000" stroke-width="18" stroke-linecap="round"/>
+  <text x="120" y="738" fill="#000000" font-family="Arial, sans-serif" font-size="62" font-weight="700">HYPERX CLOUD III</text>
+</svg>

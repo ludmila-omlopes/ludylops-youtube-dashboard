@@ -34,10 +34,13 @@ import {
   cancelBet,
   createBet,
   createGameSuggestion,
+  createProductRecommendationFromInput,
+  deleteProductRecommendation,
   ensureViewerFromSession,
   getViewerDashboard,
   getSessionViewerState,
   ingestStreamerbotEvent,
+  listAdminProductRecommendations,
   listBets,
   listGameSuggestions,
   listAdminGameSuggestions,
@@ -1309,4 +1312,37 @@ describe("ingestStreamerbotEvent", () => {
     expect(balanceRows[0]?.currentBalance).toBe(10);
   });
 
+});
+
+describe("product recommendations", () => {
+  beforeEach(() => {
+    getDbMock.mockReturnValue(null);
+    delete (globalThis as typeof globalThis & { __lojaDemoStore?: unknown }).__lojaDemoStore;
+  });
+
+  it("deletes a saved recommendation in demo mode", async () => {
+    const created = await createProductRecommendationFromInput({
+      name: "Controle Pro",
+      category: "perifericos",
+      context: "Para jogar no setup da live.",
+      imageUrl: "/recommendations/pro-controller.svg",
+      href: "https://example.com/pro-controller",
+      storeLabel: "Loja Teste",
+      linkKind: "external",
+      sortOrder: 9,
+      isActive: true,
+    });
+
+    const deleted = await deleteProductRecommendation(created.id);
+    const recommendations = await listAdminProductRecommendations();
+
+    expect(deleted.id).toBe(created.id);
+    expect(recommendations.some((entry) => entry.id === created.id)).toBe(false);
+  });
+
+  it("rejects deleting an unknown recommendation", async () => {
+    await expect(deleteProductRecommendation("missing-recommendation")).rejects.toThrow(
+      "recommendation_not_found",
+    );
+  });
 });

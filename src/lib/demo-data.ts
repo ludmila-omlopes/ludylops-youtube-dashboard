@@ -9,10 +9,12 @@ import {
   GoogleAccountRecord,
   GoogleAccountViewerRecord,
   LedgerEntryRecord,
+  ProductRecommendationRecord,
   RedemptionRecord,
   ViewerBalanceRecord,
   ViewerRecord,
 } from "@/lib/types";
+import { seedProductRecommendations } from "@/lib/recommendations";
 
 const now = new Date();
 
@@ -176,6 +178,9 @@ export const demoCatalog: CatalogItemRecord[] = [
     streamerbotArgsTemplate: { imageKey: "holo_sticker" },
   },
 ];
+
+export const demoProductRecommendations: ProductRecommendationRecord[] =
+  structuredClone(seedProductRecommendations);
 
 export const demoLedger: LedgerEntryRecord[] = [
   {
