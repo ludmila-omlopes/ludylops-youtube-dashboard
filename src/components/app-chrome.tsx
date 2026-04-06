@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 
 import { AuthButtons } from "@/components/auth-buttons";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Button } from "@/components/ui/button";
 
 export function AppChrome({
   children,
@@ -92,22 +93,23 @@ export function AppChrome({
               <AuthButtons />
             </div>
             <div className="shrink-0 md:hidden">
-              <button
+              <Button
                 type="button"
                 onClick={() => setMobileOpen(!mobileOpen)}
-                className="btn-brutal bg-[var(--color-pink)] px-3 py-2 text-lg text-[var(--color-accent-ink)]"
+                variant="pink"
+                size="sm"
                 aria-label="Menu"
                 aria-expanded={mobileOpen}
               >
-                {mobileOpen ? "✕" : "☰"}
-              </button>
+                {mobileOpen ? "Fechar" : "Menu"}
+              </Button>
             </div>
           </div>
         </div>
 
         {mobileOpen ? (
           <div className="mobile-nav-enter border-t-[3px] border-[var(--color-ink)] bg-[var(--color-paper)] p-4 md:hidden">
-            <nav className="flex flex-col gap-1.5" aria-label="Navegação principal">
+            <nav className="flex flex-col gap-1.5" aria-label="Navegacao principal">
               {allLinks.map((link) => (
                 <Link
                   key={link.href}

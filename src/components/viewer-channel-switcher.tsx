@@ -4,6 +4,13 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { ViewerChannelOptionRecord } from "@/lib/types";
 
 type ChannelsResponse = {
@@ -127,23 +134,31 @@ export function ViewerChannelSwitcher() {
       <span className="mono text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-ink-soft)]">
         Canal
       </span>
-      <select
-        value={activeViewerId}
+      <Select
+        value={activeViewerId || null}
         disabled={isLoading || isPending || channels.length === 0}
-        onChange={(event) => handleSelection(event.target.value)}
-        className="min-w-[170px] rounded-[var(--radius)] border-[2px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2 text-xs font-bold text-[var(--color-ink)] shadow-[3px_3px_0_#000] outline-none"
-        aria-label="Selecionar canal"
+        onValueChange={(nextValue) => {
+          if (typeof nextValue === "string" && nextValue && nextValue !== activeViewerId) {
+            handleSelection(nextValue);
+          }
+        }}
       >
-        {channels.length === 0 ? (
-          <option value="">{isLoading ? "Carregando..." : "Sem canais"}</option>
-        ) : (
-          channels.map((channel) => (
-            <option key={channel.id} value={channel.id}>
+        <SelectTrigger size="sm" className="min-w-[170px]" aria-label="Selecionar canal">
+          <SelectValue placeholder={isLoading ? "Carregando..." : "Sem canais"}>
+            {(value) =>
+              channels.find((channel) => channel.id === value)?.youtubeDisplayName ??
+              (isLoading ? "Carregando..." : "Sem canais")
+            }
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent align="end">
+          {channels.map((channel) => (
+            <SelectItem key={channel.id} value={channel.id}>
               {channel.youtubeDisplayName}
-            </option>
-          ))
-        )}
-      </select>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <span className="sr-only" aria-live="polite">
         {feedback}
       </span>

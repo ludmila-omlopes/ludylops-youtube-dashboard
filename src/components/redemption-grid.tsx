@@ -26,14 +26,18 @@ export function RedemptionGrid({
   expanded = false,
   viewerBalance,
   staticCards = false,
+  fullWidth = false,
+  sectionClassName,
 }: {
   items: CatalogItemRecord[];
   expanded?: boolean;
   viewerBalance?: number;
   staticCards?: boolean;
+  fullWidth?: boolean;
+  sectionClassName?: string;
 }) {
-  return (
-    <section className="panel surface-section p-6 sm:p-8">
+  const content = (
+    <>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="mono text-xs uppercase tracking-[0.32em] text-[var(--color-ink-soft)]">
@@ -126,6 +130,22 @@ export function RedemptionGrid({
           );
         })}
       </div>
+    </>
+  );
+
+  if (fullWidth) {
+    return (
+      <section className={`landing-plane landing-divider py-8 sm:py-10 ${sectionClassName ?? "surface-section"}`}>
+        <div className="mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-10">
+          {content}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel surface-section p-6 sm:p-8">
+      {content}
     </section>
   );
 }
