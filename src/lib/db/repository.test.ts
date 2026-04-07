@@ -25,6 +25,7 @@ import {
   bets,
   pointLedger,
   redemptions,
+  streamerbotCounters,
   streamerbotEventLog,
   users,
   viewerBalances,
@@ -45,6 +46,7 @@ import {
   lockBet,
   placeBet,
   placeBetFromChatCommand,
+  runStreamerbotCounterCommand,
   resolveBet,
   setActiveViewerForGoogleAccount,
   updateGameSuggestionStatus,
@@ -516,6 +518,96 @@ function createStreamerbotEventDb({
   };
 }
 
+function createStreamerbotCounterDb({
+  counterRow,
+}: {
+  counterRow?: {
+    key: string;
+    value: number;
+    lastResetAt: Date | null;
+    updatedAt: Date;
+    metadata: Record<string, unknown>;
+  };
+} = {}) {
+  const rows = counterRow ? [counterRow] : [];
+
+  const tx = {
+    select() {
+      return {
+        from(table: unknown) {
+          if (table === streamerbotCounters) {
+            return {
+              where() {
+                return {
+                  limit: async () => rows,
+                };
+              },
+            };
+          }
+
+          throw new Error("Unexpected table in streamerbot counter tx stub.");
+        },
+      };
+    },
+    insert(table: unknown) {
+      if (table === streamerbotCounters) {
+        return {
+          values(value: {
+            key: string;
+            value: number;
+            lastResetAt: Date | null;
+            updatedAt: Date;
+            metadata: Record<string, unknown>;
+          }) {
+            return {
+              onConflictDoNothing: async () => {
+                if (rows.some((entry) => entry.key === value.key)) {
+                  return;
+                }
+
+                rows.push(value);
+              },
+            };
+          },
+        };
+      }
+
+      throw new Error("Unexpected insert table in streamerbot counter tx stub.");
+    },
+    update(table: unknown) {
+      if (table === streamerbotCounters) {
+        return {
+          set(values: Partial<(typeof rows)[number]>) {
+            return {
+              where: async () => {
+                if (!rows[0]) {
+                  throw new Error("Expected a counter row before update.");
+                }
+
+                Object.assign(rows[0], values);
+              },
+            };
+          },
+        };
+      }
+
+      throw new Error("Unexpected update table in streamerbot counter tx stub.");
+    },
+  };
+
+  return {
+    rows,
+    db: {
+      select: tx.select,
+      insert: tx.insert,
+      update: tx.update,
+      async transaction<T>(callback: (txArg: typeof tx) => Promise<T>) {
+        return callback(tx);
+      },
+    },
+  };
+}
+
 describe("listBets", () => {
   beforeEach(() => {
     getDbMock.mockReset();
@@ -752,6 +844,157 @@ describe("placeBetFromChatCommand", () => {
         source: "streamerbot_chat",
       }),
     ).rejects.toThrow("multiple_open_bets");
+  });
+});
+
+describe("runStreamerbotCounterCommand", () => {
+  beforeEach(() => {
+    getDbMock.mockReset();
+    delete (globalThis as typeof globalThis & { __lojaDemoStore?: unknown }).__lojaDemoStore;
+  });
+
+  it("increments and reads the counter in demo mode", async () => {
+    getDbMock.mockReturnValue(null);
+
+    const incremented = await runStreamerbotCounterCommand({
+      counterKey: "death_count",
+      counterLabel: "mortes",
+      action: "increment",
+      requestedBy: "Ludy",
+    });
+    const current = await runStreamerbotCounterCommand({
+      counterKey: "death_count",
+      counterLabel: "mortes",
+      action: "get",
+    });
+
+    expect(incremented).toMatchObject({
+      mode: "demo",
+      action: "increment",
+      count: 1,
+      replyMessage: "Ludy, contador de mortes: 1.",
+    });
+    expect(current).toMatchObject({
+      mode: "demo",
+      action: "get",
+      count: 1,
+      replyMessage: "contador de mortes atual: 1.",
+    });
+  });
+
+  it("keeps multiple counter keys independent in demo mode", async () => {
+    getDbMock.mockReturnValue(null);
+
+    await runStreamerbotCounterCommand({
+      counterKey: "death_count",
+      counterLabel: "mortes",
+      action: "increment",
+      amount: 2,
+    });
+    await runStreamerbotCounterCommand({
+      counterKey: "win_count",
+      counterLabel: "vitorias",
+      action: "increment",
+      amount: 3,
+    });
+
+    const deaths = await runStreamerbotCounterCommand({
+      counterKey: "death_count",
+      counterLabel: "mortes",
+      action: "get",
+    });
+    const wins = await runStreamerbotCounterCommand({
+      counterKey: "win_count",
+      counterLabel: "vitorias",
+      action: "get",
+    });
+
+    expect(deaths.count).toBe(2);
+    expect(deaths.replyMessage).toBe("contador de mortes atual: 2.");
+    expect(wins.count).toBe(3);
+    expect(wins.replyMessage).toBe("contador de vitorias atual: 3.");
+  });
+
+  it("requires explicit confirmation before resetting in demo mode", async () => {
+    getDbMock.mockReturnValue(null);
+
+    await expect(
+      runStreamerbotCounterCommand({
+        counterKey: "death_count",
+        counterLabel: "mortes",
+        action: "reset",
+      }),
+    ).rejects.toThrow("reset_confirmation_required");
+  });
+
+  it("persists increments in database mode", async () => {
+    const { db, rows } = createStreamerbotCounterDb();
+    getDbMock.mockReturnValue(db);
+
+    const result = await runStreamerbotCounterCommand({
+      counterKey: "win_count",
+      counterLabel: "vitorias",
+      action: "increment",
+      amount: 2,
+      requestedBy: "Mod",
+      occurredAt: "2026-04-07T12:00:00.000Z",
+    });
+
+    expect(result).toMatchObject({
+      mode: "database",
+      action: "increment",
+      count: 2,
+      replyMessage: "Mod, contador de vitorias: 2 (+2).",
+    });
+    expect(rows[0]).toMatchObject({
+      key: "win_count",
+      value: 2,
+      metadata: {
+        counterLabel: "vitorias",
+      },
+    });
+  });
+
+  it("resets the counter in database mode when confirmed", async () => {
+    const { db, rows } = createStreamerbotCounterDb({
+      counterRow: {
+        key: "death_count",
+        value: 5,
+        lastResetAt: null,
+        updatedAt: new Date("2026-04-07T11:00:00.000Z"),
+        metadata: {},
+      },
+    });
+    getDbMock.mockReturnValue(db);
+
+    const result = await runStreamerbotCounterCommand({
+      counterKey: "death_count",
+      counterLabel: "mortes",
+      action: "reset",
+      confirmReset: true,
+      requestedBy: "Admin",
+      occurredAt: "2026-04-07T12:00:00.000Z",
+      resetReason: "nova run",
+    });
+
+    expect(result).toMatchObject({
+      mode: "database",
+      action: "reset",
+      count: 0,
+      replyMessage: "Admin, contador de mortes resetado. Total atual: 0.",
+    });
+    expect(rows[0]).toMatchObject({
+      key: "death_count",
+      value: 0,
+      metadata: {
+        lastAction: "reset",
+        previousValue: 5,
+        requestedBy: "Admin",
+        source: "streamerbot_chat",
+        resetReason: "nova run",
+      },
+    });
+    expect(rows[0]?.lastResetAt?.toISOString()).toBe("2026-04-07T12:00:00.000Z");
   });
 });
 

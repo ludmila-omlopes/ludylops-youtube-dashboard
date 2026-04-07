@@ -51,6 +51,36 @@ export const streamerbotChatBetSchema = z
     path: ["optionId"],
   });
 
+const streamerbotCounterActionSchema = z.enum(["increment", "get", "reset"]);
+const streamerbotCounterKeySchema = z
+  .string()
+  .trim()
+  .min(2)
+  .max(64)
+  .regex(/^[a-z0-9]+(?:[_-][a-z0-9]+)*$/);
+
+export const streamerbotCounterCommandSchema = z.object({
+  counterKey: streamerbotCounterKeySchema,
+  counterLabel: z.string().trim().min(1).max(64).optional(),
+  action: streamerbotCounterActionSchema,
+  amount: z.number().int().min(1).max(100).default(1),
+  requestedBy: z.string().min(1).max(255).optional(),
+  source: z.string().min(1).max(64).default("streamerbot_chat"),
+  occurredAt: z.string().datetime().optional(),
+  confirmReset: z.boolean().default(false),
+  resetReason: z.string().min(3).max(255).optional(),
+});
+
+export const streamerbotDeathCounterCommandSchema = z.object({
+  action: streamerbotCounterActionSchema,
+  amount: z.number().int().min(1).max(100).default(1),
+  requestedBy: z.string().min(1).max(255).optional(),
+  source: z.string().min(1).max(64).default("streamerbot_chat"),
+  occurredAt: z.string().datetime().optional(),
+  confirmReset: z.boolean().default(false),
+  resetReason: z.string().min(3).max(255).optional(),
+});
+
 export const setActiveViewerSchema = z.object({
   viewerId: z.string().min(1),
 });

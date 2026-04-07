@@ -143,6 +143,14 @@ export interface BridgeClientRecord {
   lastSeenAt: string;
 }
 
+export interface StreamerbotCounterRecord {
+  key: string;
+  value: number;
+  lastResetAt: string | null;
+  updatedAt: string;
+  metadata: Record<string, unknown>;
+}
+
 export interface BetRecord {
   id: string;
   question: string;
