@@ -280,3 +280,11 @@ export const streamerbotEventLog = pgTable(
     eventIdIdx: uniqueIndex("streamerbot_event_id_idx").on(table.eventId),
   }),
 );
+
+export const streamerbotCounters = pgTable("streamerbot_counters", {
+  key: varchar("key", { length: 64 }).primaryKey(),
+  value: integer("value").default(0).notNull(),
+  lastResetAt: timestamp("last_reset_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  metadata: jsonb("metadata").default({}).notNull(),
+});
