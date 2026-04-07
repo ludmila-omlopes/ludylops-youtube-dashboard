@@ -3,6 +3,8 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { BetWithOptionsRecord } from "@/lib/types";
 import { formatPipetz } from "@/lib/utils";
 
@@ -296,22 +298,22 @@ export function BetCard({
           <span className="text-xs font-bold uppercase tracking-wide text-[var(--color-ink-soft)]">
             Quanto apostar?
           </span>
-          <input
+          <Input
             type="number"
             min="1"
             placeholder="Pipetz"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            className="w-28 rounded-[var(--radius)] border-[3px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2 text-sm font-bold"
+            className="w-28 px-3 py-2"
           />
-          <button
+          <Button
             type="button"
             onClick={handlePlace}
             disabled={isPending}
-            className="btn-brutal ink-button px-5 py-2.5 text-xs disabled:opacity-60"
+            size="sm"
           >
             {isPending ? "Enviando..." : "Apostar"}
-          </button>
+          </Button>
         </div>
       ) : null}
 

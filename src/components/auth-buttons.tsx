@@ -4,10 +4,13 @@ import { getProviders, signIn, signOut, useSession } from "next-auth/react";
 import { startTransition, useEffect, useState } from "react";
 
 import { ViewerChannelSwitcher } from "@/components/viewer-channel-switcher";
+import { Button } from "@/components/ui/button";
 
 export function AuthButtons() {
   const { data: session } = useSession();
-  const [providers, setProviders] = useState<Record<string, { id: string; name: string }> | null>(null);
+  const [providers, setProviders] = useState<Record<string, { id: string; name: string }> | null>(
+    null,
+  );
 
   useEffect(() => {
     startTransition(() => {
@@ -23,13 +26,14 @@ export function AuthButtons() {
     return (
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <ViewerChannelSwitcher />
-        <button
+        <Button
           type="button"
           onClick={() => signOut({ callbackUrl: "/" })}
-          className="btn-brutal bg-[var(--color-paper)] px-5 py-2.5 text-xs text-[var(--color-ink)]"
+          variant="neutral"
+          size="sm"
         >
-          Sair ←
-        </button>
+          Sair
+        </Button>
       </div>
     );
   }
@@ -40,22 +44,19 @@ export function AuthButtons() {
   return (
     <div className="flex flex-col gap-2 sm:flex-row">
       {hasGoogle ? (
-        <button
-          type="button"
-          onClick={() => signIn("google", { callbackUrl: "/" })}
-          className="btn-brutal ink-button px-6 py-2.5 text-sm"
-        >
-          Entrar com Google ↗
-        </button>
+        <Button type="button" onClick={() => signIn("google", { callbackUrl: "/" })}>
+          Entrar com Google
+        </Button>
       ) : null}
       {hasCredentials ? (
-        <button
+        <Button
           type="button"
           onClick={() => signIn("credentials", { email: "ana@example.com", callbackUrl: "/" })}
-          className="btn-brutal accent-button px-5 py-2.5 text-xs"
+          variant="accent"
+          size="sm"
         >
-          Modo demo →
-        </button>
+          Modo demo
+        </Button>
       ) : null}
     </div>
   );

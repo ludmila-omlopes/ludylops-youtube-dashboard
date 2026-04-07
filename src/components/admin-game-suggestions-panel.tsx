@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+import { Button } from "@/components/ui/button";
 import type { GameSuggestionWithMeta } from "@/lib/types";
 import { formatDateTime, formatPipetz } from "@/lib/utils";
 
@@ -61,8 +62,9 @@ export function AdminGameSuggestionsPanel({
   }
 
   return (
-    <section className="panel bg-[var(--color-lavender)] p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <section className="landing-plane landing-divider bg-[var(--color-paper-pink)] py-8 sm:py-10">
+      <div className="mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-10">
+        <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="mono text-xs uppercase tracking-[0.3em] text-[var(--color-ink-soft)]">
             Jogos
@@ -81,7 +83,7 @@ export function AdminGameSuggestionsPanel({
         ) : null}
       </div>
 
-      <div className="mt-6 grid gap-3">
+        <div className="mt-6 grid gap-3">
         {suggestions.length === 0 ? (
           <div className="card-brutal-static p-4 text-sm font-bold text-[var(--color-ink-soft)]">
             Nenhuma sugestao cadastrada.
@@ -118,48 +120,53 @@ export function AdminGameSuggestionsPanel({
 
             <div className="mt-4 flex flex-wrap gap-2">
               {suggestion.status !== "accepted" ? (
-                <button
+                <Button
                   type="button"
                   onClick={() => submitStatus(suggestion.id, "accepted")}
                   disabled={isPending}
-                  className="btn-brutal bg-[var(--color-mint)] px-3 py-2 text-xs disabled:opacity-60"
+                  variant="success"
+                  size="sm"
                 >
                   Aceitar
-                </button>
+                </Button>
               ) : null}
               {suggestion.status !== "played" ? (
-                <button
+                <Button
                   type="button"
                   onClick={() => submitStatus(suggestion.id, "played")}
                   disabled={isPending}
-                  className="btn-brutal bg-[var(--color-paper)] px-3 py-2 text-xs disabled:opacity-60"
+                  variant="neutral"
+                  size="sm"
                 >
                   Marcar jogado
-                </button>
+                </Button>
               ) : null}
               {suggestion.status !== "rejected" ? (
-                <button
+                <Button
                   type="button"
                   onClick={() => submitStatus(suggestion.id, "rejected")}
                   disabled={isPending}
-                  className="btn-brutal bg-[var(--color-rose)] px-3 py-2 text-xs disabled:opacity-60"
+                  variant="danger"
+                  size="sm"
                 >
                   Rejeitar
-                </button>
+                </Button>
               ) : null}
               {suggestion.status !== "open" ? (
-                <button
+                <Button
                   type="button"
                   onClick={() => submitStatus(suggestion.id, "open")}
                   disabled={isPending}
-                  className="btn-brutal bg-[var(--color-sky)] px-3 py-2 text-xs disabled:opacity-60"
+                  variant="info"
+                  size="sm"
                 >
                   Reabrir
-                </button>
+                </Button>
               ) : null}
             </div>
           </article>
         ))}
+        </div>
       </div>
     </section>
   );

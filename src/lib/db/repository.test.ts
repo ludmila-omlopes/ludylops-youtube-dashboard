@@ -35,10 +35,13 @@ import {
   cancelBet,
   createBet,
   createGameSuggestion,
+  createProductRecommendationFromInput,
+  deleteProductRecommendation,
   ensureViewerFromSession,
   getViewerDashboard,
   getSessionViewerState,
   ingestStreamerbotEvent,
+  listAdminProductRecommendations,
   listBets,
   listGameSuggestions,
   listAdminGameSuggestions,
@@ -1469,6 +1472,48 @@ describe("ingestStreamerbotEvent", () => {
     expect(insertedLedger).toHaveLength(1);
   });
 
+  it("ignores an invalid live-event handle that looks like a display name", async () => {
+    const usersRows = [
+      {
+        id: "viewer-1",
+        googleUserId: null,
+        email: null,
+        youtubeChannelId: "UC123",
+        youtubeDisplayName: "UC123",
+        youtubeHandle: null,
+        avatarUrl: null,
+        isLinked: false,
+        excludeFromRanking: false,
+        createdAt: new Date("2026-03-31T10:00:00.000Z"),
+      },
+    ];
+    const balanceRows = [
+      {
+        viewerId: "viewer-1",
+        currentBalance: 10,
+        lifetimeEarned: 10,
+        lifetimeSpent: 0,
+        lastSyncedAt: new Date("2026-03-31T10:00:00.000Z"),
+      },
+    ];
+    const { db } = createStreamerbotEventDb({ usersRows, balanceRows });
+    getDbMock.mockReturnValue(db);
+
+    await ingestStreamerbotEvent({
+      eventId: "evt-display-handle",
+      eventType: "presence_tick",
+      viewerExternalId: "UC123",
+      youtubeDisplayName: "Viewer Name",
+      youtubeHandle: "Viewer Name",
+      amount: 5,
+      occurredAt: "2026-03-31T12:00:00.000Z",
+      payload: {},
+    });
+
+    expect(usersRows[0]?.youtubeDisplayName).toBe("Viewer Name");
+    expect(usersRows[0]?.youtubeHandle).toBeNull();
+  });
+
   it("stores the viewer handle when a live event creates a new viewer", async () => {
     const usersRows: Parameters<typeof createStreamerbotEventDb>[0]["usersRows"] = [];
     const balanceRows: Parameters<typeof createStreamerbotEventDb>[0]["balanceRows"] = [];
@@ -1552,4 +1597,37 @@ describe("ingestStreamerbotEvent", () => {
     expect(balanceRows[0]?.currentBalance).toBe(10);
   });
 
+});
+
+describe("product recommendations", () => {
+  beforeEach(() => {
+    getDbMock.mockReturnValue(null);
+    delete (globalThis as typeof globalThis & { __lojaDemoStore?: unknown }).__lojaDemoStore;
+  });
+
+  it("deletes a saved recommendation in demo mode", async () => {
+    const created = await createProductRecommendationFromInput({
+      name: "Controle Pro",
+      category: "perifericos",
+      context: "Para jogar no setup da live.",
+      imageUrl: "/uploads/pro-controller.jpg",
+      href: "https://example.com/pro-controller",
+      storeLabel: "Loja Teste",
+      linkKind: "external",
+      sortOrder: 9,
+      isActive: true,
+    });
+
+    const deleted = await deleteProductRecommendation(created.id);
+    const recommendations = await listAdminProductRecommendations();
+
+    expect(deleted.id).toBe(created.id);
+    expect(recommendations.some((entry) => entry.id === created.id)).toBe(false);
+  });
+
+  it("rejects deleting an unknown recommendation", async () => {
+    await expect(deleteProductRecommendation("missing-recommendation")).rejects.toThrow(
+      "recommendation_not_found",
+    );
+  });
 });

@@ -5,10 +5,10 @@ export default async function ResgatesPage() {
   const catalog = await getCatalog();
 
   return (
-    <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-8 px-4 py-8 sm:px-6 lg:px-10">
-      <section className="panel surface-hero relative overflow-hidden p-6 sm:p-10">
+    <div className="flex w-full flex-col pb-20 pt-8">
+      <section className="landing-plane surface-hero relative overflow-hidden py-8 sm:py-10">
         <div className="bg-dots-light pointer-events-none absolute inset-0 opacity-20" />
-        <div className="relative">
+        <div className="relative mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-10">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="mono text-xs font-bold uppercase tracking-[0.32em] text-[var(--color-ink-soft)]">
@@ -30,7 +30,7 @@ export default async function ResgatesPage() {
           </div>
         </div>
       </section>
-      <RedemptionGrid items={catalog} expanded />
+      <RedemptionGrid items={catalog} expanded fullWidth sectionClassName="bg-[var(--color-paper-pink)]" />
     </div>
   );
 }

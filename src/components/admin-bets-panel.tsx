@@ -3,6 +3,16 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { validateCreateBetDraft } from "@/lib/bets/admin";
 import { evaluateBetLifecycleAction } from "@/lib/bets/service";
 import type { BetWithOptionsRecord } from "@/lib/types";
@@ -135,8 +145,9 @@ export function AdminBetsPanel({ bets }: { bets: BetWithOptionsRecord[] }) {
   }
 
   return (
-    <section className="panel bg-[var(--color-sky)] p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <section className="landing-plane landing-divider bg-[var(--color-mint)] py-8 sm:py-10">
+      <div className="mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-10">
+        <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="mono text-xs uppercase tracking-[0.3em] text-[var(--color-ink)]/50">
             Apostas
@@ -155,7 +166,7 @@ export function AdminBetsPanel({ bets }: { bets: BetWithOptionsRecord[] }) {
         ) : null}
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+        <div className="mt-6 grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <div className="card-brutal-static p-5">
           <p className="mono text-xs uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
             Nova aposta
@@ -165,13 +176,13 @@ export function AdminBetsPanel({ bets }: { bets: BetWithOptionsRecord[] }) {
               <span className="text-sm font-black uppercase tracking-[0.14em] text-[var(--color-ink)]">
                 Pergunta da aposta
               </span>
-              <input
+              <Input
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 placeholder="Ex.: Ela passa o boss sem morrer?"
                 minLength={6}
                 maxLength={255}
-                className="rounded-[var(--radius)] border-[3px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2 font-bold"
+                className="px-3 py-2"
               />
               <span className="text-xs font-bold text-[var(--color-ink-soft)]">
                 Entre 6 e 255 caracteres.
@@ -182,12 +193,12 @@ export function AdminBetsPanel({ bets }: { bets: BetWithOptionsRecord[] }) {
               <span className="text-sm font-black uppercase tracking-[0.14em] text-[var(--color-ink)]">
                 Encerrar apostas em
               </span>
-              <input
+              <Input
                 type="datetime-local"
                 value={closesAt}
                 onChange={(e) => setClosesAt(e.target.value)}
                 min={minLocalDateTimeInput()}
-                className="rounded-[var(--radius)] border-[3px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2 font-bold"
+                className="px-3 py-2"
               />
               <span className="text-xs font-bold text-[var(--color-ink-soft)]">
                 Data e hora locais em que a janela de apostas fecha. Depois desse horario, ninguem mais consegue apostar.
@@ -198,27 +209,28 @@ export function AdminBetsPanel({ bets }: { bets: BetWithOptionsRecord[] }) {
               <span className="text-sm font-black uppercase tracking-[0.14em] text-[var(--color-ink)]">
                 Opcoes
               </span>
-              <textarea
+              <Textarea
                 value={optionsText}
                 onChange={(e) => setOptionsText(e.target.value)}
                 rows={5}
                 maxLength={1550}
                 placeholder={"Sim\nNao"}
-                className="rounded-[var(--radius)] border-[3px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2 text-sm font-bold"
+                className="min-h-32 px-3 py-2 font-bold"
               />
               <span className="text-xs font-bold text-[var(--color-ink-soft)]">
                 Use uma opcao por linha. Minimo de 2 e maximo de 6 opcoes.
               </span>
             </label>
 
-            <button
+            <Button
               type="button"
               onClick={handleCreate}
               disabled={isPending}
-              className="btn-brutal ink-button px-4 py-2 text-xs disabled:opacity-60"
+              size="sm"
+              className="w-full sm:w-fit"
             >
               {isPending ? "Enviando..." : "Criar aposta"}
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -264,35 +276,44 @@ export function AdminBetsPanel({ bets }: { bets: BetWithOptionsRecord[] }) {
 
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   {canLock ? (
-                    <button
+                    <Button
                       type="button"
                       onClick={() => submitAction(`/api/admin/bets/${bet.id}/lock`)}
                       disabled={isPending}
-                      className="btn-brutal bg-[var(--color-paper)] px-3 py-2 text-xs"
+                      variant="neutral"
+                      size="sm"
                     >
                       Travar
-                    </button>
+                    </Button>
                   ) : null}
                   {canResolve ? (
                     <>
-                      <select
-                        value={resolveSelections[bet.id] ?? ""}
-                        onChange={(e) =>
+                      <Select
+                        value={resolveSelections[bet.id] || null}
+                        onValueChange={(value) =>
                           setResolveSelections((current) => ({
                             ...current,
-                            [bet.id]: e.target.value,
+                            [bet.id]: value ?? "",
                           }))
                         }
-                        className="rounded-[var(--radius)] border-[3px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2 text-xs font-bold"
                       >
-                        <option value="">Escolha vencedora</option>
-                        {bet.options.map((option) => (
-                          <option key={option.id} value={option.id}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      <button
+                        <SelectTrigger size="sm" className="min-w-[220px]">
+                          <SelectValue placeholder="Escolha vencedora">
+                            {(value) =>
+                              bet.options.find((option) => option.id === value)?.label ??
+                              "Escolha vencedora"
+                            }
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {bet.options.map((option) => (
+                            <SelectItem key={option.id} value={option.id}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
                         type="button"
                         onClick={() =>
                           submitAction(`/api/admin/bets/${bet.id}/resolve`, {
@@ -300,26 +321,28 @@ export function AdminBetsPanel({ bets }: { bets: BetWithOptionsRecord[] }) {
                           })
                         }
                         disabled={isPending || !resolveSelections[bet.id]}
-                        className="btn-brutal ink-button px-3 py-2 text-xs disabled:opacity-60"
+                        size="sm"
                       >
                         Resolver
-                      </button>
+                      </Button>
                     </>
                   ) : null}
                   {canCancel ? (
-                    <button
+                    <Button
                       type="button"
                       onClick={() => submitAction(`/api/admin/bets/${bet.id}/cancel`)}
                       disabled={isPending}
-                      className="btn-brutal bg-[var(--color-rose)] px-3 py-2 text-xs"
+                      variant="danger"
+                      size="sm"
                     >
                       Cancelar
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
               </article>
             );
           })}
+        </div>
         </div>
       </div>
     </section>

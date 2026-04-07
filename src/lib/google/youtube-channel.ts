@@ -1,3 +1,5 @@
+import { normalizeYoutubeHandle } from "@/lib/youtube/identity";
+
 type YoutubeChannelsListResponse = {
   nextPageToken?: string;
   items?: Array<{
@@ -14,15 +16,6 @@ export type YoutubeChannelIdentity = {
   youtubeDisplayName: string;
   youtubeHandle: string | null;
 };
-
-function normalizeYoutubeHandle(value: string | undefined) {
-  const trimmed = value?.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  return trimmed.startsWith("@") ? trimmed : `@${trimmed}`;
-}
 
 export async function getYoutubeChannelFromGoogleAccessToken(
   accessToken: string,
