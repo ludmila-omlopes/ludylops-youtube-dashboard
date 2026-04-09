@@ -760,6 +760,14 @@ export default async function Home() {
               )}
             </div>
 
+            <p className="mt-4 text-sm font-medium leading-6 text-[var(--color-ink-soft)]">
+              Ao usar o login Google, voce pode revisar nossa{" "}
+              <Link href="/privacy" className="font-black underline decoration-[3px] underline-offset-4">
+                Politica de Privacidade
+              </Link>
+              .
+            </p>
+
             <div className="mt-8 flex flex-wrap gap-3">
               <span className="retro-label bg-[var(--color-pink)] text-[var(--color-accent-ink)]">
                 pontos na live
