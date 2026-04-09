@@ -971,6 +971,25 @@ function resolveChatBetOption(input: {
   throw new Error("invalid_option");
 }
 
+function parseExplicitLivestreamState(payload: Record<string, unknown>) {
+  const raw = payload.isLive;
+  if (typeof raw === "boolean") {
+    return raw;
+  }
+
+  if (typeof raw === "string") {
+    const normalized = raw.trim().toLowerCase();
+    if (normalized === "true" || normalized === "1" || normalized === "yes") {
+      return true;
+    }
+    if (normalized === "false" || normalized === "0" || normalized === "no") {
+      return false;
+    }
+  }
+
+  return null;
+}
+
 function listDemoBets(viewer: ViewerRecord | null) {
   const store = getDemoStore();
   return store.bets
@@ -3741,7 +3760,11 @@ export async function ingestStreamerbotEvent(input: {
   }
 
   if (eventRequiresActiveLivestream(input.eventType)) {
-    const isLive = await isStreamerbotLivestreamActive();
+    const explicitLivestreamState = parseExplicitLivestreamState(input.payload);
+    const isLive =
+      explicitLivestreamState === null
+        ? await isStreamerbotLivestreamActive()
+        : explicitLivestreamState;
     if (!isLive) {
       return {
         mode: "database" as const,

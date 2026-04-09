@@ -114,7 +114,7 @@ Assinatura:
 - HMAC SHA-256 de `timestamp.body`
 - Secret: `STREAMERBOT_SHARED_SECRET`
 
-Eventos automáticos da live (`presence_tick` e `chat_bonus`) so entram no banco quando o canal monitorado estiver ao vivo. O backend usa `YOUTUBE_API_KEY` e, por padrao, o `youtube_channel_id` da conta admin vinculada; se preferir, configure `STREAM_YOUTUBE_CHANNEL_ID`.
+Eventos automáticos da live (`presence_tick` e `chat_bonus`) so entram no banco quando o canal monitorado estiver ao vivo. O backend usa `YOUTUBE_API_KEY` e, por padrao, o `youtube_channel_id` da conta admin vinculada; se preferir, configure `STREAM_YOUTUBE_CHANNEL_ID`. Se o Streamer.bot enviar `payload.isLive`, o backend usa esse sinal explicitamente antes de cair no fallback por API, o que ajuda em lives nao listadas.
 
 Payload base:
 
@@ -127,7 +127,12 @@ Payload base:
   "youtubeHandle": "@meucanal",
   "amount": 5,
   "occurredAt": "2026-04-01T22:30:00.000Z",
-  "payload": {}
+  "payload": {
+    "reason": "present_viewers",
+    "source": "streamerbot",
+    "isLive": true,
+    "broadcastId": "abc123"
+  }
 }
 ```
 
@@ -135,6 +140,8 @@ Notas:
 
 - `youtubeHandle` e opcional, mas recomendado para o ranking mostrar `@handle` em vez do channel id.
 - Pode ser enviado com ou sem `@`; o backend normaliza antes de salvar.
+- Se a live for `Unlisted`, inclua `payload.isLive = true` no request do Streamer.bot para evitar depender apenas da busca publica da API do YouTube.
+- A rota responde `200` mesmo quando ignora um evento live-gated; nesses casos o body inclui `ignoredReason`, entao o script do Streamer.bot deve logar o body mesmo em sucesso.
 
 ### Apostas por comando de chat
 
@@ -208,8 +215,20 @@ Notas:
 
 - O fluxo simples assume apenas uma aposta `open` por vez.
 - Se voce abrir varias apostas ao mesmo tempo, preencha `lojaneon.activeBetId` com o `betId` da rodada atual.
+- O script aceita `betId` vindo da propria action do Streamer.bot e usa esse valor antes da Global Variable.
 - O script tenta descobrir o id do viewer usando `userId`, `fromId`, `authorId`, `channelId`, `youtubeUserId` e `targetUserId`.
 - Se sua instancia do Streamer.bot usar outro nome de argumento, ajuste o array `ViewerIdArgCandidates` no script.
+
+Troubleshooting rapido:
+
+- `Assinatura invalida no comando de aposta.`
+  Verifique `lojaneon.streamerbotSharedSecret`, o relogio da maquina do Streamer.bot e se a action esta chamando a URL correta.
+- `Nao consegui identificar seu canal do YouTube para apostar.`
+  Verifique se o evento/comando do Streamer.bot expoe um dos argumentos aceitos pelo script: `id`, `userId`, `fromId`, `authorId`, `channelId`, `youtubeUserId` ou `targetUserId`.
+- `Ha mais de uma aposta aberta...`
+  Preencha `lojaneon.activeBetId` com o `betId` da rodada atual ou envie `betId` explicitamente na action.
+- `Opcao invalida.`
+  Confirme que o regex captura `optionIndex` corretamente e que o numero informado bate com a ordem das opcoes abertas.
 
 Referencias oficiais:
 
