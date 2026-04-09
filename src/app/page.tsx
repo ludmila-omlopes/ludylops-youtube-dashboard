@@ -3,13 +3,23 @@ import Link from "next/link";
 
 import { auth } from "@/auth";
 import { AuthButtons } from "@/components/auth-buttons";
-import { LeaderboardTable } from "@/components/leaderboard-table";
 import { QuickNavGrid } from "@/components/quick-nav-grid";
 import { StickerBadge } from "@/components/sticker-badge";
+<<<<<<< codex/issue-29-google-youtube-linking
 import { env } from "@/lib/env";
+=======
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+>>>>>>> master
 import { getCatalog, getLeaderboard, getViewerDashboard, listBets } from "@/lib/db/repository";
 import type { BetWithOptionsRecord, CatalogItemRecord } from "@/lib/types";
-import { formatPipetz } from "@/lib/utils";
+import { cn, formatPipetz } from "@/lib/utils";
 
 type HomeMetric = {
   label: string;
@@ -32,6 +42,7 @@ type FeatureCard = {
   bg: string;
 };
 
+<<<<<<< codex/issue-29-google-youtube-linking
 const DEFAULT_GITHUB_ISSUES_URL =
   "https://github.com/ludmila-omlopes/ludylops-youtube-dashboard/issues/new";
 
@@ -106,16 +117,166 @@ function YoutubeLinkingNotice({
         </a>
       </div>
     </div>
+=======
+function MetricCard({ metric, className }: { metric: HomeMetric; className?: string }) {
+  return (
+    <Card variant="poster" className={cn("p-4", metric.bg, className)}>
+      <CardHeader className="gap-0">
+        <CardDescription className="mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
+          {metric.label}
+        </CardDescription>
+        <CardTitle
+          className="mt-2 text-3xl uppercase leading-none"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          {metric.value}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="mt-2">
+        <p className="text-sm font-bold leading-6 text-[var(--color-ink-soft)]">{metric.note}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function FeatureStoryCard({ feature }: { feature: FeatureCard }) {
+  return (
+    <Card variant="poster" className={`flex-row gap-4 p-4 sm:p-5 ${feature.bg}`}>
+      <CardContent className="flex h-14 w-14 shrink-0 items-center justify-center">
+        <div className="card-brutal flex h-14 w-14 items-center justify-center bg-[var(--color-paper)] text-xl font-black">
+          {feature.symbol}
+        </div>
+      </CardContent>
+      <CardHeader className="gap-0">
+        <CardDescription className="mono text-[10px] uppercase tracking-[0.28em] text-[var(--color-ink-soft)]">
+          {feature.eyebrow}
+        </CardDescription>
+        <CardTitle
+          className="mt-2 text-2xl uppercase leading-none"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          {feature.title}
+        </CardTitle>
+        <CardContent className="mt-3">
+          <p className="text-sm leading-6 text-[var(--color-ink-soft)]">{feature.body}</p>
+        </CardContent>
+      </CardHeader>
+    </Card>
+  );
+}
+
+function RankingLeaderCard({
+  index,
+  bgClass,
+  viewerName,
+  balance,
+}: {
+  index: number;
+  bgClass: string;
+  viewerName: string;
+  balance: number;
+}) {
+  return (
+    <Card variant="poster" className={`flex-row items-center justify-between gap-3 px-4 py-4 ${bgClass}`}>
+      <CardContent className="flex min-w-0 items-center gap-3">
+        <div className="card-brutal flex min-w-[52px] items-center justify-center bg-[var(--color-paper)] px-3 py-2 text-sm font-black">
+          #{index + 1}
+        </div>
+        <CardHeader className="min-w-0 gap-0">
+          <CardDescription className="mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
+            viewer
+          </CardDescription>
+          <CardTitle className="truncate text-base font-black uppercase tracking-[0.04em]">
+            {viewerName}
+          </CardTitle>
+        </CardHeader>
+      </CardContent>
+      <CardFooter className="shrink-0">
+        <span className="mono text-xs font-black uppercase tracking-[0.18em] text-[var(--color-ink)]">
+          {formatPipetz(balance)}
+        </span>
+      </CardFooter>
+    </Card>
+  );
+}
+
+function SpotlightOptionCard({
+  optionLabel,
+  poolAmount,
+  index,
+}: {
+  optionLabel: string;
+  poolAmount: number;
+  index: number;
+}) {
+  const colors = [
+    "bg-[var(--color-blue)]",
+    "bg-[var(--color-purple)]",
+    "bg-[var(--color-pink)]",
+    "bg-[var(--color-paper)]",
+  ];
+
+  return (
+    <Card
+      variant="poster"
+      className={`flex-row items-center justify-between gap-3 px-4 py-4 ${colors[index % colors.length]}`}
+    >
+      <CardHeader className="min-w-0 gap-0">
+        <CardDescription className="mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
+          opcao 0{index + 1}
+        </CardDescription>
+        <CardTitle className="mt-1 text-lg font-black uppercase leading-tight">{optionLabel}</CardTitle>
+      </CardHeader>
+      <CardFooter className="shrink-0">
+        <span className="mono text-xs font-black uppercase tracking-[0.18em] text-[var(--color-ink)]">
+          {formatPipetz(poolAmount)}
+        </span>
+      </CardFooter>
+    </Card>
+  );
+}
+
+function RedemptionSpotlightCard({
+  item,
+  colorClass,
+}: {
+  item: CatalogItemRecord;
+  colorClass: string;
+}) {
+  return (
+    <Card variant="poster" className={`h-full justify-between gap-4 p-4 sm:p-5 ${colorClass}`}>
+      <CardHeader className="gap-0">
+        <CardDescription className="mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
+          {item.type.replaceAll("_", " ")}
+        </CardDescription>
+        <CardTitle
+          className="mt-4 text-2xl uppercase leading-none"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          {item.name}
+        </CardTitle>
+        <CardContent className="mt-3">
+          <p className="text-sm leading-6 text-[var(--color-ink-soft)]">{item.description}</p>
+        </CardContent>
+      </CardHeader>
+      <CardFooter className="flex flex-wrap items-center justify-between gap-3">
+        <span className="mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
+          resgate instantaneo
+        </span>
+        <span className="text-sm font-black uppercase tracking-[0.08em] text-[var(--color-ink)]">
+          {formatPipetz(item.cost)}
+        </span>
+      </CardFooter>
+    </Card>
+>>>>>>> master
   );
 }
 
 function HeroPoster({
-  badge,
   heading,
   description,
   metrics,
 }: {
-  badge: string;
   heading: string;
   description: string;
   metrics: HomeMetric[];
@@ -126,9 +287,6 @@ function HeroPoster({
     <div className="relative min-h-[420px]">
       <div className="card-brutal absolute left-0 top-8 hidden h-16 w-16 items-center justify-center bg-[var(--color-blue)] text-lg font-black lg:flex">
         {"</>"}
-      </div>
-      <div className="retro-label absolute -right-2 top-0 z-20 hidden bg-[var(--color-pink)] text-[var(--color-accent-ink)] lg:inline-flex">
-        {badge}
       </div>
       <StickerBadge
         variant="star"
@@ -141,13 +299,8 @@ function HeroPoster({
         label="decorative flower"
       />
 
-      <div className="panel relative z-10 mt-10 bg-[var(--color-paper)] p-6 lg:ml-10 lg:mt-12 lg:p-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className="retro-label accent-chip">oi, eu sou a ludylops</span>
-          <span className="retro-label accent-chip-strong">chat em movimento</span>
-        </div>
-
-        <div className="mt-8">
+      <div className="landing-plane relative z-10 mt-10 bg-[var(--color-paper)] p-6 lg:ml-10 lg:mt-12 lg:p-8">
+        <div>
           <p className="mono text-[11px] uppercase tracking-[0.3em] text-[var(--color-ink-soft)]">
             painel da live . pontos . apostas . resgates
           </p>
@@ -164,23 +317,11 @@ function HeroPoster({
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           {metrics.slice(0, 4).map((metric, index) => (
-            <article
+            <MetricCard
               key={metric.label}
-              className={`card-poster p-4 ${metric.bg} ${rotations[index % rotations.length]}`}
-            >
-              <p className="mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
-                {metric.label}
-              </p>
-              <p
-                className="mt-2 text-3xl uppercase leading-none"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                {metric.value}
-              </p>
-              <p className="mt-2 text-sm font-bold leading-6 text-[var(--color-ink-soft)]">
-                {metric.note}
-              </p>
-            </article>
+              metric={metric}
+              className={rotations[index % rotations.length]}
+            />
           ))}
         </div>
       </div>
@@ -200,12 +341,11 @@ function FeatureShowcase({
   const metricRotations = ["rotate-[1deg]", "rotate-[-1deg]", "rotate-[1.5deg]", "rotate-[-1.5deg]"];
 
   return (
-    <section className="panel surface-section p-6 sm:p-8">
-      <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+    <section className="landing-plane landing-divider bg-[var(--color-paper-pink)] py-8 sm:py-10">
+      <div className="mx-auto grid w-full max-w-[1520px] gap-8 px-4 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-10">
         <div>
-          <span className="retro-label accent-chip">o que rola por aqui</span>
           <h2
-            className="mt-4 max-w-xl text-4xl uppercase leading-[0.9] sm:text-5xl"
+            className="max-w-xl text-4xl uppercase leading-[0.9] sm:text-5xl"
             style={{ fontFamily: "var(--font-display)" }}
           >
             Voce participa da minha live de verdade.
@@ -217,37 +357,18 @@ function FeatureShowcase({
 
           <div className="mt-8 space-y-4">
             {features.map((feature) => (
-              <article key={feature.title} className={`card-poster flex gap-4 p-4 sm:p-5 ${feature.bg}`}>
-                <div className="card-brutal flex h-14 w-14 shrink-0 items-center justify-center bg-[var(--color-paper)] text-xl font-black">
-                  {feature.symbol}
-                </div>
-                <div>
-                  <p className="mono text-[10px] uppercase tracking-[0.28em] text-[var(--color-ink-soft)]">
-                    {feature.eyebrow}
-                  </p>
-                  <h3
-                    className="mt-2 text-2xl uppercase leading-none"
-                    style={{ fontFamily: "var(--font-display)" }}
-                  >
-                    {feature.title}
-                  </h3>
-                  <p className="mt-3 text-sm leading-6 text-[var(--color-ink-soft)]">{feature.body}</p>
-                </div>
-              </article>
+              <FeatureStoryCard key={feature.title} feature={feature} />
             ))}
           </div>
         </div>
 
-        <div className="panel bg-[var(--color-lavender)] p-6 sm:p-8">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="retro-label accent-chip-strong">termometro da live</span>
-            <span className="retro-label bg-[var(--color-paper)] text-[var(--color-ink)]">
-              comunidade agora
-            </span>
-          </div>
+        <div className="landing-plane bg-[var(--color-sky)] p-6 sm:p-8">
+          <p className="mono text-[11px] uppercase tracking-[0.28em] text-[var(--color-ink-soft)]">
+            termometro da live . comunidade agora
+          </p>
 
           <h3
-            className="mt-5 max-w-md text-3xl uppercase leading-[0.92] sm:text-4xl"
+            className="mt-4 max-w-md text-3xl uppercase leading-[0.92] sm:text-4xl"
             style={{ fontFamily: "var(--font-display)" }}
           >
             O que voces estao aprontando comigo agora.
@@ -255,23 +376,11 @@ function FeatureShowcase({
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             {metrics.map((metric, index) => (
-              <article
+              <MetricCard
                 key={metric.label}
-                className={`card-poster p-4 ${metric.bg} ${metricRotations[index % metricRotations.length]}`}
-              >
-                <p className="mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
-                  {metric.label}
-                </p>
-                <p
-                  className="mt-2 text-3xl uppercase leading-none"
-                  style={{ fontFamily: "var(--font-display)" }}
-                >
-                  {metric.value}
-                </p>
-                <p className="mt-2 text-sm font-bold leading-6 text-[var(--color-ink-soft)]">
-                  {metric.note}
-                </p>
-              </article>
+                metric={metric}
+                className={metricRotations[index % metricRotations.length]}
+              />
             ))}
           </div>
 
@@ -300,16 +409,11 @@ function RankingHeroCard({
   const rowColors = ["bg-[var(--color-blue)]", "bg-[var(--color-purple)]", "bg-[var(--color-pink)]"];
 
   return (
-    <aside className="panel surface-section p-6 sm:p-7">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <span className="retro-label accent-chip">ranking drop</span>
-        <span className="mono text-[11px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
-          top da live
-        </span>
-      </div>
+    <aside className="p-6 sm:p-7">
+      <p className="mono text-[11px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">top da live</p>
 
       <h2
-        className="mt-5 max-w-[10ch] text-4xl uppercase leading-[0.88] sm:text-5xl"
+        className="mt-4 max-w-[10ch] text-4xl uppercase leading-[0.88] sm:text-5xl"
         style={{ fontFamily: "var(--font-display)" }}
       >
         Liderando agora
@@ -321,27 +425,13 @@ function RankingHeroCard({
           const balance = "balance" in entry ? entry.balance : entry;
 
           return (
-            <div
+            <RankingLeaderCard
               key={viewer.id}
-              className={`card-poster flex items-center justify-between gap-3 px-4 py-4 ${rowColors[index]}`}
-            >
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="card-brutal flex min-w-[52px] items-center justify-center bg-[var(--color-paper)] px-3 py-2 text-sm font-black">
-                  #{index + 1}
-                </div>
-                <div className="min-w-0">
-                  <p className="mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
-                    viewer
-                  </p>
-                  <p className="truncate text-base font-black uppercase tracking-[0.04em]">
-                    {viewer.youtubeDisplayName}
-                  </p>
-                </div>
-              </div>
-              <span className="retro-label bg-[var(--color-paper)] text-[var(--color-ink)]">
-                {formatPipetz(balance.currentBalance)}
-              </span>
-            </div>
+              index={index}
+              bgClass={rowColors[index]}
+              viewerName={viewer.youtubeDisplayName}
+              balance={balance.currentBalance}
+            />
           );
         })}
       </div>
@@ -351,7 +441,7 @@ function RankingHeroCard({
           Ver ranking completo →
         </Link>
         {typeof viewerRank === "number" && viewerRank > 0 ? (
-          <span className="retro-label bg-[var(--color-paper)] text-[var(--color-ink)]">
+          <span className="mono text-[11px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
             voce esta em #{viewerRank}
           </span>
         ) : null}
@@ -362,21 +452,16 @@ function RankingHeroCard({
 
 function LiveSpotlight({ activeBet, catalog, loggedIn = false }: SpotlightProps) {
   if (activeBet) {
-    return (
-      <section className="panel bg-[var(--color-paper)] p-6 sm:p-8">
+      return (
+      <div className="p-6 sm:p-8">
         <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
           <div>
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="retro-label bg-[var(--color-pink)] text-[var(--color-accent-ink)]">
-                AO VIVO
-              </span>
-              <span className="retro-label accent-chip-strong">
-                {activeBet.options.length} opcoes abertas
-              </span>
-            </div>
+            <p className="mono text-[11px] uppercase tracking-[0.28em] text-[var(--color-ink-soft)]">
+              ao vivo . {activeBet.options.length} opcoes abertas
+            </p>
 
             <h2
-              className="mt-5 max-w-2xl text-4xl uppercase leading-[0.9] sm:text-5xl"
+              className="mt-4 max-w-2xl text-4xl uppercase leading-[0.9] sm:text-5xl"
               style={{ fontFamily: "var(--font-display)" }}
             >
               {activeBet.question}
@@ -387,14 +472,9 @@ function LiveSpotlight({ activeBet, catalog, loggedIn = false }: SpotlightProps)
               adivinhar o que vai acontecer comigo ao vivo.
             </p>
 
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <span className="retro-label accent-chip-strong">
-                pool {formatPipetz(activeBet.totalPool)}
-              </span>
-              <span className="retro-label accent-chip">
-                voces palpitando ao vivo
-              </span>
-            </div>
+            <p className="mono mt-6 text-[11px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
+              pool {formatPipetz(activeBet.totalPool)} . voces palpitando ao vivo
+            </p>
 
             <div className="mt-6">
               <Link href="/apostas" className="btn-brutal accent-button px-5 py-3 text-xs">
@@ -404,34 +484,17 @@ function LiveSpotlight({ activeBet, catalog, loggedIn = false }: SpotlightProps)
           </div>
 
           <div className="grid gap-4">
-            {activeBet.options.map((option, index) => {
-              const colors = [
-                "bg-[var(--color-blue)]",
-                "bg-[var(--color-purple)]",
-                "bg-[var(--color-pink)]",
-                "bg-[var(--color-paper)]",
-              ];
-
-              return (
-                <article
-                  key={option.id}
-                  className={`card-poster flex items-center justify-between gap-3 px-4 py-4 ${colors[index % colors.length]}`}
-                >
-                  <div className="min-w-0">
-                    <p className="mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
-                      opcao 0{index + 1}
-                    </p>
-                    <p className="mt-1 text-lg font-black uppercase leading-tight">{option.label}</p>
-                  </div>
-                  <span className="retro-label bg-[var(--color-paper)] text-[var(--color-ink)]">
-                    {formatPipetz(option.poolAmount)}
-                  </span>
-                </article>
-              );
-            })}
+            {activeBet.options.map((option, index) => (
+              <SpotlightOptionCard
+                key={option.id}
+                optionLabel={option.label}
+                poolAmount={option.poolAmount}
+                index={index}
+              />
+            ))}
           </div>
         </div>
-      </section>
+      </div>
     );
   }
 
@@ -439,18 +502,15 @@ function LiveSpotlight({ activeBet, catalog, loggedIn = false }: SpotlightProps)
   const colors = ["bg-[var(--color-blue)]", "bg-[var(--color-purple)]", "bg-[var(--color-pink)]"];
 
   return (
-    <section className="panel bg-[var(--color-paper)] p-6 sm:p-8">
+    <div className="p-6 sm:p-8">
       <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
         <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="retro-label accent-chip">resgates</span>
-            <span className="retro-label bg-[var(--color-paper)] text-[var(--color-ink)]">
-              loja da comunidade
-            </span>
-          </div>
+          <p className="mono text-[11px] uppercase tracking-[0.28em] text-[var(--color-ink-soft)]">
+            resgates . loja da comunidade
+          </p>
 
           <h2
-            className="mt-5 max-w-xl text-4xl uppercase leading-[0.9] sm:text-5xl"
+            className="mt-4 max-w-xl text-4xl uppercase leading-[0.9] sm:text-5xl"
             style={{ fontFamily: "var(--font-display)" }}
           >
             Em breve.
@@ -461,12 +521,9 @@ function LiveSpotlight({ activeBet, catalog, loggedIn = false }: SpotlightProps)
             imagens e outras baguncas ao vivo.
           </p>
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <span className="retro-label accent-chip-strong">{catalog.length} itens ativos</span>
-            <span className="retro-label bg-[var(--color-paper)] text-[var(--color-ink)]">
-              som . imagem . caos
-            </span>
-          </div>
+          <p className="mono mt-6 text-[11px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
+            {catalog.length} itens ativos . som . imagem . caos
+          </p>
 
           <div className="mt-6">
             <Link href="/resgates" className="btn-brutal ink-button px-5 py-3 text-xs">
@@ -477,72 +534,15 @@ function LiveSpotlight({ activeBet, catalog, loggedIn = false }: SpotlightProps)
 
         <div className="grid gap-4">
           {featured.map((item, index) => (
-            <article
+            <RedemptionSpotlightCard
               key={item.id}
-              className={`card-poster flex h-full flex-col justify-between gap-4 p-4 sm:p-5 ${colors[index % colors.length]}`}
-            >
-              <div>
-                <span className="retro-label bg-[var(--color-paper)] text-[var(--color-ink)]">
-                  {item.type.replaceAll("_", " ")}
-                </span>
-                <h3
-                  className="mt-4 text-2xl uppercase leading-none"
-                  style={{ fontFamily: "var(--font-display)" }}
-                >
-                  {item.name}
-                </h3>
-                <p className="mt-3 text-sm leading-6 text-[var(--color-ink-soft)]">
-                  {item.description}
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
-                  resgate instantaneo
-                </span>
-                <span className="retro-label bg-[var(--color-paper)] text-[var(--color-ink)]">
-                  {formatPipetz(item.cost)}
-                </span>
-              </div>
-            </article>
+              item={item}
+              colorClass={colors[index % colors.length]}
+            />
           ))}
         </div>
       </div>
-    </section>
-  );
-}
-
-function FinalCallout({ loggedIn = false }: { loggedIn?: boolean }) {
-  return (
-    <section className="panel bg-[var(--color-blue)] px-6 py-6 sm:px-8">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <span className="retro-label bg-[var(--color-paper)] text-[var(--color-ink)]">
-            vem pra minha live
-          </span>
-          <h2
-            className="mt-4 max-w-2xl text-4xl uppercase leading-[0.9] sm:text-5xl"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            {loggedIn
-              ? "Voce ja esta por aqui. Agora e entrar na brincadeira comigo."
-              : "Oi, eu sou a ludylops. Entra com sua conta e vem participar da minha live."}
-          </h2>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <Link href="/ranking" className="btn-brutal bg-[var(--color-paper)] px-5 py-3 text-xs text-[var(--color-ink)]">
-            Ver ranking →
-          </Link>
-          <Link
-            href={loggedIn ? "/resgates" : "/jogos"}
-            className="btn-brutal bg-[var(--color-pink)] px-5 py-3 text-xs text-[var(--color-accent-ink)]"
-          >
-            {loggedIn ? "Gastar pipetz ↗" : "Entrar pela comunidade ↗"}
-          </Link>
-        </div>
-      </div>
-    </section>
+    </div>
   );
 }
 
@@ -694,8 +694,8 @@ export default async function Home() {
       : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-[1520px] flex-col gap-8 px-4 pb-20 pt-8 sm:px-6 lg:px-10">
-      <section className="panel surface-hero relative p-6 sm:p-8 lg:p-10">
+    <div className="flex w-full flex-col pb-20 pt-8">
+      <section className="landing-plane surface-hero relative py-8 sm:py-10 lg:py-12">
         <div className="bg-micro-grid pointer-events-none absolute inset-0 opacity-30" />
         <StickerBadge
           variant="bolt"
@@ -708,16 +708,9 @@ export default async function Home() {
           label="decorative heart"
         />
 
-        <div className="relative grid gap-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-center">
+        <div className="relative mx-auto grid w-full max-w-[1520px] gap-8 px-4 sm:px-6 lg:grid-cols-[1.02fr_0.98fr] lg:items-center lg:px-10">
           <div className="max-w-3xl">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="retro-label accent-chip-strong">PIPETZ / minha live</span>
-              <span className="retro-label bg-[var(--color-paper)] text-[var(--color-ink)]">
-                chat, apostas e resgates
-              </span>
-            </div>
-
-            <p className="mono mt-6 text-[11px] uppercase tracking-[0.36em] text-[var(--color-ink-soft)]">
+            <p className="mono text-[11px] uppercase tracking-[0.36em] text-[var(--color-ink-soft)]">
               pontos . apostas . resgates . comunidade ao vivo
             </p>
 
@@ -760,6 +753,7 @@ export default async function Home() {
               )}
             </div>
 
+<<<<<<< codex/issue-29-google-youtube-linking
             <p className="mt-4 text-sm font-medium leading-6 text-[var(--color-ink-soft)]">
               Ao usar o login Google, voce pode revisar nossa{" "}
               <Link href="/privacy" className="font-black underline decoration-[3px] underline-offset-4">
@@ -777,10 +771,11 @@ export default async function Home() {
               </span>
               <span className="retro-label accent-chip">efeitos ao vivo</span>
             </div>
+=======
+>>>>>>> master
           </div>
 
           <HeroPoster
-            badge="feito pra voces"
             heading={heroPosterHeading}
             description={heroPosterDescription}
             metrics={metrics}
@@ -790,7 +785,7 @@ export default async function Home() {
 
       <FeatureShowcase features={features} metrics={metrics} loggedIn={Boolean(session?.user)} />
 
-      {session?.user ? (
+      {false ? (
         <QuickNavGrid
           items={[
             {
@@ -829,34 +824,18 @@ export default async function Home() {
         />
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[0.82fr_1.18fr]">
-        <RankingHeroCard leaderboard={leaderboard} viewerRank={viewerRank} />
-        <LiveSpotlight activeBet={activeBets[0]} catalog={catalog} loggedIn={Boolean(session?.user)} />
-      </div>
+      <section className="landing-plane landing-divider bg-[var(--color-sky)] py-8 sm:py-10">
+        <div className="mx-auto w-full max-w-[1520px] px-4 sm:px-6 lg:px-10">
+          <RankingHeroCard leaderboard={leaderboard} viewerRank={viewerRank} />
+        </div>
+      </section>
 
-      {session?.user ? (
-        <section className="panel surface-section p-5 sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <span className="retro-label accent-chip">ranking resumido</span>
-              <h2
-                className="mt-4 text-3xl uppercase leading-none sm:text-4xl"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                Seu lugar no ranking
-              </h2>
-            </div>
-            <Link href="/ranking" className="btn-brutal ink-button px-5 py-3 text-xs">
-              Ver tudo →
-            </Link>
-          </div>
-          <div className="mt-6">
-            <LeaderboardTable entries={leaderboard.slice(0, 5)} compact />
-          </div>
-        </section>
-      ) : null}
+      <section className="landing-plane landing-divider bg-[var(--color-paper)] py-8 sm:py-10">
+        <div className="mx-auto w-full max-w-[1520px] px-4 sm:px-6 lg:px-10">
+          <LiveSpotlight activeBet={activeBets[0]} catalog={catalog} loggedIn={Boolean(session?.user)} />
+        </div>
+      </section>
 
-      <FinalCallout loggedIn={Boolean(session?.user)} />
     </div>
   );
 }

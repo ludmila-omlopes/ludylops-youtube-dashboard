@@ -20,7 +20,9 @@ import {
   googleAccounts,
   googleAccountViewers,
   pointLedger,
+  productRecommendations,
   redemptions,
+  streamerbotCounters,
   streamerbotEventLog,
   users,
   viewerBalances,
@@ -37,6 +39,7 @@ import {
   demoGoogleAccounts,
   demoGoogleAccountViewers,
   demoLedger,
+  demoProductRecommendations,
   demoRedemptions,
   demoViewers,
 } from "@/lib/demo-data";
@@ -45,6 +48,7 @@ import {
   eventRequiresActiveLivestream,
   isStreamerbotLivestreamActive,
 } from "@/lib/streamerbot/live-status";
+import { normalizeYoutubeHandle } from "@/lib/youtube/identity";
 import { evaluateRedeemability } from "@/lib/redemptions/service";
 import {
   BetEntryRecord,
@@ -60,7 +64,9 @@ import {
   GoogleAccountRecord,
   GoogleAccountViewerRecord,
   LedgerEntryRecord,
+  ProductRecommendationRecord,
   RedemptionRecord,
+  StreamerbotCounterRecord,
   ViewerChannelOptionRecord,
   ViewerBalanceRecord,
   ViewerRecord,
@@ -72,17 +78,41 @@ function buildSyntheticYoutubeChannelId(input: { googleUserId: string | null; em
   return `session:${base}`.slice(0, 128);
 }
 
-function normalizeYoutubeHandle(value: string | null | undefined) {
-  const trimmed = value?.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  return trimmed.startsWith("@") ? trimmed : `@${trimmed}`;
-}
-
 function shouldExcludeFromRanking(email: string | null) {
   return !email || adminEmails.has(email.toLowerCase());
+}
+
+const DEFAULT_DEATH_COUNTER_KEY = "death_count";
+const DEFAULT_DEATH_COUNTER_LABEL = "mortes";
+
+type StreamerbotCounterCommandAction = "increment" | "get" | "reset";
+
+function buildDefaultStreamerbotCounter(counterKey: string, now = new Date()): StreamerbotCounterRecord {
+  return {
+    key: counterKey,
+    value: 0,
+    lastResetAt: null,
+    updatedAt: now.toISOString(),
+    metadata: {},
+  };
+}
+
+function normalizeStreamerbotCounterLabel(input: {
+  counterKey: string;
+  counterLabel?: string | null;
+  metadata?: Record<string, unknown>;
+}) {
+  const providedLabel = input.counterLabel?.trim();
+  if (providedLabel) {
+    return providedLabel;
+  }
+
+  const metadataLabel = input.metadata?.counterLabel;
+  if (typeof metadataLabel === "string" && metadataLabel.trim()) {
+    return metadataLabel.trim();
+  }
+
+  return input.counterKey.replace(/[_-]+/g, " ").trim();
 }
 
 type DemoStore = {
@@ -98,7 +128,9 @@ type DemoStore = {
   betEntries: BetEntryRecord[];
   gameSuggestions: GameSuggestionRecord[];
   gameSuggestionBoosts: GameSuggestionBoostRecord[];
+  productRecommendations: ProductRecommendationRecord[];
   bridgeClients: BridgeClientRecord[];
+  streamerbotCounters: StreamerbotCounterRecord[];
 };
 
 declare global {
@@ -120,7 +152,9 @@ function getDemoStore(): DemoStore {
       betEntries: structuredClone(demoBetEntries),
       gameSuggestions: structuredClone(demoGameSuggestions),
       gameSuggestionBoosts: structuredClone(demoGameSuggestionBoosts),
+      productRecommendations: structuredClone(demoProductRecommendations),
       bridgeClients: structuredClone(demoBridgeClients),
+      streamerbotCounters: [],
     };
   }
 
@@ -155,6 +189,81 @@ function createLedgerEntry(
   };
   store.ledger.unshift(created);
   return created;
+}
+
+function getDemoStreamerbotCounter(store: DemoStore, counterKey: string) {
+  const found = store.streamerbotCounters.find((entry) => entry.key === counterKey);
+  if (found) {
+    return found;
+  }
+
+  const created = buildDefaultStreamerbotCounter(counterKey);
+  store.streamerbotCounters.unshift(created);
+  return created;
+}
+
+function serializeStreamerbotCounter(
+  row: typeof streamerbotCounters.$inferSelect,
+): StreamerbotCounterRecord {
+  return {
+    key: row.key,
+    value: row.value,
+    lastResetAt: row.lastResetAt?.toISOString() ?? null,
+    updatedAt: row.updatedAt.toISOString(),
+    metadata: row.metadata as Record<string, unknown>,
+  };
+}
+
+type CounterDbLike = Pick<NonNullable<ReturnType<typeof getDb>>, "insert" | "select" | "update">;
+
+type StreamerbotCounterCommandResult = {
+  mode: "demo" | "database";
+  action: StreamerbotCounterCommandAction;
+  count: number;
+  counter: StreamerbotCounterRecord;
+  replyMessage: string;
+};
+
+async function ensureStreamerbotCounterRow(db: CounterDbLike, counterKey: string) {
+  await db
+    .insert(streamerbotCounters)
+    .values({
+      key: counterKey,
+      value: 0,
+      lastResetAt: null,
+      updatedAt: new Date(),
+      metadata: {},
+    })
+    .onConflictDoNothing();
+
+  const [row] = await db
+    .select()
+    .from(streamerbotCounters)
+    .where(eq(streamerbotCounters.key, counterKey))
+    .limit(1);
+
+  return row ?? null;
+}
+
+function buildStreamerbotCounterReply(input: {
+  action: StreamerbotCounterCommandAction;
+  count: number;
+  amount?: number;
+  requestedBy?: string | null;
+  counterLabel: string;
+}) {
+  const prefix = input.requestedBy ? `${input.requestedBy}, ` : "";
+  const subject = `contador de ${input.counterLabel}`;
+
+  switch (input.action) {
+    case "increment":
+      return `${prefix}${subject}: ${input.count}${input.amount && input.amount > 1 ? ` (+${input.amount})` : ""}.`;
+    case "reset":
+      return `${prefix}${subject} resetado. Total atual: ${input.count}.`;
+    case "get":
+    default:
+      return `${prefix}${subject} atual: ${input.count}.`;
+  }
 }
 
 type SessionYoutubeChannel = {
@@ -739,6 +848,26 @@ function serializeGameSuggestionBoost(
   };
 }
 
+function serializeProductRecommendation(
+  row: typeof productRecommendations.$inferSelect,
+): ProductRecommendationRecord {
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    category: row.category as ProductRecommendationRecord["category"],
+    context: row.context,
+    imageUrl: row.imageUrl,
+    href: row.href,
+    storeLabel: row.storeLabel,
+    linkKind: row.linkKind as ProductRecommendationRecord["linkKind"],
+    isActive: row.isActive,
+    sortOrder: row.sortOrder,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
 function buildGameSuggestionWithMeta(params: {
   suggestion: GameSuggestionRecord;
   viewer: ViewerRecord | null;
@@ -898,6 +1027,40 @@ function isMissingGameSuggestionSchemaError(error: unknown) {
     "game_suggestions",
     "game_suggestion_boosts",
   ];
+  const queue: unknown[] = [error];
+  const visited = new Set<unknown>();
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+
+    const message =
+      current instanceof Error ? current.message : typeof current === "string" ? current : "";
+    const normalized = message.toLowerCase();
+    const mentionsTables = tableNames.some((tableName) => normalized.includes(tableName));
+    if (
+      mentionsTables &&
+      (normalized.includes("does not exist") ||
+        normalized.includes("relation") ||
+        normalized.includes("table") ||
+        normalized.includes("failed query"))
+    ) {
+      return true;
+    }
+
+    if (typeof current === "object" && current && "cause" in current) {
+      queue.push((current as { cause?: unknown }).cause);
+    }
+  }
+
+  return false;
+}
+
+function isMissingProductRecommendationSchemaError(error: unknown) {
+  const tableNames = ['"product_recommendations"', "product_recommendations"];
   const queue: unknown[] = [error];
   const visited = new Set<unknown>();
 
@@ -1733,6 +1896,61 @@ export async function listAdminGameSuggestions() {
   return listGameSuggestions();
 }
 
+export async function listProductRecommendations(options?: {
+  includeInactive?: boolean;
+}) {
+  const includeInactive = options?.includeInactive ?? false;
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const source = includeInactive
+      ? store.productRecommendations
+      : store.productRecommendations.filter((entry) => entry.isActive);
+
+    return [...source].sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) {
+        return a.sortOrder - b.sortOrder;
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  try {
+    const rows = includeInactive
+      ? await db
+          .select()
+          .from(productRecommendations)
+          .orderBy(productRecommendations.sortOrder, productRecommendations.name)
+      : await db
+          .select()
+          .from(productRecommendations)
+          .where(eq(productRecommendations.isActive, true))
+          .orderBy(productRecommendations.sortOrder, productRecommendations.name);
+
+    return rows.map(serializeProductRecommendation);
+  } catch (error) {
+    if (isMissingProductRecommendationSchemaError(error)) {
+      const store = getDemoStore();
+      const source = includeInactive
+        ? store.productRecommendations
+        : store.productRecommendations.filter((entry) => entry.isActive);
+
+      return [...source].sort((a, b) => {
+        if (a.sortOrder !== b.sortOrder) {
+          return a.sortOrder - b.sortOrder;
+        }
+        return a.name.localeCompare(b.name);
+      });
+    }
+    throw error;
+  }
+}
+
+export async function listAdminProductRecommendations() {
+  return listProductRecommendations({ includeInactive: true });
+}
+
 export async function createGameSuggestion(input: {
   viewerId: string;
   name: string;
@@ -2395,6 +2613,207 @@ export async function placeBetFromChatCommand(input: {
   };
 }
 
+export async function runStreamerbotCounterCommand(input: {
+  counterKey: string;
+  counterLabel?: string | null;
+  action: StreamerbotCounterCommandAction;
+  amount?: number;
+  requestedBy?: string | null;
+  source?: string | null;
+  occurredAt?: string | null;
+  confirmReset?: boolean;
+  resetReason?: string | null;
+}): Promise<StreamerbotCounterCommandResult> {
+  const counterKey = input.counterKey.trim().toLowerCase();
+  const amount = input.amount ?? 1;
+  const occurredAt = input.occurredAt ? new Date(input.occurredAt) : new Date();
+  const requestedBy = input.requestedBy?.trim() || null;
+  const source = input.source?.trim() || "streamerbot_chat";
+
+  if (Number.isNaN(occurredAt.getTime())) {
+    throw new Error("invalid_occurred_at");
+  }
+
+  if (input.action === "reset" && !input.confirmReset) {
+    throw new Error("reset_confirmation_required");
+  }
+
+  const db = getDb();
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const counter = getDemoStreamerbotCounter(store, counterKey);
+    const counterLabel = normalizeStreamerbotCounterLabel({
+      counterKey,
+      counterLabel: input.counterLabel,
+      metadata: counter.metadata,
+    });
+
+    if (input.action === "increment") {
+      counter.value += amount;
+      counter.updatedAt = occurredAt.toISOString();
+      counter.metadata = {
+        lastAction: "increment",
+        lastAmount: amount,
+        requestedBy,
+        source,
+        counterLabel,
+      };
+    } else if (input.action === "reset") {
+      const previousValue = counter.value;
+      counter.value = 0;
+      counter.lastResetAt = occurredAt.toISOString();
+      counter.updatedAt = occurredAt.toISOString();
+      counter.metadata = {
+        lastAction: "reset",
+        previousValue,
+        requestedBy,
+        source,
+        counterLabel,
+        resetReason: input.resetReason ?? null,
+      };
+    }
+
+    const nextCounter = structuredClone(counter);
+    return {
+      mode: "demo",
+      action: input.action,
+      count: nextCounter.value,
+      counter: nextCounter,
+      replyMessage: buildStreamerbotCounterReply({
+        action: input.action,
+        count: nextCounter.value,
+        amount: input.action === "increment" ? amount : undefined,
+        requestedBy,
+        counterLabel,
+      }),
+    };
+  }
+
+  if (input.action === "get") {
+    const row = await ensureStreamerbotCounterRow(db, counterKey);
+    const counter = row ? serializeStreamerbotCounter(row) : buildDefaultStreamerbotCounter(counterKey);
+    const counterLabel = normalizeStreamerbotCounterLabel({
+      counterKey,
+      counterLabel: input.counterLabel,
+      metadata: counter.metadata,
+    });
+
+    return {
+      mode: "database",
+      action: "get",
+      count: counter.value,
+      counter: {
+        ...counter,
+        metadata: {
+          ...counter.metadata,
+          counterLabel,
+        },
+      },
+      replyMessage: buildStreamerbotCounterReply({
+        action: "get",
+        count: counter.value,
+        requestedBy,
+        counterLabel,
+      }),
+    };
+  }
+
+  const counter = await db.transaction(async (tx) => {
+    const current = (await ensureStreamerbotCounterRow(tx, counterKey)) ?? {
+      key: counterKey,
+      value: 0,
+      lastResetAt: null,
+      updatedAt: occurredAt,
+      metadata: {},
+    };
+    const counterLabel = normalizeStreamerbotCounterLabel({
+      counterKey,
+      counterLabel: input.counterLabel,
+      metadata: current.metadata as Record<string, unknown>,
+    });
+
+    const nextValue = input.action === "increment" ? current.value + amount : 0;
+    const nextLastResetAt =
+      input.action === "reset" ? occurredAt : current.lastResetAt;
+    const nextMetadata =
+      input.action === "increment"
+        ? {
+            lastAction: "increment",
+            lastAmount: amount,
+            requestedBy,
+            source,
+            counterLabel,
+          }
+        : {
+            lastAction: "reset",
+            previousValue: current.value,
+            requestedBy,
+            source,
+            counterLabel,
+            resetReason: input.resetReason ?? null,
+          };
+
+    await tx
+      .update(streamerbotCounters)
+      .set({
+        value: nextValue,
+        lastResetAt: nextLastResetAt,
+        updatedAt: occurredAt,
+        metadata: nextMetadata,
+      })
+      .where(eq(streamerbotCounters.key, counterKey));
+
+    const [updated] = await tx
+      .select()
+      .from(streamerbotCounters)
+      .where(eq(streamerbotCounters.key, counterKey))
+      .limit(1);
+
+    return updated ?? {
+      ...current,
+      value: nextValue,
+      lastResetAt: nextLastResetAt,
+      updatedAt: occurredAt,
+      metadata: nextMetadata,
+    };
+  });
+
+  const serializedCounter = serializeStreamerbotCounter(counter);
+  return {
+    mode: "database",
+    action: input.action,
+    count: serializedCounter.value,
+    counter: serializedCounter,
+    replyMessage: buildStreamerbotCounterReply({
+      action: input.action,
+      count: serializedCounter.value,
+      amount: input.action === "increment" ? amount : undefined,
+      requestedBy,
+      counterLabel: normalizeStreamerbotCounterLabel({
+        counterKey,
+        counterLabel: input.counterLabel,
+        metadata: serializedCounter.metadata,
+      }),
+    }),
+  };
+}
+
+export async function runDeathCounterCommand(input: {
+  action: StreamerbotCounterCommandAction;
+  amount?: number;
+  requestedBy?: string | null;
+  source?: string | null;
+  occurredAt?: string | null;
+  confirmReset?: boolean;
+  resetReason?: string | null;
+}) {
+  return runStreamerbotCounterCommand({
+    ...input,
+    counterKey: DEFAULT_DEATH_COUNTER_KEY,
+    counterLabel: DEFAULT_DEATH_COUNTER_LABEL,
+  });
+}
+
 export async function lockBet(betId: string) {
   const db = getDb();
 
@@ -2952,6 +3371,209 @@ export async function createCatalogItemFromInput(
     ...input,
   };
   return upsertCatalogItem(item);
+}
+
+export async function upsertProductRecommendation(input: ProductRecommendationRecord) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const existingIndex = store.productRecommendations.findIndex((entry) => entry.id === input.id);
+    if (existingIndex >= 0) {
+      store.productRecommendations[existingIndex] = input;
+    } else {
+      store.productRecommendations.unshift(input);
+    }
+    return input;
+  }
+
+  try {
+    await db
+      .insert(productRecommendations)
+      .values({
+        id: input.id,
+        slug: input.slug,
+        name: input.name,
+        category: input.category,
+        context: input.context,
+        imageUrl: input.imageUrl,
+        href: input.href,
+        storeLabel: input.storeLabel,
+        linkKind: input.linkKind,
+        isActive: input.isActive,
+        sortOrder: input.sortOrder,
+        createdAt: new Date(input.createdAt),
+        updatedAt: new Date(input.updatedAt),
+      })
+      .onConflictDoUpdate({
+        target: productRecommendations.id,
+        set: {
+          slug: input.slug,
+          name: input.name,
+          category: input.category,
+          context: input.context,
+          imageUrl: input.imageUrl,
+          href: input.href,
+          storeLabel: input.storeLabel,
+          linkKind: input.linkKind,
+          isActive: input.isActive,
+          sortOrder: input.sortOrder,
+          updatedAt: new Date(input.updatedAt),
+        },
+      });
+  } catch (error) {
+    if (isMissingProductRecommendationSchemaError(error)) {
+      const store = getDemoStore();
+      const existingIndex = store.productRecommendations.findIndex((entry) => entry.id === input.id);
+      if (existingIndex >= 0) {
+        store.productRecommendations[existingIndex] = input;
+      } else {
+        store.productRecommendations.unshift(input);
+      }
+      return input;
+    }
+
+    throw error;
+  }
+
+  return input;
+}
+
+export async function createProductRecommendationFromInput(
+  input: Omit<ProductRecommendationRecord, "id" | "slug" | "createdAt" | "updatedAt"> & {
+    slug?: string;
+  },
+) {
+  const now = new Date().toISOString();
+  const item: ProductRecommendationRecord = {
+    id: randomUUID(),
+    slug: input.slug ?? slugify(input.name),
+    name: input.name.trim(),
+    category: input.category,
+    context: input.context.trim(),
+    imageUrl: input.imageUrl.trim(),
+    href: input.href.trim(),
+    storeLabel: input.storeLabel.trim(),
+    linkKind: input.linkKind,
+    isActive: input.isActive,
+    sortOrder: input.sortOrder,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  if (!item.slug) {
+    throw new Error("invalid_slug");
+  }
+
+  const existing = await listAdminProductRecommendations();
+  if (existing.some((entry) => entry.slug === item.slug)) {
+    throw new Error("recommendation_slug_exists");
+  }
+
+  return upsertProductRecommendation(item);
+}
+
+export async function updateProductRecommendationStatus(input: {
+  recommendationId: string;
+  isActive: boolean;
+}) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const recommendation = store.productRecommendations.find((entry) => entry.id === input.recommendationId);
+    if (!recommendation) {
+      throw new Error("recommendation_not_found");
+    }
+
+    recommendation.isActive = input.isActive;
+    recommendation.updatedAt = new Date().toISOString();
+    return recommendation;
+  }
+
+  try {
+    const [updated] = await db
+      .update(productRecommendations)
+      .set({
+        isActive: input.isActive,
+        updatedAt: new Date(),
+      })
+      .where(eq(productRecommendations.id, input.recommendationId))
+      .returning();
+
+    if (!updated) {
+      throw new Error("recommendation_not_found");
+    }
+
+    return serializeProductRecommendation(updated);
+  } catch (error) {
+    if (isMissingProductRecommendationSchemaError(error)) {
+      const store = getDemoStore();
+      const recommendation = store.productRecommendations.find((entry) => entry.id === input.recommendationId);
+      if (!recommendation) {
+        throw new Error("recommendation_not_found");
+      }
+
+      recommendation.isActive = input.isActive;
+      recommendation.updatedAt = new Date().toISOString();
+      return recommendation;
+    }
+
+    throw error;
+  }
+}
+
+export async function deleteProductRecommendation(recommendationId: string) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const recommendationIndex = store.productRecommendations.findIndex(
+      (entry) => entry.id === recommendationId,
+    );
+    if (recommendationIndex < 0) {
+      throw new Error("recommendation_not_found");
+    }
+
+    const [deleted] = store.productRecommendations.splice(recommendationIndex, 1);
+    if (!deleted) {
+      throw new Error("recommendation_not_found");
+    }
+
+    return deleted;
+  }
+
+  try {
+    const [deleted] = await db
+      .delete(productRecommendations)
+      .where(eq(productRecommendations.id, recommendationId))
+      .returning();
+
+    if (!deleted) {
+      throw new Error("recommendation_not_found");
+    }
+
+    return serializeProductRecommendation(deleted);
+  } catch (error) {
+    if (isMissingProductRecommendationSchemaError(error)) {
+      const store = getDemoStore();
+      const recommendationIndex = store.productRecommendations.findIndex(
+        (entry) => entry.id === recommendationId,
+      );
+      if (recommendationIndex < 0) {
+        throw new Error("recommendation_not_found");
+      }
+
+      const [deleted] = store.productRecommendations.splice(recommendationIndex, 1);
+      if (!deleted) {
+        throw new Error("recommendation_not_found");
+      }
+
+      return deleted;
+    }
+
+    throw error;
+  }
 }
 
 export async function listAdminRedemptions() {

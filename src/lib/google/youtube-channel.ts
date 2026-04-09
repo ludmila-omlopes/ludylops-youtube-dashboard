@@ -1,3 +1,5 @@
+import { normalizeYoutubeHandle } from "@/lib/youtube/identity";
+
 type YoutubeChannelsListResponse = {
   nextPageToken?: string;
   items?: Array<{
@@ -22,114 +24,6 @@ export type YoutubeChannelIdentity = {
   youtubeDisplayName: string;
   youtubeHandle: string | null;
 };
-
-export type YoutubeChannelLookupStatus =
-  | {
-      kind: "channels_found";
-      channelCount: number;
-    }
-  | {
-      kind: "empty";
-    }
-  | {
-      kind: "scope_missing";
-      grantedScopes: string[];
-    }
-  | {
-      kind: "authorization_required";
-      httpStatus: number;
-      errorReason: string | null;
-    }
-  | {
-      kind: "insufficient_permissions";
-      httpStatus: number;
-      errorReason: string | null;
-    }
-  | {
-      kind: "http_error";
-      httpStatus: number;
-      errorReason: string | null;
-    }
-  | {
-      kind: "network_error";
-      errorMessage: string;
-    };
-
-export type YoutubeChannelLookupResult = {
-  channels: YoutubeChannelIdentity[];
-  status: YoutubeChannelLookupStatus;
-};
-
-const YOUTUBE_READONLY_SCOPE = "https://www.googleapis.com/auth/youtube.readonly";
-
-function normalizeYoutubeHandle(value: string | undefined) {
-  const trimmed = value?.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  return trimmed.startsWith("@") ? trimmed : `@${trimmed}`;
-}
-
-function parseScopes(scope: string | null | undefined) {
-  return (scope ?? "")
-    .split(/\s+/)
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-}
-
-function classifyLookupFailure(input: {
-  httpStatus: number;
-  errorReason: string | null;
-}): YoutubeChannelLookupStatus {
-  if (input.httpStatus === 401 || input.errorReason === "authorizationRequired") {
-    return {
-      kind: "authorization_required",
-      httpStatus: input.httpStatus,
-      errorReason: input.errorReason,
-    };
-  }
-
-  if (
-    input.httpStatus === 403 &&
-    (input.errorReason === "insufficientPermissions" || input.errorReason === "forbidden")
-  ) {
-    return {
-      kind: "insufficient_permissions",
-      httpStatus: input.httpStatus,
-      errorReason: input.errorReason,
-    };
-  }
-
-  return {
-    kind: "http_error",
-    httpStatus: input.httpStatus,
-    errorReason: input.errorReason,
-  };
-}
-
-export function getYoutubeChannelLookupMessage(status: YoutubeChannelLookupStatus) {
-  switch (status.kind) {
-    case "channels_found":
-      return null;
-    case "empty":
-      return "Sua conta Google entrou, mas o YouTube nao retornou nenhum canal para vincular.";
-    case "scope_missing":
-      return "O login Google nao concedeu a permissao youtube.readonly necessaria para descobrir seu canal.";
-    case "authorization_required":
-      return `O YouTube recusou a consulta do canal nesta tentativa (${status.httpStatus}).`;
-    case "insufficient_permissions":
-      return "O token Google nao teve permissao suficiente para consultar seu canal do YouTube.";
-    case "http_error":
-      return `O YouTube respondeu com erro ${status.httpStatus} ao consultar seu canal.`;
-    case "network_error":
-      return "Nao foi possivel falar com a API do YouTube para descobrir seu canal nesta tentativa.";
-  }
-}
-
-export function canBootstrapViewerFromYoutubeLookup(result: YoutubeChannelLookupResult | null) {
-  return result?.status.kind === "channels_found" && result.channels.length > 0;
-}
 
 export async function getYoutubeChannelFromGoogleAccessToken(
   accessToken: string,
