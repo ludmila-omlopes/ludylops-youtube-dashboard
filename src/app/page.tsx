@@ -5,9 +5,7 @@ import { auth } from "@/auth";
 import { AuthButtons } from "@/components/auth-buttons";
 import { QuickNavGrid } from "@/components/quick-nav-grid";
 import { StickerBadge } from "@/components/sticker-badge";
-<<<<<<< codex/issue-29-google-youtube-linking
 import { env } from "@/lib/env";
-=======
 import {
   Card,
   CardContent,
@@ -16,7 +14,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
->>>>>>> master
 import { getCatalog, getLeaderboard, getViewerDashboard, listBets } from "@/lib/db/repository";
 import type { BetWithOptionsRecord, CatalogItemRecord } from "@/lib/types";
 import { cn, formatPipetz } from "@/lib/utils";
@@ -42,7 +39,6 @@ type FeatureCard = {
   bg: string;
 };
 
-<<<<<<< codex/issue-29-google-youtube-linking
 const DEFAULT_GITHUB_ISSUES_URL =
   "https://github.com/ludmila-omlopes/ludylops-youtube-dashboard/issues/new";
 
@@ -117,7 +113,9 @@ function YoutubeLinkingNotice({
         </a>
       </div>
     </div>
-=======
+  );
+}
+
 function MetricCard({ metric, className }: { metric: HomeMetric; className?: string }) {
   return (
     <Card variant="poster" className={cn("p-4", metric.bg, className)}>
@@ -268,7 +266,6 @@ function RedemptionSpotlightCard({
         </span>
       </CardFooter>
     </Card>
->>>>>>> master
   );
 }
 
@@ -753,7 +750,6 @@ export default async function Home() {
               )}
             </div>
 
-<<<<<<< codex/issue-29-google-youtube-linking
             <p className="mt-4 text-sm font-medium leading-6 text-[var(--color-ink-soft)]">
               Ao usar o login Google, voce pode revisar nossa{" "}
               <Link href="/privacy" className="font-black underline decoration-[3px] underline-offset-4">
@@ -771,8 +767,6 @@ export default async function Home() {
               </span>
               <span className="retro-label accent-chip">efeitos ao vivo</span>
             </div>
-=======
->>>>>>> master
           </div>
 
           <HeroPoster
