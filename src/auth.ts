@@ -9,6 +9,7 @@ import {
   canBootstrapViewerFromYoutubeLookup,
   getYoutubeChannelFromGoogleAccessToken,
   getYoutubeChannelLookupMessage,
+  isYoutubeChannelLookupStatusKind,
 } from "@/lib/google/youtube-channel";
 
 const providers = [];
@@ -184,7 +185,7 @@ export const authOptions = {
         if (typeof token.isLinked === "boolean") {
           session.user.isLinked = token.isLinked;
         }
-        if (typeof token.youtubeLinkingStatus === "string") {
+        if (typeof token.youtubeLinkingStatus === "string" && isYoutubeChannelLookupStatusKind(token.youtubeLinkingStatus)) {
           session.user.youtubeLinkingStatus = token.youtubeLinkingStatus;
         }
         if (typeof token.youtubeLinkingMessage === "string") {
