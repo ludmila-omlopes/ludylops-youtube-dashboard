@@ -22,7 +22,7 @@ function mapChatBetReply(message: string, viewerName?: string) {
     case "invalid_option":
       return "Opcao invalida. Use o numero ou nome exibido na aposta.";
     case "multiple_open_bets":
-      return "Ha mais de uma aposta aberta. Informe o betId no webhook do Streamer.bot.";
+      return "Ha mais de uma aposta aberta. Configure lojaneon.activeBetId ou envie betId no comando do Streamer.bot.";
     case "Aposta nao encontrada.":
       return "Nenhuma aposta aberta foi encontrada para esse comando.";
     default:
@@ -85,17 +85,34 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha ao registrar aposta.";
-    const viewerName =
+    const payloadSnapshot =
       (() => {
         try {
-          const payload = JSON.parse(raw) as { youtubeDisplayName?: string };
-          return payload.youtubeDisplayName;
+          const payload = JSON.parse(raw) as {
+            youtubeDisplayName?: string;
+            viewerExternalId?: string;
+            betId?: string;
+            optionId?: string;
+            optionIndex?: number;
+            optionLabel?: string;
+            amount?: number;
+          };
+          return payload;
         } catch {
-          return undefined;
+          return null;
         }
-      })() ?? undefined;
+      })();
+    const viewerName = payloadSnapshot?.youtubeDisplayName ?? undefined;
 
-    console.error("[streamerbot/bets/place] Failed to process payload.", error);
+    console.error("[streamerbot/bets/place] Failed to process payload.", {
+      error,
+      viewerExternalId: payloadSnapshot?.viewerExternalId ?? null,
+      betId: payloadSnapshot?.betId ?? null,
+      optionId: payloadSnapshot?.optionId ?? null,
+      optionIndex: payloadSnapshot?.optionIndex ?? null,
+      optionLabel: payloadSnapshot?.optionLabel ?? null,
+      amount: payloadSnapshot?.amount ?? null,
+    });
     return NextResponse.json(
       {
         ok: false,

@@ -1597,6 +1597,69 @@ describe("ingestStreamerbotEvent", () => {
     expect(balanceRows[0]?.currentBalance).toBe(10);
   });
 
+  it("trusts an explicit payload isLive flag for unlisted live events", async () => {
+    isStreamerbotLivestreamActiveMock.mockResolvedValue(false);
+
+    const usersRows = [
+      {
+        id: "viewer-1",
+        googleUserId: null,
+        email: null,
+        youtubeChannelId: "UC123",
+        youtubeDisplayName: "Viewer Name",
+        avatarUrl: null,
+        isLinked: false,
+        excludeFromRanking: false,
+        createdAt: new Date("2026-03-31T10:00:00.000Z"),
+      },
+    ];
+    const balanceRows = [
+      {
+        viewerId: "viewer-1",
+        currentBalance: 10,
+        lifetimeEarned: 10,
+        lifetimeSpent: 0,
+        lastSyncedAt: new Date("2026-03-31T10:00:00.000Z"),
+      },
+    ];
+    const { db, insertedEvents, insertedLedger } = createStreamerbotEventDb({ usersRows, balanceRows });
+    getDbMock.mockReturnValue(db);
+
+    const result = await ingestStreamerbotEvent({
+      eventId: "evt-unlisted-live",
+      eventType: "presence_tick",
+      viewerExternalId: "UC123",
+      youtubeDisplayName: "Viewer Name",
+      amount: 5,
+      occurredAt: "2026-03-31T12:00:00.000Z",
+      payload: {
+        isLive: true,
+        reason: "present_viewers",
+        source: "streamerbot",
+      },
+    });
+
+    expect(result).toMatchObject({
+      mode: "database",
+      deduped: false,
+      eventLogInserted: true,
+      balanceUpdated: true,
+      ledgerInserted: true,
+      viewerId: "viewer-1",
+    });
+    expect(insertedEvents).toHaveLength(1);
+    expect(insertedLedger).toHaveLength(1);
+    expect(insertedLedger[0]).toMatchObject({
+      externalEventId: "evt-unlisted-live",
+      amount: 5,
+      metadata: {
+        isLive: true,
+        reason: "present_viewers",
+        source: "streamerbot",
+      },
+    });
+  });
+
 });
 
 describe("product recommendations", () => {
