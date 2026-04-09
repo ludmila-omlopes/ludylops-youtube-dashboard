@@ -6,6 +6,7 @@ import { AuthButtons } from "@/components/auth-buttons";
 import { QuickNavGrid } from "@/components/quick-nav-grid";
 import { StickerBadge } from "@/components/sticker-badge";
 import { env } from "@/lib/env";
+import type { YoutubeChannelLookupStatus } from "@/lib/google/youtube-channel";
 import {
   Card,
   CardContent,
@@ -42,10 +43,10 @@ type FeatureCard = {
 const DEFAULT_GITHUB_ISSUES_URL =
   "https://github.com/ludmila-omlopes/ludylops-youtube-dashboard/issues/new";
 
+type YoutubeLinkingStatusKind = YoutubeChannelLookupStatus["kind"];
+
 function buildYoutubeLinkingIssueUrl(input: {
-  status: NonNullable<
-    NonNullable<Awaited<ReturnType<typeof auth>>["user"]>["youtubeLinkingStatus"]
-  >;
+  status: YoutubeLinkingStatusKind;
   message: string;
   isLinked: boolean;
   hasActiveViewer: boolean;
@@ -80,9 +81,7 @@ function YoutubeLinkingNotice({
   message,
   issueUrl,
 }: {
-  status: NonNullable<
-    NonNullable<Awaited<ReturnType<typeof auth>>["user"]>["youtubeLinkingStatus"]
-  >;
+  status: YoutubeLinkingStatusKind;
   message: string;
   issueUrl: string;
 }) {
