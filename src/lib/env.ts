@@ -12,6 +12,7 @@ const envSchema = z.object({
   ADMIN_EMAILS: z.string().optional(),
   APP_URL: z.string().url().optional(),
   NEXT_PUBLIC_APP_URL: z.string().url().optional(),
+  NEXT_PUBLIC_GITHUB_ISSUES_URL: z.string().url().optional(),
 });
 
 export const env = envSchema.parse(process.env);

@@ -460,6 +460,223 @@ function getDemoViewerActivity(store: DemoStore, viewerId: string) {
   };
 }
 
+type ViewerMergeResult = {
+  merged: boolean;
+  transferredOwnerLink: boolean;
+};
+
+function mergeDemoViewerIntoTarget(input: {
+  store: DemoStore;
+  googleAccountId: string;
+  sourceViewerId: string;
+  targetViewerId: string;
+}): ViewerMergeResult {
+  const { store, googleAccountId, sourceViewerId, targetViewerId } = input;
+  if (sourceViewerId === targetViewerId) {
+    return { merged: false, transferredOwnerLink: false };
+  }
+
+  const sourceViewer = getDemoViewerById(store, sourceViewerId);
+  const targetViewer = getDemoViewerById(store, targetViewerId);
+  if (!sourceViewer || !targetViewer) {
+    return { merged: false, transferredOwnerLink: false };
+  }
+
+  const targetBetIds = new Set(
+    store.betEntries.filter((entry) => entry.viewerId === targetViewerId).map((entry) => entry.betId),
+  );
+  const hasConflictingBetEntries = store.betEntries.some(
+    (entry) => entry.viewerId === sourceViewerId && targetBetIds.has(entry.betId),
+  );
+  if (hasConflictingBetEntries) {
+    return { merged: false, transferredOwnerLink: false };
+  }
+
+  const sourceOwnerLink = getDemoViewerGoogleAccountLink(store, sourceViewerId);
+  const targetOwnerLink = getDemoViewerGoogleAccountLink(store, targetViewerId);
+  if (sourceOwnerLink && sourceOwnerLink.googleAccountId !== googleAccountId) {
+    return { merged: false, transferredOwnerLink: false };
+  }
+  if (
+    targetOwnerLink &&
+    sourceOwnerLink &&
+    targetOwnerLink.googleAccountId !== sourceOwnerLink.googleAccountId
+  ) {
+    return { merged: false, transferredOwnerLink: false };
+  }
+
+  const sourceBalance = getBalance(store, sourceViewerId);
+  const targetBalance = getBalance(store, targetViewerId);
+  targetBalance.currentBalance += sourceBalance.currentBalance;
+  targetBalance.lifetimeEarned += sourceBalance.lifetimeEarned;
+  targetBalance.lifetimeSpent += sourceBalance.lifetimeSpent;
+  targetBalance.lastSyncedAt =
+    sourceBalance.lastSyncedAt > targetBalance.lastSyncedAt ? sourceBalance.lastSyncedAt : targetBalance.lastSyncedAt;
+
+  for (const entry of store.ledger) {
+    if (entry.viewerId === sourceViewerId) {
+      entry.viewerId = targetViewerId;
+    }
+  }
+  for (const entry of store.redemptions) {
+    if (entry.viewerId === sourceViewerId) {
+      entry.viewerId = targetViewerId;
+    }
+  }
+  for (const entry of store.betEntries) {
+    if (entry.viewerId === sourceViewerId) {
+      entry.viewerId = targetViewerId;
+    }
+  }
+  for (const entry of store.gameSuggestions) {
+    if (entry.viewerId === sourceViewerId) {
+      entry.viewerId = targetViewerId;
+    }
+  }
+  for (const entry of store.gameSuggestionBoosts) {
+    if (entry.viewerId === sourceViewerId) {
+      entry.viewerId = targetViewerId;
+    }
+  }
+  for (const account of store.googleAccounts) {
+    if (account.activeViewerId === sourceViewerId) {
+      account.activeViewerId = targetViewerId;
+    }
+  }
+
+  let transferredOwnerLink = false;
+  if (sourceOwnerLink && !targetOwnerLink) {
+    sourceOwnerLink.viewerId = targetViewerId;
+    transferredOwnerLink = true;
+  } else if (sourceOwnerLink) {
+    store.googleAccountViewers = store.googleAccountViewers.filter((entry) => entry.viewerId !== sourceViewerId);
+  }
+
+  store.balances = store.balances.filter((entry) => entry.viewerId !== sourceViewerId);
+  store.viewers = store.viewers.filter((entry) => entry.id !== sourceViewerId);
+
+  return { merged: true, transferredOwnerLink };
+}
+
+async function mergeViewerIntoTarget(input: {
+  googleAccountId: string;
+  sourceViewerId: string;
+  targetViewerId: string;
+}): Promise<ViewerMergeResult> {
+  if (input.sourceViewerId === input.targetViewerId) {
+    return { merged: false, transferredOwnerLink: false };
+  }
+
+  const db = getDb();
+  if (isDemoMode || !db) {
+    return mergeDemoViewerIntoTarget({
+      store: getDemoStore(),
+      googleAccountId: input.googleAccountId,
+      sourceViewerId: input.sourceViewerId,
+      targetViewerId: input.targetViewerId,
+    });
+  }
+
+  return db.transaction(async (tx) => {
+    const [sourceViewer, targetViewer, sourceBalance, targetBalance, sourceOwnerLink, targetOwnerLink] =
+      await Promise.all([
+        tx.select().from(users).where(eq(users.id, input.sourceViewerId)).limit(1),
+        tx.select().from(users).where(eq(users.id, input.targetViewerId)).limit(1),
+        tx.select().from(viewerBalances).where(eq(viewerBalances.viewerId, input.sourceViewerId)).limit(1),
+        tx.select().from(viewerBalances).where(eq(viewerBalances.viewerId, input.targetViewerId)).limit(1),
+        tx
+          .select()
+          .from(googleAccountViewers)
+          .where(eq(googleAccountViewers.viewerId, input.sourceViewerId))
+          .limit(1),
+        tx
+          .select()
+          .from(googleAccountViewers)
+          .where(eq(googleAccountViewers.viewerId, input.targetViewerId))
+          .limit(1),
+      ]);
+
+    if (!sourceViewer[0] || !targetViewer[0]) {
+      return { merged: false, transferredOwnerLink: false };
+    }
+    if (sourceOwnerLink[0] && sourceOwnerLink[0].googleAccountId !== input.googleAccountId) {
+      return { merged: false, transferredOwnerLink: false };
+    }
+    if (
+      sourceOwnerLink[0] &&
+      targetOwnerLink[0] &&
+      sourceOwnerLink[0].googleAccountId !== targetOwnerLink[0].googleAccountId
+    ) {
+      return { merged: false, transferredOwnerLink: false };
+    }
+
+    const [sourceBetRows, targetBetRows] = await Promise.all([
+      tx.select({ betId: betEntries.betId }).from(betEntries).where(eq(betEntries.viewerId, input.sourceViewerId)),
+      tx.select({ betId: betEntries.betId }).from(betEntries).where(eq(betEntries.viewerId, input.targetViewerId)),
+    ]);
+    const targetBetIds = new Set(targetBetRows.map((entry) => entry.betId));
+    const hasConflictingBetEntries = sourceBetRows.some((entry) => targetBetIds.has(entry.betId));
+    if (hasConflictingBetEntries) {
+      return { merged: false, transferredOwnerLink: false };
+    }
+
+    await tx.update(pointLedger).set({ viewerId: input.targetViewerId }).where(eq(pointLedger.viewerId, input.sourceViewerId));
+    await tx.update(redemptions).set({ viewerId: input.targetViewerId }).where(eq(redemptions.viewerId, input.sourceViewerId));
+    await tx.update(betEntries).set({ viewerId: input.targetViewerId }).where(eq(betEntries.viewerId, input.sourceViewerId));
+    await tx
+      .update(gameSuggestions)
+      .set({ viewerId: input.targetViewerId })
+      .where(eq(gameSuggestions.viewerId, input.sourceViewerId));
+    await tx
+      .update(gameSuggestionBoosts)
+      .set({ viewerId: input.targetViewerId })
+      .where(eq(gameSuggestionBoosts.viewerId, input.sourceViewerId));
+    await tx
+      .update(googleAccounts)
+      .set({ activeViewerId: input.targetViewerId })
+      .where(eq(googleAccounts.activeViewerId, input.sourceViewerId));
+
+    let transferredOwnerLink = false;
+    if (sourceOwnerLink[0] && !targetOwnerLink[0]) {
+      await tx
+        .update(googleAccountViewers)
+        .set({ viewerId: input.targetViewerId })
+        .where(eq(googleAccountViewers.id, sourceOwnerLink[0].id));
+      transferredOwnerLink = true;
+    } else if (sourceOwnerLink[0]) {
+      await tx.delete(googleAccountViewers).where(eq(googleAccountViewers.viewerId, input.sourceViewerId));
+    }
+
+    if (targetBalance[0]) {
+      await tx
+        .update(viewerBalances)
+        .set({
+          currentBalance: (targetBalance[0].currentBalance ?? 0) + (sourceBalance[0]?.currentBalance ?? 0),
+          lifetimeEarned: (targetBalance[0].lifetimeEarned ?? 0) + (sourceBalance[0]?.lifetimeEarned ?? 0),
+          lifetimeSpent: (targetBalance[0].lifetimeSpent ?? 0) + (sourceBalance[0]?.lifetimeSpent ?? 0),
+          lastSyncedAt:
+            sourceBalance[0] && sourceBalance[0].lastSyncedAt > targetBalance[0].lastSyncedAt
+              ? sourceBalance[0].lastSyncedAt
+              : targetBalance[0].lastSyncedAt,
+        })
+        .where(eq(viewerBalances.viewerId, input.targetViewerId));
+    } else if (sourceBalance[0]) {
+      await tx.insert(viewerBalances).values({
+        viewerId: input.targetViewerId,
+        currentBalance: sourceBalance[0].currentBalance,
+        lifetimeEarned: sourceBalance[0].lifetimeEarned,
+        lifetimeSpent: sourceBalance[0].lifetimeSpent,
+        lastSyncedAt: sourceBalance[0].lastSyncedAt,
+      });
+    }
+
+    await tx.delete(viewerBalances).where(eq(viewerBalances.viewerId, input.sourceViewerId));
+    await tx.delete(users).where(eq(users.id, input.sourceViewerId));
+
+    return { merged: true, transferredOwnerLink };
+  });
+}
+
 function pruneDemoSyntheticViewersForGoogleAccount(store: DemoStore, googleAccountId: string, preservedViewerIds: string[]) {
   const viewers = listDemoViewersForGoogleAccount(store, googleAccountId);
   const hasRealViewer = viewers.some((viewer) => !isSyntheticYoutubeChannelId(viewer.youtubeChannelId));
@@ -1150,6 +1367,20 @@ export async function ensureViewerFromSession(input: SessionBootstrapInput) {
         continue;
       }
 
+      if (viewer && reusableSyntheticViewer && viewer.id !== reusableSyntheticViewer.id) {
+        const mergeResult = await mergeViewerIntoTarget({
+          googleAccountId: googleAccount.id,
+          sourceViewerId: reusableSyntheticViewer.id,
+          targetViewerId: viewer.id,
+        });
+        if (mergeResult.merged) {
+          reusableSyntheticViewer = null;
+          existingOwner = mergeResult.transferredOwnerLink
+            ? getDemoViewerGoogleAccountLink(store, viewer.id)
+            : existingOwner;
+        }
+      }
+
       if (!viewer && reusableSyntheticViewer) {
         viewer = reusableSyntheticViewer;
         reusableSyntheticViewer = null;
@@ -1273,6 +1504,20 @@ export async function ensureViewerFromSession(input: SessionBootstrapInput) {
     let existingOwner = viewer ? await withGoogleAccountViewerLinkByViewerId(viewer.id) : null;
     if (existingOwner && existingOwner.googleAccountId !== googleAccount.id) {
       continue;
+    }
+
+    if (viewer && reusableSyntheticViewer && viewer.id !== reusableSyntheticViewer.id) {
+      const mergeResult = await mergeViewerIntoTarget({
+        googleAccountId: googleAccount.id,
+        sourceViewerId: reusableSyntheticViewer.id,
+        targetViewerId: viewer.id,
+      });
+      if (mergeResult.merged) {
+        reusableSyntheticViewer = null;
+        existingOwner = mergeResult.transferredOwnerLink
+          ? await withGoogleAccountViewerLinkByViewerId(viewer.id)
+          : existingOwner;
+      }
     }
 
     if (!viewer && reusableSyntheticViewer) {
