@@ -5,7 +5,11 @@ import GoogleProvider from "next-auth/providers/google";
 
 import { ensureViewerFromSession, getSessionViewerState } from "@/lib/db/repository";
 import { authSecret, env, isDemoAuthEnabled } from "@/lib/env";
-import { getYoutubeChannelFromGoogleAccessToken } from "@/lib/google/youtube-channel";
+import {
+  canBootstrapViewerFromYoutubeLookup,
+  getYoutubeChannelFromGoogleAccessToken,
+  getYoutubeChannelLookupMessage,
+} from "@/lib/google/youtube-channel";
 
 const providers = [];
 
@@ -74,6 +78,11 @@ export const authOptions = {
         token.picture = profile.picture;
       }
 
+      if (account && account.provider !== "google") {
+        token.youtubeLinkingStatus = undefined;
+        token.youtubeLinkingMessage = undefined;
+      }
+
       const email = typeof token.email === "string" ? token.email : null;
       const googleUserId = typeof token.googleUserId === "string" ? token.googleUserId : null;
       const name =
@@ -88,34 +97,59 @@ export const authOptions = {
           : typeof user?.image === "string"
             ? user.image
             : null;
+      const isGoogleSignIn = account?.provider === "google";
+      const youtubeLookup =
+        isGoogleSignIn && typeof account.access_token === "string"
+          ? await getYoutubeChannelFromGoogleAccessToken(account.access_token, {
+              grantedScope: typeof account.scope === "string" ? account.scope : null,
+            })
+          : null;
+
+      if (youtubeLookup) {
+        token.youtubeLinkingStatus = youtubeLookup.status.kind;
+        token.youtubeLinkingMessage = getYoutubeChannelLookupMessage(youtubeLookup.status) ?? undefined;
+      }
 
       if (email) {
         const shouldBootstrapSession = Boolean(account || user);
         if (shouldBootstrapSession) {
-          const youtubeChannels =
-            account?.provider === "google" && typeof account.access_token === "string"
-              ? await getYoutubeChannelFromGoogleAccessToken(account.access_token)
-              : null;
-
-          await ensureViewerFromSession({
-            googleUserId,
-            email,
-            name,
-            image,
-            youtubeChannels,
-          });
+          if (isGoogleSignIn) {
+            if (canBootstrapViewerFromYoutubeLookup(youtubeLookup)) {
+              await ensureViewerFromSession({
+                googleUserId,
+                email,
+                name,
+                image,
+                youtubeChannels: youtubeLookup.channels,
+              });
+            } else {
+              console.warn("[auth] Skipping synthetic viewer bootstrap for Google login.", {
+                email,
+                googleUserId,
+                youtubeLookupStatus: youtubeLookup?.status.kind ?? "missing_lookup",
+              });
+            }
+          } else {
+            await ensureViewerFromSession({
+              googleUserId,
+              email,
+              name,
+              image,
+            });
+          }
         }
 
         let sessionState = await getSessionViewerState({
           googleUserId,
           email,
         });
-        if (!sessionState) {
+        if (!sessionState && (!isGoogleSignIn || canBootstrapViewerFromYoutubeLookup(youtubeLookup))) {
           await ensureViewerFromSession({
             googleUserId,
             email,
             name,
             image,
+            youtubeChannels: canBootstrapViewerFromYoutubeLookup(youtubeLookup) ? youtubeLookup.channels : undefined,
           });
           sessionState = await getSessionViewerState({
             googleUserId,
@@ -149,6 +183,12 @@ export const authOptions = {
         }
         if (typeof token.isLinked === "boolean") {
           session.user.isLinked = token.isLinked;
+        }
+        if (typeof token.youtubeLinkingStatus === "string") {
+          session.user.youtubeLinkingStatus = token.youtubeLinkingStatus;
+        }
+        if (typeof token.youtubeLinkingMessage === "string") {
+          session.user.youtubeLinkingMessage = token.youtubeLinkingMessage;
         }
       }
 

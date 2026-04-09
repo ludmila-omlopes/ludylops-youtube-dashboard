@@ -6,6 +6,7 @@ import { AuthButtons } from "@/components/auth-buttons";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { QuickNavGrid } from "@/components/quick-nav-grid";
 import { StickerBadge } from "@/components/sticker-badge";
+import { env } from "@/lib/env";
 import { getCatalog, getLeaderboard, getViewerDashboard, listBets } from "@/lib/db/repository";
 import type { BetWithOptionsRecord, CatalogItemRecord } from "@/lib/types";
 import { formatPipetz } from "@/lib/utils";
@@ -30,6 +31,83 @@ type FeatureCard = {
   body: string;
   bg: string;
 };
+
+const DEFAULT_GITHUB_ISSUES_URL =
+  "https://github.com/ludmila-omlopes/ludylops-youtube-dashboard/issues/new";
+
+function buildYoutubeLinkingIssueUrl(input: {
+  status: NonNullable<
+    NonNullable<Awaited<ReturnType<typeof auth>>["user"]>["youtubeLinkingStatus"]
+  >;
+  message: string;
+  isLinked: boolean;
+  hasActiveViewer: boolean;
+}) {
+  const title = "[Linking] Google login sem canal do YouTube confirmado";
+  const body = [
+    "## O que aconteceu",
+    "O login Google entrou, mas o app nao conseguiu confirmar o canal do YouTube automaticamente.",
+    "",
+    "## Diagnostico tecnico",
+    `- youtubeLinkingStatus: \`${input.status}\``,
+    `- mensagem exibida: ${input.message}`,
+    `- hasActiveViewer: ${input.hasActiveViewer ? "yes" : "no"}`,
+    `- isLinked: ${input.isLinked ? "yes" : "no"}`,
+    `- horario (UTC): ${new Date().toISOString()}`,
+    "",
+    "## O que eu esperava",
+    "- Descreva qual canal do YouTube deveria ter sido vinculado.",
+    "",
+    "## Observacoes",
+    "- Nao inclua token, email privado, cookie nem segredo nesta issue.",
+  ].join("\n");
+
+  const url = new URL(env.NEXT_PUBLIC_GITHUB_ISSUES_URL ?? DEFAULT_GITHUB_ISSUES_URL);
+  url.searchParams.set("title", title);
+  url.searchParams.set("body", body);
+  return url.toString();
+}
+
+function YoutubeLinkingNotice({
+  status,
+  message,
+  issueUrl,
+}: {
+  status: NonNullable<
+    NonNullable<Awaited<ReturnType<typeof auth>>["user"]>["youtubeLinkingStatus"]
+  >;
+  message: string;
+  issueUrl: string;
+}) {
+  const title =
+    status === "empty"
+      ? "Nao encontrei nenhum canal do YouTube nesta conta."
+      : status === "scope_missing"
+        ? "O login Google entrou sem permissao para consultar seu canal."
+        : "Nao consegui confirmar seu canal do YouTube nesta tentativa.";
+
+  return (
+    <div className="card-poster mt-6 border-[3px] border-[var(--color-ink)] bg-[var(--color-pink)] p-4 text-[var(--color-accent-ink)]">
+      <p className="mono text-[10px] uppercase tracking-[0.24em]">linking google/youtube</p>
+      <p className="mt-2 text-lg font-black uppercase leading-tight">{title}</p>
+      <p className="mt-3 text-sm font-bold leading-6">{message}</p>
+      <p className="mt-3 text-xs font-medium leading-5">
+        Por seguranca, eu nao criei nem troquei automaticamente o viewer desta sessao enquanto esse
+        diagnostico nao for resolvido.
+      </p>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <a
+          href={issueUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="btn-brutal bg-[var(--color-paper)] px-4 py-2 text-xs text-[var(--color-ink)]"
+        >
+          Abrir issue no GitHub →
+        </a>
+      </div>
+    </div>
+  );
+}
 
 function HeroPoster({
   badge,
@@ -599,6 +677,21 @@ export default async function Home() {
     : "Esse painel e o cantinho da minha live para o chat apostar, resgatar e acompanhar o ranking.";
 
   const metrics = session?.user ? authedMetrics : publicMetrics;
+  const shouldShowYoutubeLinkingNotice = Boolean(
+    session?.user?.youtubeLinkingMessage &&
+      session.user.youtubeLinkingStatus &&
+      session.user.youtubeLinkingStatus !== "channels_found" &&
+      !session.user.isLinked,
+  );
+  const youtubeLinkingIssueUrl =
+    shouldShowYoutubeLinkingNotice && session?.user?.youtubeLinkingStatus && session.user.youtubeLinkingMessage
+      ? buildYoutubeLinkingIssueUrl({
+          status: session.user.youtubeLinkingStatus,
+          message: session.user.youtubeLinkingMessage,
+          isLinked: Boolean(session.user.isLinked),
+          hasActiveViewer: Boolean(session.user.activeViewerId),
+        })
+      : null;
 
   return (
     <div className="mx-auto flex w-full max-w-[1520px] flex-col gap-8 px-4 pb-20 pt-8 sm:px-6 lg:px-10">
@@ -638,6 +731,14 @@ export default async function Home() {
             <p className="mt-5 max-w-xl text-base leading-8 text-[var(--color-ink-soft)] sm:text-lg">
               {heroDescription}
             </p>
+
+            {shouldShowYoutubeLinkingNotice ? (
+              <YoutubeLinkingNotice
+                status={session!.user!.youtubeLinkingStatus!}
+                message={session!.user!.youtubeLinkingMessage!}
+                issueUrl={youtubeLinkingIssueUrl!}
+              />
+            ) : null}
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
               {session?.user ? (
