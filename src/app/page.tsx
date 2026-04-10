@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import type { Session } from "next-auth";
 
 import { auth } from "@/auth";
 import { AuthButtons } from "@/components/auth-buttons";
@@ -35,10 +36,11 @@ type FeatureCard = {
 const DEFAULT_GITHUB_ISSUES_URL =
   "https://github.com/ludmila-omlopes/ludylops-youtube-dashboard/issues/new";
 
+type HomeSessionUser = NonNullable<Session["user"]>;
+type YoutubeLinkingStatus = NonNullable<HomeSessionUser["youtubeLinkingStatus"]>;
+
 function buildYoutubeLinkingIssueUrl(input: {
-  status: NonNullable<
-    NonNullable<Awaited<ReturnType<typeof auth>>["user"]>["youtubeLinkingStatus"]
-  >;
+  status: YoutubeLinkingStatus;
   message: string;
   isLinked: boolean;
   hasActiveViewer: boolean;
@@ -73,9 +75,7 @@ function YoutubeLinkingNotice({
   message,
   issueUrl,
 }: {
-  status: NonNullable<
-    NonNullable<Awaited<ReturnType<typeof auth>>["user"]>["youtubeLinkingStatus"]
-  >;
+  status: YoutubeLinkingStatus;
   message: string;
   issueUrl: string;
 }) {

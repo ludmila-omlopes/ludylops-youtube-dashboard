@@ -60,6 +60,11 @@ export type YoutubeChannelLookupResult = {
   status: YoutubeChannelLookupStatus;
 };
 
+type YoutubeChannelsFoundLookup = YoutubeChannelLookupResult & {
+  channels: [YoutubeChannelIdentity, ...YoutubeChannelIdentity[]];
+  status: Extract<YoutubeChannelLookupStatus, { kind: "channels_found" }>;
+};
+
 const YOUTUBE_READONLY_SCOPE = "https://www.googleapis.com/auth/youtube.readonly";
 
 function normalizeYoutubeHandle(value: string | undefined) {
@@ -127,7 +132,9 @@ export function getYoutubeChannelLookupMessage(status: YoutubeChannelLookupStatu
   }
 }
 
-export function canBootstrapViewerFromYoutubeLookup(result: YoutubeChannelLookupResult | null) {
+export function canBootstrapViewerFromYoutubeLookup(
+  result: YoutubeChannelLookupResult | null,
+): result is YoutubeChannelsFoundLookup {
   return result?.status.kind === "channels_found" && result.channels.length > 0;
 }
 

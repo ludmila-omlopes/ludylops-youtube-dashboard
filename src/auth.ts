@@ -10,9 +10,23 @@ import {
   canBootstrapViewerFromYoutubeLookup,
   getYoutubeChannelFromGoogleAccessToken,
   getYoutubeChannelLookupMessage,
+  type YoutubeChannelLookupStatus,
 } from "@/lib/google/youtube-channel";
 
 const providers = [];
+const YOUTUBE_LINKING_STATUS_KINDS: YoutubeChannelLookupStatus["kind"][] = [
+  "channels_found",
+  "empty",
+  "scope_missing",
+  "authorization_required",
+  "insufficient_permissions",
+  "http_error",
+  "network_error",
+];
+
+function isYoutubeLinkingStatus(value: string): value is YoutubeChannelLookupStatus["kind"] {
+  return YOUTUBE_LINKING_STATUS_KINDS.includes(value as YoutubeChannelLookupStatus["kind"]);
+}
 
 if (env.AUTH_GOOGLE_ID && env.AUTH_GOOGLE_SECRET) {
   providers.push(
@@ -98,6 +112,9 @@ export const authOptions = {
               grantedScope: typeof account.scope === "string" ? account.scope : null,
             })
           : null;
+      const bootstrappableYoutubeLookup = canBootstrapViewerFromYoutubeLookup(youtubeLookup)
+        ? youtubeLookup
+        : null;
 
       if (youtubeLookup) {
         token.youtubeLinkingStatus = youtubeLookup.status.kind;
@@ -108,13 +125,13 @@ export const authOptions = {
         const shouldBootstrapSession = Boolean(account || user);
         if (shouldBootstrapSession) {
           if (isGoogleSignIn) {
-            if (canBootstrapViewerFromYoutubeLookup(youtubeLookup)) {
+            if (bootstrappableYoutubeLookup) {
               await ensureViewerFromSession({
                 googleUserId,
                 email,
                 name,
                 image,
-                youtubeChannels: youtubeLookup.channels,
+                youtubeChannels: bootstrappableYoutubeLookup.channels,
               });
             } else {
               console.warn("[auth] Skipping synthetic viewer bootstrap for Google login.", {
@@ -137,13 +154,13 @@ export const authOptions = {
           googleUserId,
           email,
         });
-        if (!sessionState && (!isGoogleSignIn || canBootstrapViewerFromYoutubeLookup(youtubeLookup))) {
+        if (!sessionState && (!isGoogleSignIn || bootstrappableYoutubeLookup)) {
           await ensureViewerFromSession({
             googleUserId,
             email,
             name,
             image,
-            youtubeChannels: canBootstrapViewerFromYoutubeLookup(youtubeLookup) ? youtubeLookup.channels : undefined,
+            youtubeChannels: bootstrappableYoutubeLookup?.channels,
           });
           sessionState = await getSessionViewerState({
             googleUserId,
@@ -178,7 +195,10 @@ export const authOptions = {
         if (typeof token.isLinked === "boolean") {
           session.user.isLinked = token.isLinked;
         }
-        if (typeof token.youtubeLinkingStatus === "string") {
+        if (
+          typeof token.youtubeLinkingStatus === "string" &&
+          isYoutubeLinkingStatus(token.youtubeLinkingStatus)
+        ) {
           session.user.youtubeLinkingStatus = token.youtubeLinkingStatus;
         }
         if (typeof token.youtubeLinkingMessage === "string") {
