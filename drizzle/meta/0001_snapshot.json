@@ -1,5 +1,5 @@
 {
-  "id": "feeb9e53-3be7-4811-9036-87a2b0fc7fb8",
+  "id": "2afa3cbc-af25-4b25-b1f8-8a3d1018b186",
   "prevId": "a66ded4b-135d-45d8-b6f6-1fa66bac7da7",
   "version": "7",
   "dialect": "postgresql",
@@ -903,8 +903,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.quotes": {
-      "name": "quotes",
+    "public.product_recommendations": {
+      "name": "product_recommendations",
       "schema": "",
       "columns": {
         "id": {
@@ -913,42 +913,67 @@
           "primaryKey": true,
           "notNull": true
         },
-        "quote_number": {
-          "name": "quote_number",
-          "type": "integer",
+        "slug": {
+          "name": "slug",
+          "type": "varchar(160)",
           "primaryKey": false,
           "notNull": true
         },
-        "body": {
-          "name": "body",
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "context": {
+          "name": "context",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "created_by_viewer_id": {
-          "name": "created_by_viewer_id",
-          "type": "varchar(64)",
+        "image_url": {
+          "name": "image_url",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "created_by_display_name": {
-          "name": "created_by_display_name",
-          "type": "varchar(255)",
+        "href": {
+          "name": "href",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "created_by_youtube_handle": {
-          "name": "created_by_youtube_handle",
-          "type": "varchar(255)",
+        "store_label": {
+          "name": "store_label",
+          "type": "varchar(120)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
-        "source": {
-          "name": "source",
-          "type": "varchar(64)",
+        "link_kind": {
+          "name": "link_kind",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
-          "default": "'streamerbot_chat'"
+          "default": true
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -956,14 +981,21 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {
-        "quotes_quote_number_idx": {
-          "name": "quotes_quote_number_idx",
+        "product_recommendations_slug_idx": {
+          "name": "product_recommendations_slug_idx",
           "columns": [
             {
-              "expression": "quote_number",
+              "expression": "slug",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -975,21 +1007,7 @@
           "with": {}
         }
       },
-      "foreignKeys": {
-        "quotes_created_by_viewer_id_users_id_fk": {
-          "name": "quotes_created_by_viewer_id_users_id_fk",
-          "tableFrom": "quotes",
-          "tableTo": "users",
-          "columnsFrom": [
-            "created_by_viewer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

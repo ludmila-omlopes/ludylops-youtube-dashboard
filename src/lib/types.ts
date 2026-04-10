@@ -41,6 +41,15 @@ export type GameSuggestionStatus =
   | "played"
   | "rejected";
 
+export type ProductRecommendationCategory =
+  | "videogames"
+  | "perifericos"
+  | "acessorios";
+
+export type ProductRecommendationLinkKind =
+  | "external"
+  | "affiliate";
+
 export interface ViewerRecord {
   id: string;
   googleUserId: string | null;
@@ -154,6 +163,14 @@ export interface QuoteRecord {
   createdAt: string;
 }
 
+export interface StreamerbotCounterRecord {
+  key: string;
+  value: number;
+  lastResetAt: string | null;
+  updatedAt: string;
+  metadata: Record<string, unknown>;
+}
+
 export interface BetRecord {
   id: string;
   question: string;
@@ -227,4 +244,20 @@ export interface GameSuggestionWithMeta extends GameSuggestionRecord {
   suggestedBy: string;
   suggestedByYoutubeHandle: string | null;
   viewerBoostTotal: number;
+}
+
+export interface ProductRecommendationRecord {
+  id: string;
+  slug: string;
+  name: string;
+  category: ProductRecommendationCategory;
+  context: string;
+  imageUrl: string;
+  href: string;
+  storeLabel: string;
+  linkKind: ProductRecommendationLinkKind;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
 }

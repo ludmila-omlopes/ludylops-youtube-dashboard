@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
-import { Archivo_Black, IBM_Plex_Mono, DM_Sans } from "next/font/google";
+import { Archivo_Black, IBM_Plex_Mono, DM_Sans, Geist } from "next/font/google";
 import Script from "next/script";
 
 import { auth } from "@/auth";
 import { AppChrome } from "@/components/app-chrome";
 import { Providers } from "@/components/providers";
 import "./globals.css";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const display = Archivo_Black({
   variable: "--font-display",
@@ -58,7 +61,7 @@ export default async function RootLayout({
     <html
       lang="pt-BR"
       suppressHydrationWarning
-      className={`${display.variable} ${body.variable} ${mono.variable} h-full antialiased`}
+      className={cn("h-full", "antialiased", display.variable, body.variable, mono.variable, "font-sans", geist.variable)}
     >
       <body className="min-h-full text-[var(--color-ink)]" style={{ fontFamily: "var(--font-body), var(--font-display), sans-serif" }}>
         <Script id="pipetz-theme" strategy="beforeInteractive">

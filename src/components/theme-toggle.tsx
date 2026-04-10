@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
+
 const storageKey = "pipetz-theme";
 
 type ThemeMode = "light" | "dark";
@@ -33,17 +35,19 @@ export function ThemeToggle() {
   const isDark = theme === "dark";
 
   return (
-    <button
+    <Button
       type="button"
       onClick={handleToggle}
-      className="btn-brutal min-w-[104px] bg-[var(--color-blue)] px-3 py-2 text-[11px] text-[var(--color-ink)]"
+      variant="accent"
+      size="xs"
+      className="min-w-[104px]"
       aria-label={isDark ? "Ativar modo claro" : "Ativar modo escuro"}
       aria-pressed={isDark}
       suppressHydrationWarning
     >
       <span className="mono tracking-[0.18em]" suppressHydrationWarning>
-        {isDark ? "LIGHT →" : "DARK →"}
+        {isDark ? "LIGHT ->" : "DARK ->"}
       </span>
-    </button>
+    </Button>
   );
 }

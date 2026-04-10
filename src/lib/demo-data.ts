@@ -10,6 +10,7 @@ import {
   GoogleAccountViewerRecord,
   LedgerEntryRecord,
   QuoteRecord,
+  ProductRecommendationRecord,
   RedemptionRecord,
   ViewerBalanceRecord,
   ViewerRecord,
@@ -177,6 +178,8 @@ export const demoCatalog: CatalogItemRecord[] = [
     streamerbotArgsTemplate: { imageKey: "holo_sticker" },
   },
 ];
+
+export const demoProductRecommendations: ProductRecommendationRecord[] = [];
 
 export const demoLedger: LedgerEntryRecord[] = [
   {

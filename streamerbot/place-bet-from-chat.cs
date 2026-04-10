@@ -6,6 +6,41 @@ using System.Text.RegularExpressions;
 
 public class CPHInline
 {
+    private static readonly string[] ViewerIdArgCandidates =
+    {
+        "id",
+        "userId",
+        "fromId",
+        "authorId",
+        "channelId",
+        "youtubeUserId",
+        "targetUserId",
+    };
+
+    private static readonly string[] DisplayNameArgCandidates =
+    {
+        "display",
+        "displayName",
+        "user",
+        "userName",
+        "authorName",
+        "channelName",
+    };
+
+    private static readonly string[] HandleArgCandidates =
+    {
+        "userName",
+        "handle",
+        "youtubeHandle",
+    };
+
+    private static readonly string[] BetIdArgCandidates =
+    {
+        "betId",
+        "activeBetId",
+        "bet_id",
+    };
+
     private static readonly HttpClient Http = new HttpClient
     {
         Timeout = TimeSpan.FromSeconds(10),
@@ -33,17 +68,23 @@ public class CPHInline
             return false;
         }
 
-        string viewerExternalId = GetArgString("id");
+        string viewerExternalId = GetFirstArgString(ViewerIdArgCandidates);
         if (string.IsNullOrWhiteSpace(viewerExternalId))
         {
-            CPH.LogError("[Loja Neon] Nao consegui descobrir o id do viewer no argumento 'id'.");
+            CPH.LogError(string.Format(
+                "[Loja Neon] Nao consegui descobrir o id do viewer. Args testados: {0}. Args disponiveis: {1}.",
+                string.Join(", ", ViewerIdArgCandidates),
+                ListAvailableArgs()
+            ));
             Reply("Nao consegui identificar seu canal do YouTube para apostar.", true);
             return false;
         }
 
-        string displayName = GetArgString("display");
-        string youtubeHandle = NormalizeHandle(GetArgString("userName"));
-        string activeBetId = ReadOptionalGlobal("lojaneon.activeBetId");
+        string displayName = GetFirstArgString(DisplayNameArgCandidates);
+        string youtubeHandle = NormalizeHandle(GetFirstArgString(HandleArgCandidates));
+        string requestedBetId = GetFirstArgString(BetIdArgCandidates);
+        string configuredBetId = ReadOptionalGlobal("lojaneon.activeBetId");
+        string activeBetId = !string.IsNullOrWhiteSpace(requestedBetId) ? requestedBetId : configuredBetId;
         bool useBotAccount = ReadOptionalBoolGlobal("lojaneon.useBotAccount", true);
 
         string body = BuildRequestBody(
@@ -163,6 +204,25 @@ public class CPHInline
         return false;
     }
 
+    private string GetFirstArgString(params string[] argNames)
+    {
+        if (argNames == null)
+        {
+            return null;
+        }
+
+        foreach (string argName in argNames)
+        {
+            string value = GetArgString(argName);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
     private string GetArgString(string argName)
     {
         if (args != null && args.ContainsKey(argName) && args[argName] != null)
@@ -176,6 +236,16 @@ public class CPHInline
         }
 
         return null;
+    }
+
+    private string ListAvailableArgs()
+    {
+        if (args == null || args.Count == 0)
+        {
+            return "(nenhum)";
+        }
+
+        return string.Join(", ", args.Keys);
     }
 
     private string NormalizeHandle(string value)

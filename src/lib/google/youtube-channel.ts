@@ -66,6 +66,15 @@ type YoutubeChannelsFoundLookup = YoutubeChannelLookupResult & {
 };
 
 const YOUTUBE_READONLY_SCOPE = "https://www.googleapis.com/auth/youtube.readonly";
+const YOUTUBE_CHANNEL_LOOKUP_STATUS_KINDS = [
+  "channels_found",
+  "empty",
+  "scope_missing",
+  "authorization_required",
+  "insufficient_permissions",
+  "http_error",
+  "network_error",
+] as const;
 
 function normalizeYoutubeHandle(value: string | undefined) {
   const trimmed = value?.trim();
@@ -130,6 +139,10 @@ export function getYoutubeChannelLookupMessage(status: YoutubeChannelLookupStatu
     case "network_error":
       return "Nao foi possivel falar com a API do YouTube para descobrir seu canal nesta tentativa.";
   }
+}
+
+export function isYoutubeChannelLookupStatusKind(value: string): value is YoutubeChannelLookupStatus["kind"] {
+  return YOUTUBE_CHANNEL_LOOKUP_STATUS_KINDS.includes(value as YoutubeChannelLookupStatus["kind"]);
 }
 
 export function canBootstrapViewerFromYoutubeLookup(

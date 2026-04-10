@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { GameSuggestionWithMeta } from "@/lib/types";
 import { formatPipetz } from "@/lib/utils";
 
@@ -152,22 +154,22 @@ export function GameSuggestionCard({
       {suggestion.status === "open" ? (
         <div className="mt-4 flex flex-wrap items-center gap-2 rounded-[var(--radius)] border-2 border-dashed border-[var(--color-ink)] bg-[var(--color-paper)]/60 p-3">
           <span className="text-xs font-bold uppercase text-[var(--color-ink-soft)]">Boost:</span>
-          <input
+          <Input
             type="number"
             min="1"
             placeholder="Pipetz"
             value={boostAmount}
             onChange={(e) => setBoostAmount(e.target.value)}
-            className="w-24 rounded-[var(--radius)] border-[3px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2 text-sm font-bold"
+            className="w-24 px-3 py-2"
           />
-          <button
+          <Button
             type="button"
             onClick={handleBoost}
             disabled={isPending}
-            className="btn-brutal ink-button px-4 py-2 text-xs disabled:opacity-60"
+            size="sm"
           >
             {isPending ? "Enviando..." : "Dar boost"}
-          </button>
+          </Button>
         </div>
       ) : null}
 
