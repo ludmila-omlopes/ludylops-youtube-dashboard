@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-import { ok } from "@/lib/api";
 import { runQuoteCommandFromChat } from "@/lib/db/repository";
 import { env } from "@/lib/env";
 import { streamerbotQuoteCommandSchema } from "@/lib/streamerbot/schemas";
@@ -93,11 +92,15 @@ export async function POST(request: Request) {
       source: payload.source,
     });
 
-    return ok({
-      action: result.action,
-      quoteId: result.quote.quoteNumber,
-      quote: result.quote,
+    return NextResponse.json({
+      ok: true,
       replyMessage,
+      data: {
+        action: result.action,
+        quoteId: result.quote.quoteNumber,
+        quote: result.quote,
+        replyMessage,
+      },
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha ao processar quote.";
