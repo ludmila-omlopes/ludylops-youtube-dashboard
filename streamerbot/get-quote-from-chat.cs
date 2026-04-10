@@ -11,6 +11,16 @@ public class CPHInline
         Timeout = TimeSpan.FromSeconds(10),
     };
 
+    private static readonly string[] QuoteIdArgCandidates = new[]
+    {
+        "quoteId",
+        "input0",
+        "commandInput",
+        "rawInput",
+        "message",
+        "text",
+    };
+
     public bool Execute()
     {
         string appBaseUrl = ReadRequiredGlobal("lojaneon.appBaseUrl");
@@ -140,20 +150,38 @@ public class CPHInline
 
     private bool TryGetOptionalQuoteId(out string quoteId)
     {
-        quoteId = GetArgString("quoteId");
+        quoteId = null;
+
+        foreach (string candidate in QuoteIdArgCandidates)
+        {
+            string rawValue = NormalizeCommandPayload(GetArgString(candidate));
+            if (string.IsNullOrWhiteSpace(rawValue))
+            {
+                continue;
+            }
+
+            string firstToken = ExtractFirstToken(rawValue);
+            if (string.IsNullOrWhiteSpace(firstToken))
+            {
+                continue;
+            }
+
+            if (!int.TryParse(firstToken, out int parsed) || parsed <= 0)
+            {
+                quoteId = null;
+                return false;
+            }
+
+            quoteId = parsed.ToString();
+            return true;
+        }
+
         if (string.IsNullOrWhiteSpace(quoteId))
         {
             quoteId = null;
             return true;
         }
 
-        if (!int.TryParse(quoteId, out int parsed) || parsed <= 0)
-        {
-            quoteId = null;
-            return false;
-        }
-
-        quoteId = parsed.ToString();
         return true;
     }
 
@@ -247,5 +275,44 @@ public class CPHInline
             .Replace("\\r", "\r")
             .Replace("\\n", "\n")
             .Replace("\\t", "\t");
+    }
+
+    private string NormalizeCommandPayload(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        string trimmed = value.Trim();
+        if (!trimmed.StartsWith("!"))
+        {
+            return trimmed;
+        }
+
+        int firstSpace = trimmed.IndexOf(' ');
+        if (firstSpace < 0 || firstSpace == trimmed.Length - 1)
+        {
+            return null;
+        }
+
+        return trimmed.Substring(firstSpace + 1).Trim();
+    }
+
+    private string ExtractFirstToken(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        string trimmed = value.Trim();
+        int firstSpace = trimmed.IndexOf(' ');
+        if (firstSpace < 0)
+        {
+            return trimmed;
+        }
+
+        return trimmed.Substring(0, firstSpace).Trim();
     }
 }

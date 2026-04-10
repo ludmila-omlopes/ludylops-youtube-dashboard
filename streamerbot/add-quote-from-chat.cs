@@ -58,6 +58,17 @@ public class CPHInline
         "userIsAdmin",
     };
 
+    private static readonly string[] QuoteTextArgCandidates = new[]
+    {
+        "quoteText",
+        "rawInput",
+        "commandInput",
+        "input",
+        "message",
+        "text",
+        "input0",
+    };
+
     public bool Execute()
     {
         string appBaseUrl = ReadRequiredGlobal("lojaneon.appBaseUrl");
@@ -69,7 +80,7 @@ public class CPHInline
             return false;
         }
 
-        string quoteText = GetArgString("quoteText");
+        string quoteText = ResolveQuoteText();
         if (string.IsNullOrWhiteSpace(quoteText))
         {
             Reply("Comando invalido. Use !addquote <texto>.", useBotAccount);
@@ -223,6 +234,20 @@ public class CPHInline
         return null;
     }
 
+    private string ResolveQuoteText()
+    {
+        foreach (string candidate in QuoteTextArgCandidates)
+        {
+            string value = NormalizeCommandPayload(GetArgString(candidate));
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
     private bool GetFirstBoolArg(string[] candidates, bool defaultValue)
     {
         foreach (string candidate in candidates)
@@ -293,6 +318,28 @@ public class CPHInline
 
         string trimmed = value.Trim();
         return trimmed.StartsWith("@") ? trimmed : string.Format("@{0}", trimmed);
+    }
+
+    private string NormalizeCommandPayload(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        string trimmed = value.Trim();
+        if (!trimmed.StartsWith("!"))
+        {
+            return trimmed;
+        }
+
+        int firstSpace = trimmed.IndexOf(' ');
+        if (firstSpace < 0 || firstSpace == trimmed.Length - 1)
+        {
+            return null;
+        }
+
+        return trimmed.Substring(firstSpace + 1).Trim();
     }
 
     private string BuildSignature(string body, string timestamp, string secret)
