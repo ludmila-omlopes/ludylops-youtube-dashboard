@@ -210,6 +210,28 @@ export const gameSuggestionBoosts = pgTable("game_suggestion_boosts", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const productRecommendations = pgTable(
+  "product_recommendations",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    slug: varchar("slug", { length: 160 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    category: varchar("category", { length: 32 }).notNull(),
+    context: text("context").notNull(),
+    imageUrl: text("image_url").notNull(),
+    href: text("href").notNull(),
+    storeLabel: varchar("store_label", { length: 120 }).notNull(),
+    linkKind: varchar("link_kind", { length: 32 }).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    slugIdx: uniqueIndex("product_recommendations_slug_idx").on(table.slug),
+  }),
+);
+
 export const redemptions = pgTable("redemptions", {
   id: varchar("id", { length: 64 }).primaryKey(),
   viewerId: varchar("viewer_id", { length: 64 })
@@ -258,3 +280,11 @@ export const streamerbotEventLog = pgTable(
     eventIdIdx: uniqueIndex("streamerbot_event_id_idx").on(table.eventId),
   }),
 );
+
+export const streamerbotCounters = pgTable("streamerbot_counters", {
+  key: varchar("key", { length: 64 }).primaryKey(),
+  value: integer("value").default(0).notNull(),
+  lastResetAt: timestamp("last_reset_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  metadata: jsonb("metadata").default({}).notNull(),
+});

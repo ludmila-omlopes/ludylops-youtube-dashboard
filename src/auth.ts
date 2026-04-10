@@ -10,23 +10,10 @@ import {
   canBootstrapViewerFromYoutubeLookup,
   getYoutubeChannelFromGoogleAccessToken,
   getYoutubeChannelLookupMessage,
-  type YoutubeChannelLookupStatus,
+  isYoutubeChannelLookupStatusKind,
 } from "@/lib/google/youtube-channel";
 
 const providers = [];
-const YOUTUBE_LINKING_STATUS_KINDS: YoutubeChannelLookupStatus["kind"][] = [
-  "channels_found",
-  "empty",
-  "scope_missing",
-  "authorization_required",
-  "insufficient_permissions",
-  "http_error",
-  "network_error",
-];
-
-function isYoutubeLinkingStatus(value: string): value is YoutubeChannelLookupStatus["kind"] {
-  return YOUTUBE_LINKING_STATUS_KINDS.includes(value as YoutubeChannelLookupStatus["kind"]);
-}
 
 if (env.AUTH_GOOGLE_ID && env.AUTH_GOOGLE_SECRET) {
   providers.push(
@@ -195,10 +182,7 @@ export const authOptions = {
         if (typeof token.isLinked === "boolean") {
           session.user.isLinked = token.isLinked;
         }
-        if (
-          typeof token.youtubeLinkingStatus === "string" &&
-          isYoutubeLinkingStatus(token.youtubeLinkingStatus)
-        ) {
+        if (typeof token.youtubeLinkingStatus === "string" && isYoutubeChannelLookupStatusKind(token.youtubeLinkingStatus)) {
           session.user.youtubeLinkingStatus = token.youtubeLinkingStatus;
         }
         if (typeof token.youtubeLinkingMessage === "string") {

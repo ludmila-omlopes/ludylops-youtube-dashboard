@@ -3,6 +3,9 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { validateGameSuggestionDraft } from "@/lib/game-suggestions/service";
 import { formatPipetz } from "@/lib/utils";
 
@@ -103,7 +106,7 @@ export function GameSuggestForm({
         </div>
 
         <div className="mt-4 grid gap-3">
-          <input
+          <Input
             type="text"
             placeholder="Nome do jogo"
             value={name}
@@ -111,23 +114,23 @@ export function GameSuggestForm({
             required
             minLength={2}
             maxLength={120}
-            className="rounded-[var(--radius)] border-[3px] border-[var(--color-ink)] bg-[var(--color-paper)] px-4 py-3 text-sm font-bold shadow-[3px_3px_0_var(--shadow-color)]"
           />
-          <textarea
+          <Textarea
             placeholder="Por que eu deveria jogar isso? (opcional)"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
             maxLength={500}
-            className="rounded-[var(--radius)] border-[3px] border-[var(--color-ink)] bg-[var(--color-paper)] px-4 py-3 text-sm shadow-[3px_3px_0_var(--shadow-color)]"
+            className="min-h-28 font-medium"
           />
-          <button
+          <Button
             type="submit"
             disabled={isPending}
-            className="btn-brutal ink-button px-6 py-3 text-sm disabled:opacity-60"
+            size="lg"
+            className="w-full sm:w-fit"
           >
             {isPending ? "Enviando..." : "Enviar sugestao"}
-          </button>
+          </Button>
         </div>
 
         {!loggedIn ? (

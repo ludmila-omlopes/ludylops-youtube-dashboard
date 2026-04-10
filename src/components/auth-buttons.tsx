@@ -8,10 +8,13 @@ import {
   GOOGLE_ACCOUNT_SWITCH_HINT,
   GOOGLE_AUTHORIZATION_PARAMS,
 } from "@/lib/auth/google";
+import { Button } from "@/components/ui/button";
 
 export function AuthButtons({ showGoogleHint = false }: { showGoogleHint?: boolean }) {
   const { data: session } = useSession();
-  const [providers, setProviders] = useState<Record<string, { id: string; name: string }> | null>(null);
+  const [providers, setProviders] = useState<Record<string, { id: string; name: string }> | null>(
+    null,
+  );
 
   useEffect(() => {
     startTransition(() => {
@@ -27,13 +30,14 @@ export function AuthButtons({ showGoogleHint = false }: { showGoogleHint?: boole
     return (
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <ViewerChannelSwitcher />
-        <button
+        <Button
           type="button"
           onClick={() => signOut({ callbackUrl: "/" })}
-          className="btn-brutal bg-[var(--color-paper)] px-5 py-2.5 text-xs text-[var(--color-ink)]"
+          variant="neutral"
+          size="sm"
         >
           Sair
-        </button>
+        </Button>
       </div>
     );
   }
@@ -45,22 +49,22 @@ export function AuthButtons({ showGoogleHint = false }: { showGoogleHint?: boole
     <div className="flex flex-col gap-2">
       <div className="flex flex-col gap-2 sm:flex-row">
         {hasGoogle ? (
-          <button
+          <Button
             type="button"
             onClick={() => signIn("google", { callbackUrl: "/" }, GOOGLE_AUTHORIZATION_PARAMS)}
-            className="btn-brutal ink-button px-6 py-2.5 text-sm"
           >
             Entrar com Google
-          </button>
+          </Button>
         ) : null}
         {hasCredentials ? (
-          <button
+          <Button
             type="button"
             onClick={() => signIn("credentials", { email: "ana@example.com", callbackUrl: "/" })}
-            className="btn-brutal accent-button px-5 py-2.5 text-xs"
+            variant="accent"
+            size="sm"
           >
             Modo demo
-          </button>
+          </Button>
         ) : null}
       </div>
       {hasGoogle && showGoogleHint ? (

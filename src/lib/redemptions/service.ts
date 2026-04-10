@@ -1,11 +1,11 @@
 import { CatalogItemRecord, RedemptionRecord } from "@/lib/types";
 
-export function isBridgeOnline(lastSeenAt: string | null | undefined) {
+export function isBridgeOnline(lastSeenAt: string | null | undefined, now = Date.now()) {
   if (!lastSeenAt) {
     return false;
   }
 
-  return Date.now() - new Date(lastSeenAt).getTime() < 45_000;
+  return now - new Date(lastSeenAt).getTime() < 45_000;
 }
 
 export function evaluateRedeemability({
