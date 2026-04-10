@@ -20,6 +20,7 @@ import {
   googleAccounts,
   googleAccountViewers,
   pointLedger,
+  quotes,
   productRecommendations,
   redemptions,
   streamerbotCounters,
@@ -39,6 +40,7 @@ import {
   demoGoogleAccounts,
   demoGoogleAccountViewers,
   demoLedger,
+  demoQuotes,
   demoProductRecommendations,
   demoRedemptions,
   demoViewers,
@@ -64,6 +66,7 @@ import {
   GoogleAccountRecord,
   GoogleAccountViewerRecord,
   LedgerEntryRecord,
+  QuoteRecord,
   ProductRecommendationRecord,
   RedemptionRecord,
   StreamerbotCounterRecord,
@@ -122,6 +125,7 @@ type DemoStore = {
   balances: ViewerBalanceRecord[];
   catalog: CatalogItemRecord[];
   ledger: LedgerEntryRecord[];
+  quotes: QuoteRecord[];
   redemptions: RedemptionRecord[];
   bets: BetRecord[];
   betOptions: BetOptionRecord[];
@@ -146,6 +150,7 @@ function getDemoStore(): DemoStore {
       balances: structuredClone(demoBalances),
       catalog: structuredClone(demoCatalog),
       ledger: structuredClone(demoLedger),
+      quotes: structuredClone(demoQuotes),
       redemptions: structuredClone(demoRedemptions),
       bets: structuredClone(demoBetRecords),
       betOptions: structuredClone(demoBetOptions),
@@ -848,6 +853,19 @@ function serializeGameSuggestionBoost(
   };
 }
 
+function serializeQuote(row: typeof quotes.$inferSelect): QuoteRecord {
+  return {
+    id: row.id,
+    quoteNumber: row.quoteNumber,
+    body: row.body,
+    createdByViewerId: row.createdByViewerId,
+    createdByDisplayName: row.createdByDisplayName,
+    createdByYoutubeHandle: row.createdByYoutubeHandle ?? null,
+    source: row.source,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
 function serializeProductRecommendation(
   row: typeof productRecommendations.$inferSelect,
 ): ProductRecommendationRecord {
@@ -880,6 +898,124 @@ function buildGameSuggestionWithMeta(params: {
     suggestedByYoutubeHandle: params.viewer?.youtubeHandle ?? null,
     viewerBoostTotal: boosts.reduce((sum, entry) => sum + entry.amount, 0),
   };
+}
+
+function listDemoQuotes() {
+  const store = getDemoStore();
+  return [...store.quotes].sort((a, b) => a.quoteNumber - b.quoteNumber);
+}
+
+export async function listQuotes() {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    return [...listDemoQuotes()].sort((a, b) => b.quoteNumber - a.quoteNumber);
+  }
+
+  const rows = await db.select().from(quotes).orderBy(desc(quotes.quoteNumber));
+  return rows.map(serializeQuote);
+}
+
+async function createQuoteRecord(input: {
+  body: string;
+  viewer: ViewerRecord;
+  source: string;
+}) {
+  const body = input.body.trim();
+  if (!body) {
+    throw new Error("quote_text_required");
+  }
+
+  const db = getDb();
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const nextQuoteNumber =
+      store.quotes.reduce((highest, entry) => Math.max(highest, entry.quoteNumber), 0) + 1;
+    const createdAt = new Date().toISOString();
+    const quote: QuoteRecord = {
+      id: randomUUID(),
+      quoteNumber: nextQuoteNumber,
+      body,
+      createdByViewerId: input.viewer.id,
+      createdByDisplayName: input.viewer.youtubeDisplayName,
+      createdByYoutubeHandle: input.viewer.youtubeHandle ?? null,
+      source: input.source,
+      createdAt,
+    };
+    store.quotes.push(quote);
+    return quote;
+  }
+
+  return db.transaction(async (tx) => {
+    const [latestQuote] = await tx
+      .select({ quoteNumber: quotes.quoteNumber })
+      .from(quotes)
+      .orderBy(desc(quotes.quoteNumber))
+      .limit(1);
+
+    const [createdQuote] = await tx
+      .insert(quotes)
+      .values({
+        id: randomUUID(),
+        quoteNumber: (latestQuote?.quoteNumber ?? 0) + 1,
+        body,
+        createdByViewerId: input.viewer.id,
+        createdByDisplayName: input.viewer.youtubeDisplayName,
+        createdByYoutubeHandle: input.viewer.youtubeHandle ?? null,
+        source: input.source,
+        createdAt: new Date(),
+      })
+      .returning();
+
+    if (!createdQuote) {
+      throw new Error("quote_create_failed");
+    }
+
+    return serializeQuote(createdQuote);
+  });
+}
+
+async function getQuoteRecord(input: { quoteId?: number | null }) {
+  const quoteId = input.quoteId ?? null;
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const quotes = listDemoQuotes();
+    if (quotes.length === 0) {
+      throw new Error("quote_list_empty");
+    }
+
+    if (quoteId) {
+      const found = quotes.find((entry) => entry.quoteNumber === quoteId);
+      if (!found) {
+        throw new Error("quote_not_found");
+      }
+      return found;
+    }
+
+    return quotes[Math.floor(Math.random() * quotes.length)]!;
+  }
+
+  if (quoteId) {
+    const [quote] = await db
+      .select()
+      .from(quotes)
+      .where(eq(quotes.quoteNumber, quoteId))
+      .limit(1);
+
+    if (!quote) {
+      throw new Error("quote_not_found");
+    }
+
+    return serializeQuote(quote);
+  }
+
+  const allQuotes = await db.select().from(quotes).orderBy(desc(quotes.quoteNumber));
+  if (allQuotes.length === 0) {
+    throw new Error("quote_list_empty");
+  }
+
+  return serializeQuote(allQuotes[Math.floor(Math.random() * allQuotes.length)]!);
 }
 
 function listDemoGameSuggestions(viewerId?: string | null) {
@@ -2629,6 +2765,53 @@ export async function placeBetFromChatCommand(input: {
     viewer,
     bet,
     option,
+  };
+}
+
+export async function runQuoteCommandFromChat(input: {
+  action: "create" | "get";
+  viewerExternalId?: string;
+  youtubeDisplayName?: string | null;
+  youtubeHandle?: string | null;
+  quoteText?: string | null;
+  quoteId?: number | null;
+  isModerator?: boolean;
+  isBroadcaster?: boolean;
+  isAdmin?: boolean;
+  source: string;
+}) {
+  if (input.action === "create") {
+    if (!input.viewerExternalId?.trim()) {
+      throw new Error("viewer_external_id_required");
+    }
+
+    if (!input.quoteText?.trim()) {
+      throw new Error("quote_text_required");
+    }
+
+    const viewer = await ensureViewerFromStreamerbotIdentity({
+      viewerExternalId: input.viewerExternalId,
+      youtubeDisplayName: input.youtubeDisplayName,
+      youtubeHandle: input.youtubeHandle,
+    });
+    const quote = await createQuoteRecord({
+      body: input.quoteText,
+      viewer,
+      source: input.source,
+    });
+
+    return {
+      action: "create" as const,
+      quote,
+      viewer,
+    };
+  }
+
+  const quote = await getQuoteRecord({ quoteId: input.quoteId });
+  return {
+    action: "get" as const,
+    quote,
+    viewer: null,
   };
 }
 

@@ -36,6 +36,7 @@ export function AppChrome({
     { href: "/resgates", label: "Resgates" },
     { href: "/apostas", label: "Apostas" },
     { href: "/jogos", label: "Jogos" },
+    { href: "/quotes", label: "Quotes" },
     { href: "/ranking", label: "Ranking" },
   ];
 
