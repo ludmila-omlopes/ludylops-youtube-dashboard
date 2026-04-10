@@ -2,7 +2,7 @@ using System;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
+using System.Text.Json;
 
 public class CPHInline
 {
@@ -203,24 +203,25 @@ public class CPHInline
 
         try
         {
-            Match replyMatch = Regex.Match(
-                responseText,
-                "\"replyMessage\"\\s*:\\s*\"(?<value>(?:\\\\.|[^\"])*)\"",
-                RegexOptions.Singleline
-            );
-            if (replyMatch.Success)
+            using (JsonDocument document = JsonDocument.Parse(responseText))
             {
-                return JsonUnescape(replyMatch.Groups["value"].Value);
-            }
+                JsonElement root = document.RootElement;
 
-            Match errorMatch = Regex.Match(
-                responseText,
-                "\"error\"\\s*:\\s*\"(?<value>(?:\\\\.|[^\"])*)\"",
-                RegexOptions.Singleline
-            );
-            if (errorMatch.Success)
-            {
-                return JsonUnescape(errorMatch.Groups["value"].Value);
+                if (TryGetString(root, "replyMessage", out string directReply))
+                {
+                    return directReply;
+                }
+
+                if (root.TryGetProperty("data", out JsonElement data) &&
+                    TryGetString(data, "replyMessage", out string nestedReply))
+                {
+                    return nestedReply;
+                }
+
+                if (TryGetString(root, "error", out string error))
+                {
+                    return error;
+                }
             }
         }
         catch (Exception ex)
@@ -229,6 +230,24 @@ public class CPHInline
         }
 
         return string.Empty;
+    }
+
+    private bool TryGetString(JsonElement element, string propertyName, out string value)
+    {
+        value = string.Empty;
+
+        if (!element.TryGetProperty(propertyName, out JsonElement property))
+        {
+            return false;
+        }
+
+        if (property.ValueKind != JsonValueKind.String)
+        {
+            return false;
+        }
+
+        value = property.GetString() ?? string.Empty;
+        return !string.IsNullOrWhiteSpace(value);
     }
 
     private string BuildRequestBody(string quoteId, string source)
@@ -260,21 +279,6 @@ public class CPHInline
             .Replace("\r", "\\r")
             .Replace("\n", "\\n")
             .Replace("\t", "\\t");
-    }
-
-    private string JsonUnescape(string value)
-    {
-        if (string.IsNullOrEmpty(value))
-        {
-            return string.Empty;
-        }
-
-        return value
-            .Replace("\\\"", "\"")
-            .Replace("\\\\", "\\")
-            .Replace("\\r", "\r")
-            .Replace("\\n", "\n")
-            .Replace("\\t", "\t");
     }
 
     private string NormalizeCommandPayload(string value)
