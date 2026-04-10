@@ -859,14 +859,13 @@ describe("runQuoteCommandFromChat", () => {
     delete (globalThis as typeof globalThis & { __lojaDemoStore?: unknown }).__lojaDemoStore;
   });
 
-  it("allows moderators to create quotes from chat", async () => {
+  it("creates quotes from chat without backend role checks", async () => {
     const result = await runQuoteCommandFromChat({
       action: "create",
       viewerExternalId: "yt_mod_1",
       youtubeDisplayName: "Mod Neon",
       youtubeHandle: "@modneon",
       quoteText: "essa run ta amaldiçoada",
-      isModerator: true,
       source: "streamerbot_chat",
     });
 
@@ -882,18 +881,6 @@ describe("runQuoteCommandFromChat", () => {
       createdByYoutubeHandle: "@modneon",
       source: "streamerbot_chat",
     });
-  });
-
-  it("rejects quote creation from non moderators", async () => {
-    await expect(
-      runQuoteCommandFromChat({
-        action: "create",
-        viewerExternalId: "yt_viewer_1",
-        youtubeDisplayName: "Viewer Solto",
-        quoteText: "isso nao deveria salvar",
-        source: "streamerbot_chat",
-      }),
-    ).rejects.toThrow("quote_permission_denied");
   });
 
   it("returns a quote by numeric id", async () => {

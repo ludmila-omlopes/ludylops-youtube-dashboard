@@ -2781,10 +2781,6 @@ export async function runQuoteCommandFromChat(input: {
   source: string;
 }) {
   if (input.action === "create") {
-    if (!input.isModerator && !input.isBroadcaster && !input.isAdmin) {
-      throw new Error("quote_permission_denied");
-    }
-
     if (!input.viewerExternalId?.trim()) {
       throw new Error("viewer_external_id_required");
     }

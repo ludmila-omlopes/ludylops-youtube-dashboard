@@ -15,8 +15,6 @@ function mapChatQuoteReply(input: {
   quoteId?: number;
 }) {
   switch (input.message) {
-    case "quote_permission_denied":
-      return "Apenas mods, broadcaster ou admin podem salvar quotes.";
     case "quote_not_found":
       return input.quoteId
         ? `Quote #${input.quoteId} nao encontrada.`
