@@ -20,6 +20,7 @@ import {
   googleAccounts,
   googleAccountViewers,
   pointLedger,
+  quotes,
   redemptions,
   streamerbotEventLog,
   users,
@@ -37,6 +38,7 @@ import {
   demoGoogleAccounts,
   demoGoogleAccountViewers,
   demoLedger,
+  demoQuotes,
   demoRedemptions,
   demoViewers,
 } from "@/lib/demo-data";
@@ -60,6 +62,7 @@ import {
   GoogleAccountRecord,
   GoogleAccountViewerRecord,
   LedgerEntryRecord,
+  QuoteRecord,
   RedemptionRecord,
   ViewerChannelOptionRecord,
   ViewerBalanceRecord,
@@ -92,6 +95,7 @@ type DemoStore = {
   balances: ViewerBalanceRecord[];
   catalog: CatalogItemRecord[];
   ledger: LedgerEntryRecord[];
+  quotes: QuoteRecord[];
   redemptions: RedemptionRecord[];
   bets: BetRecord[];
   betOptions: BetOptionRecord[];
@@ -114,6 +118,7 @@ function getDemoStore(): DemoStore {
       balances: structuredClone(demoBalances),
       catalog: structuredClone(demoCatalog),
       ledger: structuredClone(demoLedger),
+      quotes: structuredClone(demoQuotes),
       redemptions: structuredClone(demoRedemptions),
       bets: structuredClone(demoBetRecords),
       betOptions: structuredClone(demoBetOptions),
