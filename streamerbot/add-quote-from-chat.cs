@@ -2,7 +2,6 @@ using System;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 
 public class CPHInline
 {
@@ -360,25 +359,14 @@ public class CPHInline
 
         try
         {
-            using (JsonDocument document = JsonDocument.Parse(responseText))
+            if (TryExtractJsonStringProperty(responseText, "replyMessage", out string reply))
             {
-                JsonElement root = document.RootElement;
+                return JsonUnescape(reply);
+            }
 
-                if (TryGetString(root, "replyMessage", out string directReply))
-                {
-                    return directReply;
-                }
-
-                if (root.TryGetProperty("data", out JsonElement data) &&
-                    TryGetString(data, "replyMessage", out string nestedReply))
-                {
-                    return nestedReply;
-                }
-
-                if (TryGetString(root, "error", out string error))
-                {
-                    return error;
-                }
+            if (TryExtractJsonStringProperty(responseText, "error", out string errorMessage))
+            {
+                return JsonUnescape(errorMessage);
             }
         }
         catch (Exception ex)
@@ -389,22 +377,65 @@ public class CPHInline
         return string.Empty;
     }
 
-    private bool TryGetString(JsonElement element, string propertyName, out string value)
+    private bool TryExtractJsonStringProperty(string json, string propertyName, out string value)
     {
         value = string.Empty;
 
-        if (!element.TryGetProperty(propertyName, out JsonElement property))
+        string needle = "\"" + propertyName + "\"";
+        int propertyIndex = json.IndexOf(needle, StringComparison.Ordinal);
+        if (propertyIndex < 0)
         {
             return false;
         }
 
-        if (property.ValueKind != JsonValueKind.String)
+        int colonIndex = json.IndexOf(':', propertyIndex + needle.Length);
+        if (colonIndex < 0)
         {
             return false;
         }
 
-        value = property.GetString() ?? string.Empty;
-        return !string.IsNullOrWhiteSpace(value);
+        int valueStart = colonIndex + 1;
+        while (valueStart < json.Length && char.IsWhiteSpace(json[valueStart]))
+        {
+            valueStart++;
+        }
+
+        if (valueStart >= json.Length || json[valueStart] != '"')
+        {
+            return false;
+        }
+
+        var builder = new StringBuilder();
+        bool escaping = false;
+
+        for (int i = valueStart + 1; i < json.Length; i++)
+        {
+            char current = json[i];
+
+            if (escaping)
+            {
+                builder.Append('\\');
+                builder.Append(current);
+                escaping = false;
+                continue;
+            }
+
+            if (current == '\\')
+            {
+                escaping = true;
+                continue;
+            }
+
+            if (current == '"')
+            {
+                value = builder.ToString();
+                return true;
+            }
+
+            builder.Append(current);
+        }
+
+        return false;
     }
 
     private string BuildRequestBody(
