@@ -3,6 +3,7 @@ import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 
+import { GOOGLE_AUTHORIZATION_PARAMS } from "@/lib/auth/google";
 import { ensureViewerFromSession, getSessionViewerState } from "@/lib/db/repository";
 import { authSecret, env, isDemoAuthEnabled } from "@/lib/env";
 import {
@@ -20,14 +21,7 @@ if (env.AUTH_GOOGLE_ID && env.AUTH_GOOGLE_SECRET) {
       clientId: env.AUTH_GOOGLE_ID,
       clientSecret: env.AUTH_GOOGLE_SECRET,
       authorization: {
-        params: {
-          scope: [
-            "openid",
-            "email",
-            "profile",
-            "https://www.googleapis.com/auth/youtube.readonly",
-          ].join(" "),
-        },
+        params: GOOGLE_AUTHORIZATION_PARAMS,
       },
     }),
   );
@@ -105,6 +99,9 @@ export const authOptions = {
               grantedScope: typeof account.scope === "string" ? account.scope : null,
             })
           : null;
+      const bootstrappableYoutubeLookup = canBootstrapViewerFromYoutubeLookup(youtubeLookup)
+        ? youtubeLookup
+        : null;
 
       if (youtubeLookup) {
         token.youtubeLinkingStatus = youtubeLookup.status.kind;
@@ -115,13 +112,13 @@ export const authOptions = {
         const shouldBootstrapSession = Boolean(account || user);
         if (shouldBootstrapSession) {
           if (isGoogleSignIn) {
-            if (canBootstrapViewerFromYoutubeLookup(youtubeLookup)) {
+            if (bootstrappableYoutubeLookup) {
               await ensureViewerFromSession({
                 googleUserId,
                 email,
                 name,
                 image,
-                youtubeChannels: youtubeLookup.channels,
+                youtubeChannels: bootstrappableYoutubeLookup.channels,
               });
             } else {
               console.warn("[auth] Skipping synthetic viewer bootstrap for Google login.", {
@@ -144,13 +141,13 @@ export const authOptions = {
           googleUserId,
           email,
         });
-        if (!sessionState && (!isGoogleSignIn || canBootstrapViewerFromYoutubeLookup(youtubeLookup))) {
+        if (!sessionState && (!isGoogleSignIn || bootstrappableYoutubeLookup)) {
           await ensureViewerFromSession({
             googleUserId,
             email,
             name,
             image,
-            youtubeChannels: canBootstrapViewerFromYoutubeLookup(youtubeLookup) ? youtubeLookup.channels : undefined,
+            youtubeChannels: bootstrappableYoutubeLookup?.channels,
           });
           sessionState = await getSessionViewerState({
             googleUserId,

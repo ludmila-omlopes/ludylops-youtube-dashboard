@@ -60,6 +60,11 @@ export type YoutubeChannelLookupResult = {
   status: YoutubeChannelLookupStatus;
 };
 
+type YoutubeChannelsFoundLookup = YoutubeChannelLookupResult & {
+  channels: [YoutubeChannelIdentity, ...YoutubeChannelIdentity[]];
+  status: Extract<YoutubeChannelLookupStatus, { kind: "channels_found" }>;
+};
+
 const YOUTUBE_READONLY_SCOPE = "https://www.googleapis.com/auth/youtube.readonly";
 const YOUTUBE_CHANNEL_LOOKUP_STATUS_KINDS = [
   "channels_found",
@@ -142,13 +147,7 @@ export function isYoutubeChannelLookupStatusKind(value: string): value is Youtub
 
 export function canBootstrapViewerFromYoutubeLookup(
   result: YoutubeChannelLookupResult | null,
-): result is YoutubeChannelLookupResult & {
-  status: {
-    kind: "channels_found";
-    channelCount: number;
-  };
-  channels: [YoutubeChannelIdentity, ...YoutubeChannelIdentity[]];
-} {
+): result is YoutubeChannelsFoundLookup {
   return result?.status.kind === "channels_found" && result.channels.length > 0;
 }
 
