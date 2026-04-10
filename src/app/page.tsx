@@ -752,7 +752,7 @@ export default async function Home() {
                 </>
               ) : (
                 <>
-                  <AuthButtons />
+                  <AuthButtons showGoogleHint />
                   <Link href="/ranking" className="btn-brutal accent-button px-6 py-3 text-sm">
                     Ver ranking →
                   </Link>

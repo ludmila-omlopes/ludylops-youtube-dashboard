@@ -1,0 +1,28 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  GOOGLE_ACCOUNT_SWITCH_HINT,
+  GOOGLE_AUTHORIZATION_PARAMS,
+  GOOGLE_REQUIRED_SCOPES,
+} from "@/lib/auth/google";
+
+describe("GOOGLE_AUTHORIZATION_PARAMS", () => {
+  it("always asks Google to show the account chooser", () => {
+    expect(GOOGLE_AUTHORIZATION_PARAMS.prompt).toBe("select_account");
+  });
+
+  it("keeps the scopes needed for profile and YouTube linking", () => {
+    expect(GOOGLE_REQUIRED_SCOPES).toEqual([
+      "openid",
+      "email",
+      "profile",
+      "https://www.googleapis.com/auth/youtube.readonly",
+    ]);
+    expect(GOOGLE_AUTHORIZATION_PARAMS.scope).toBe(GOOGLE_REQUIRED_SCOPES.join(" "));
+  });
+
+  it("documents the account-switching hint shown on the homepage", () => {
+    expect(GOOGLE_ACCOUNT_SWITCH_HINT).toContain("escolher outra conta");
+    expect(GOOGLE_ACCOUNT_SWITCH_HINT).toContain("sem limpar a sessao");
+  });
+});
