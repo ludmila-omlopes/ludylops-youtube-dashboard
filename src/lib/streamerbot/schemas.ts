@@ -51,6 +51,37 @@ export const streamerbotChatBetSchema = z
     path: ["optionId"],
   });
 
+export const streamerbotQuoteCommandSchema = z
+  .object({
+    action: z.enum(["create", "get"]),
+    viewerExternalId: z.string().min(1).optional(),
+    youtubeDisplayName: z.string().min(1).optional(),
+    youtubeHandle: z.string().min(1).optional(),
+    quoteText: z.string().trim().min(1).max(500).optional(),
+    quoteId: z.number().int().min(1).optional(),
+    isModerator: z.boolean().default(false),
+    isBroadcaster: z.boolean().default(false),
+    isAdmin: z.boolean().default(false),
+    source: z.string().default("streamerbot_chat"),
+  })
+  .superRefine((value, ctx) => {
+    if (value.action === "create" && !value.quoteText) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["quoteText"],
+        message: "Quote text is required for create.",
+      });
+    }
+
+    if (value.action === "create" && !value.viewerExternalId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["viewerExternalId"],
+        message: "Viewer external id is required for create.",
+      });
+    }
+  });
+
 export const setActiveViewerSchema = z.object({
   viewerId: z.string().min(1),
 });

@@ -217,6 +217,97 @@ Referencias oficiais:
 - Variaveis em C#: [docs.streamer.bot/faq/variables-in-csharp](https://docs.streamer.bot/faq/variables-in-csharp)
 - Resposta no chat do YouTube: [docs.streamer.bot/api/csharp/methods/youtube/chat/send-youtube-message-to-latest-monitored](https://docs.streamer.bot/api/csharp/methods/youtube/chat/send-youtube-message-to-latest-monitored)
 
+### Quotes por comando de chat
+
+Para criar e chamar quotes pelo chat do YouTube via Streamer.bot, use:
+
+- `POST /api/internal/streamerbot/quotes`
+
+Payload recomendado para salvar uma quote com `!addquote`:
+
+```json
+{
+  "action": "create",
+  "viewerExternalId": "UCxxxxxxxx",
+  "youtubeDisplayName": "Nome do mod",
+  "youtubeHandle": "@modcanal",
+  "quoteText": "isso aqui vai dar muito certo",
+  "isModerator": true,
+  "isBroadcaster": false,
+  "isAdmin": false,
+  "source": "streamerbot_chat"
+}
+```
+
+Payload recomendado para chamar uma quote aleatoria com `!quote`:
+
+```json
+{
+  "action": "get",
+  "source": "streamerbot_chat"
+}
+```
+
+Payload recomendado para chamar uma quote especifica com `!quote 7`:
+
+```json
+{
+  "action": "get",
+  "quoteId": 7,
+  "source": "streamerbot_chat"
+}
+```
+
+Notas:
+
+- `create` exige que o caller seja mod, broadcaster ou admin.
+- `get` aceita `quoteId`; se ele vier vazio, o backend devolve uma quote aleatoria.
+- O response inclui `replyMessage`, pensado para o Streamer.bot reutilizar direto no chat.
+
+#### Setup rapido do Streamer.bot
+
+Os scripts prontos para colar no `Execute C# Code` estao em:
+
+- [add-quote-from-chat.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/add-quote-from-chat.cs)
+- [get-quote-from-chat.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/get-quote-from-chat.cs)
+
+Passo a passo operacional:
+
+1. Reaproveite estas Global Variables no Streamer.bot:
+
+- `lojaneon.appBaseUrl`
+  Valor: `https://seu-app.vercel.app`
+- `lojaneon.streamerbotSharedSecret`
+  Valor: o mesmo `STREAMERBOT_SHARED_SECRET` do app
+- `lojaneon.useBotAccount`
+  Valor: `true`
+
+2. Crie um comando de mod para salvar quotes com regex:
+
+```regex
+^!(?:addquote|aq)\s+(?<quoteText>.+)$
+```
+
+3. Na action desse comando, adicione `Core > C# > Execute C# Code`.
+
+4. Cole o conteudo de [add-quote-from-chat.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/add-quote-from-chat.cs).
+
+5. Crie um segundo comando para buscar quotes com regex:
+
+```regex
+^!(?:quote|q)(?:\s+(?<quoteId>\d+))?$
+```
+
+6. Na action desse comando, adicione `Core > C# > Execute C# Code`.
+
+7. Cole o conteudo de [get-quote-from-chat.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/get-quote-from-chat.cs).
+
+Notas:
+
+- No Streamer.bot, o ideal e marcar `!addquote` como comando de moderacao tambem na UI, mesmo com a checagem extra do backend.
+- O script de `!addquote` tenta descobrir o id do viewer usando `id`, `userId`, `fromId`, `authorId`, `channelId`, `youtubeUserId` e `targetUserId`.
+- Se sua instancia do Streamer.bot usar outros nomes de argumento para permissao, ajuste `ModeratorArgCandidates`, `BroadcasterArgCandidates` e `AdminArgCandidates` no script.
+
 ### Bridge
 
 O bridge faz:

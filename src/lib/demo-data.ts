@@ -9,6 +9,7 @@ import {
   GoogleAccountRecord,
   GoogleAccountViewerRecord,
   LedgerEntryRecord,
+  QuoteRecord,
   RedemptionRecord,
   ViewerBalanceRecord,
   ViewerRecord,
@@ -239,6 +240,29 @@ export const demoBridgeClients: BridgeClientRecord[] = [
     machineKey: "dev-machine",
     label: "PC da Stream",
     lastSeenAt: now.toISOString(),
+  },
+];
+
+export const demoQuotes: QuoteRecord[] = [
+  {
+    id: "quote_1",
+    quoteNumber: 1,
+    body: "isso aqui vai dar muito certo, confia",
+    createdByViewerId: "viewer_ana",
+    createdByDisplayName: "Ana Neon",
+    createdByYoutubeHandle: "@ananeon",
+    source: "streamerbot_chat",
+    createdAt: new Date(now.getTime() - 1000 * 60 * 90).toISOString(),
+  },
+  {
+    id: "quote_2",
+    quoteNumber: 2,
+    body: "se eu morrer, foi estrategia",
+    createdByViewerId: "viewer_caio",
+    createdByDisplayName: "Caio CRT",
+    createdByYoutubeHandle: "@caiocrt",
+    source: "streamerbot_chat",
+    createdAt: new Date(now.getTime() - 1000 * 60 * 45).toISOString(),
   },
 ];
 

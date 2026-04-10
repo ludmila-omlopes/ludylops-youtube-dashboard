@@ -18,7 +18,7 @@ vi.mock("@/lib/streamerbot/live-status", () => ({
   isStreamerbotLivestreamActive: isStreamerbotLivestreamActiveMock,
 }));
 
-import { demoBetRecords } from "@/lib/demo-data";
+import { demoBetRecords, demoQuotes } from "@/lib/demo-data";
 import {
   betEntries,
   betOptions,
@@ -45,6 +45,7 @@ import {
   lockBet,
   placeBet,
   placeBetFromChatCommand,
+  runQuoteCommandFromChat,
   resolveBet,
   setActiveViewerForGoogleAccount,
   updateGameSuggestionStatus,
@@ -752,6 +753,94 @@ describe("placeBetFromChatCommand", () => {
         source: "streamerbot_chat",
       }),
     ).rejects.toThrow("multiple_open_bets");
+  });
+});
+
+describe("runQuoteCommandFromChat", () => {
+  beforeEach(() => {
+    getDbMock.mockReset();
+    getDbMock.mockReturnValue(null);
+    delete (globalThis as typeof globalThis & { __lojaDemoStore?: unknown }).__lojaDemoStore;
+  });
+
+  it("allows moderators to create quotes from chat", async () => {
+    const result = await runQuoteCommandFromChat({
+      action: "create",
+      viewerExternalId: "yt_mod_1",
+      youtubeDisplayName: "Mod Neon",
+      youtubeHandle: "@modneon",
+      quoteText: "essa run ta amaldiçoada",
+      isModerator: true,
+      source: "streamerbot_chat",
+    });
+
+    expect(result.action).toBe("create");
+    expect(result.viewer).toMatchObject({
+      youtubeChannelId: "yt_mod_1",
+      youtubeDisplayName: "Mod Neon",
+    });
+    expect(result.quote).toMatchObject({
+      quoteNumber: demoQuotes.length + 1,
+      body: "essa run ta amaldiçoada",
+      createdByDisplayName: "Mod Neon",
+      createdByYoutubeHandle: "@modneon",
+      source: "streamerbot_chat",
+    });
+  });
+
+  it("rejects quote creation from non moderators", async () => {
+    await expect(
+      runQuoteCommandFromChat({
+        action: "create",
+        viewerExternalId: "yt_viewer_1",
+        youtubeDisplayName: "Viewer Solto",
+        quoteText: "isso nao deveria salvar",
+        source: "streamerbot_chat",
+      }),
+    ).rejects.toThrow("quote_permission_denied");
+  });
+
+  it("returns a quote by numeric id", async () => {
+    const result = await runQuoteCommandFromChat({
+      action: "get",
+      quoteId: 2,
+      source: "streamerbot_chat",
+    });
+
+    expect(result.action).toBe("get");
+    expect(result.viewer).toBeNull();
+    expect(result.quote).toMatchObject({
+      quoteNumber: 2,
+      body: "se eu morrer, foi estrategia",
+    });
+  });
+
+  it("returns a random quote when no id is provided", async () => {
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.75);
+
+    try {
+      const result = await runQuoteCommandFromChat({
+        action: "get",
+        source: "streamerbot_chat",
+      });
+
+      expect(result.quote).toMatchObject({
+        quoteNumber: 2,
+        body: "se eu morrer, foi estrategia",
+      });
+    } finally {
+      randomSpy.mockRestore();
+    }
+  });
+
+  it("reports quote not found for an unknown id", async () => {
+    await expect(
+      runQuoteCommandFromChat({
+        action: "get",
+        quoteId: 99,
+        source: "streamerbot_chat",
+      }),
+    ).rejects.toThrow("quote_not_found");
   });
 });
 

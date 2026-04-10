@@ -143,6 +143,17 @@ export interface BridgeClientRecord {
   lastSeenAt: string;
 }
 
+export interface QuoteRecord {
+  id: string;
+  quoteNumber: number;
+  body: string;
+  createdByViewerId: string;
+  createdByDisplayName: string;
+  createdByYoutubeHandle: string | null;
+  source: string;
+  createdAt: string;
+}
+
 export interface BetRecord {
   id: string;
   question: string;

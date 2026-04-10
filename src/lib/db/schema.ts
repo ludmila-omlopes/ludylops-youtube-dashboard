@@ -258,3 +258,22 @@ export const streamerbotEventLog = pgTable(
     eventIdIdx: uniqueIndex("streamerbot_event_id_idx").on(table.eventId),
   }),
 );
+
+export const quotes = pgTable(
+  "quotes",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    quoteNumber: integer("quote_number").notNull(),
+    body: text("body").notNull(),
+    createdByViewerId: varchar("created_by_viewer_id", { length: 64 })
+      .references(() => users.id)
+      .notNull(),
+    createdByDisplayName: varchar("created_by_display_name", { length: 255 }).notNull(),
+    createdByYoutubeHandle: varchar("created_by_youtube_handle", { length: 255 }),
+    source: varchar("source", { length: 64 }).default("streamerbot_chat").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    quoteNumberIdx: uniqueIndex("quotes_quote_number_idx").on(table.quoteNumber),
+  }),
+);
