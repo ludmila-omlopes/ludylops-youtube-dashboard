@@ -18,7 +18,6 @@ const quoteCardBackgrounds = [
 
 export default async function QuotesPage() {
   const quotes = await listQuotes();
-  const latestQuote = quotes[0] ?? null;
 
   return (
     <div className="flex w-full flex-col pb-20 pt-8">
@@ -47,36 +46,7 @@ export default async function QuotesPage() {
       </section>
 
       <section className="landing-plane landing-divider bg-[var(--color-paper-pink)] py-8 sm:py-10">
-        <div className="mx-auto grid w-full max-w-[1500px] gap-6 px-4 sm:px-6 lg:grid-cols-[0.7fr_1fr] lg:px-10">
-          <Card variant="poster" className="h-fit bg-[var(--color-yellow)] p-5">
-            <CardHeader className="gap-2">
-              <CardDescription className="mono text-[10px] uppercase tracking-[0.28em] text-[var(--color-ink-soft)]">
-                Ultima quote salva
-              </CardDescription>
-              <CardTitle
-                className="text-3xl uppercase leading-none"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                {latestQuote ? `#${latestQuote.quoteNumber}` : "Sem quotes"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="mt-4">
-              <p className="text-lg font-black leading-8 text-[var(--color-ink)]">
-                {latestQuote ? `"${latestQuote.body}"` : "Ainda nao tem nenhuma quote cadastrada."}
-              </p>
-            </CardContent>
-            <CardFooter className="mt-5 flex-col items-start gap-1 text-sm font-bold text-[var(--color-ink-soft)]">
-              <span>
-                {latestQuote
-                  ? `Salva por ${latestQuote.createdByDisplayName}`
-                  : "Manda uma do chat para estrear essa pagina."}
-              </span>
-              {latestQuote ? (
-                <span>{formatDateTime(latestQuote.createdAt)}</span>
-              ) : null}
-            </CardFooter>
-          </Card>
-
+        <div className="mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-10">
           <div className="grid gap-4">
             {quotes.length > 0 ? (
               quotes.map((quote, index) => (
