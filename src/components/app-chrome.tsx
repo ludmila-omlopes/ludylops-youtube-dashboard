@@ -11,9 +11,11 @@ import { Button } from "@/components/ui/button";
 
 export function AppChrome({
   children,
+  isAdmin = false,
   session,
 }: {
   children: React.ReactNode;
+  isAdmin?: boolean;
   session: Session | null;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -41,7 +43,7 @@ export function AppChrome({
   ];
 
   const authedLinks = [{ href: "/me", label: "Meus Pipetz" }];
-  const adminLinks = session?.user?.email ? [{ href: "/admin", label: "Admin" }] : [];
+  const adminLinks = isAdmin ? [{ href: "/admin", label: "Admin" }] : [];
 
   const allLinks = [...navLinks, ...(session?.user ? authedLinks : []), ...adminLinks];
   const showTicker = pathname === "/";
@@ -50,7 +52,7 @@ export function AppChrome({
     "PIPETZ // GANHE ASSISTINDO // ENTRE NO POOL // RESGATE EFEITOS // SUBA NO RANKING // ";
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <header
         className="sticky top-0 z-40 border-b-[3px] border-[var(--color-ink)]"
         style={{ background: "var(--color-header-surface)" }}
@@ -147,7 +149,24 @@ export function AppChrome({
         />
       ) : null}
 
-      <main>{children}</main>
+      <main className="flex-1">{children}</main>
+
+      <footer className="border-t-[3px] border-[var(--color-ink)] bg-[var(--color-paper)]">
+        <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-3 px-4 py-5 text-sm font-medium text-[var(--color-ink-soft)] sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-10">
+          <Link
+            href="/privacy"
+            className="w-fit font-black uppercase tracking-[0.08em] text-[var(--color-ink)] underline decoration-[3px] underline-offset-4"
+          >
+            Politica de Privacidade
+          </Link>
+          <p className="flex items-center gap-2 text-[var(--color-ink)]">
+            <span>Feito com carinho por ludylops</span>
+            <span aria-hidden="true" className="text-lg text-[var(--color-pink)]">
+              💗
+            </span>
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import Image from "next/image";
 
 import { auth } from "@/auth";
 import { AuthButtons } from "@/components/auth-buttons";
@@ -42,6 +43,8 @@ type FeatureCard = {
 
 const DEFAULT_GITHUB_ISSUES_URL =
   "https://github.com/ludmila-omlopes/ludylops-youtube-dashboard/issues/new";
+const LUDYLOPS_PROFILE_IMAGE =
+  "/selfie2.png";
 
 type YoutubeLinkingStatusKind = YoutubeChannelLookupStatus["kind"];
 
@@ -271,19 +274,19 @@ function RedemptionSpotlightCard({
 function HeroPoster({
   heading,
   description,
+  loggedIn = false,
   metrics,
 }: {
   heading: string;
   description: string;
+  loggedIn?: boolean;
   metrics: HomeMetric[];
 }) {
   const rotations = ["rotate-[-2deg]", "rotate-[1.5deg]", "rotate-[-1deg]"];
 
   return (
     <div className="relative min-h-[420px]">
-      <div className="card-brutal absolute left-0 top-8 hidden h-16 w-16 items-center justify-center bg-[var(--color-blue)] text-lg font-black lg:flex">
-        {"</>"}
-      </div>
+
       <StickerBadge
         variant="star"
         className="absolute -right-2 bottom-4 hidden h-20 w-20 rotate-[10deg] lg:inline-flex"
@@ -296,30 +299,69 @@ function HeroPoster({
       />
 
       <div className="landing-plane relative z-10 mt-10 bg-[var(--color-paper)] p-6 lg:ml-10 lg:mt-12 lg:p-8">
-        <div>
-          <p className="mono text-[11px] uppercase tracking-[0.3em] text-[var(--color-ink-soft)]">
-            painel da live . pontos . apostas . resgates
-          </p>
-          <h2
-            className="mt-3 text-4xl uppercase leading-[0.88] sm:text-5xl"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            {heading}
-          </h2>
-          <p className="mt-4 max-w-md text-sm font-medium leading-7 text-[var(--color-ink-soft)] sm:text-base">
-            {description}
-          </p>
-        </div>
+        {loggedIn ? (
+          <>
+            <div>
+              <p className="mono text-[11px] uppercase tracking-[0.3em] text-[var(--color-ink-soft)]">
+                painel da live . pontos . apostas . resgates
+              </p>
+              <h2
+                className="mt-3 text-4xl uppercase leading-[0.88] sm:text-5xl"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                {heading}
+              </h2>
+              <p className="mt-4 max-w-md text-sm font-medium leading-7 text-[var(--color-ink-soft)] sm:text-base">
+                {description}
+              </p>
+            </div>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          {metrics.slice(0, 4).map((metric, index) => (
-            <MetricCard
-              key={metric.label}
-              metric={metric}
-              className={rotations[index % rotations.length]}
+            <div className="mt-8 grid gap-4 sm:grid-cols-2">
+              {metrics.slice(0, 4).map((metric, index) => (
+                <MetricCard
+                  key={metric.label}
+                  metric={metric}
+                  className={rotations[index % rotations.length]}
+                />
+              ))}
+            </div>
+          </>
+        ) : (
+          <div>
+            <StickerBadge
+              variant="star"
+              className="absolute left-4 top-6 h-[4.5rem] w-[4.5rem] rotate-[-8deg] sm:left-6 sm:top-8 sm:h-20 sm:w-20"
+              label="estrela decorativa"
             />
-          ))}
-        </div>
+            <StickerBadge
+              variant="heart"
+              className="absolute right-4 top-6 h-[4.5rem] w-[4.5rem] rotate-[14deg] sm:right-6 sm:top-8 sm:h-20 sm:w-20"
+              label="coracao decorativo"
+            />
+            <div className="relative min-h-[340px] sm:min-h-[400px]">
+              <div className="absolute left-1/2 top-14 h-[270px] w-[62%] -translate-x-1/2 border-[4px] border-[var(--color-ink)] bg-[var(--color-purple)] shadow-[7px_7px_0_#000] sm:top-16">
+                <div className="absolute bottom-0 left-1/2 z-10 w-[140%] -translate-x-1/2">
+                  <Image
+                    src={LUDYLOPS_PROFILE_IMAGE}
+                    alt="Foto da Ludylops"
+                    className="h-auto w-full object-contain contrast-125"
+                    width={1100}
+                    height={1100}
+                    priority
+                  />
+                </div>
+              </div>
+
+
+
+              <div className="absolute bottom-3 right-3 z-20 flex h-20 w-20 items-center justify-center rounded-full border-[4px] border-[var(--color-ink)] bg-[var(--color-pink-hot)] shadow-[5px_5px_0_#000] sm:bottom-5 sm:right-5 sm:h-24 sm:w-24">
+                <div className="flex rotate-[20deg] h-11 w-11 items-center justify-center rounded-full bg-[var(--color-yellow)] text-xl font-black text-[var(--color-accent-ink)]">
+                =D
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -653,7 +695,7 @@ export default async function Home() {
     <>
       Oi, eu sou a ludylops.{" "}
       <span className="inline-block border-[3px] border-[var(--color-ink)] bg-[var(--color-pink)] px-3 py-1 shadow-[4px_4px_0_#000]">
-        Bem-vindos á minha live.
+        Bem-vindos à minha live.
       </span>
     </>
   );
@@ -741,7 +783,7 @@ export default async function Home() {
                 </>
               ) : (
                 <>
-                  <AuthButtons showGoogleHint />
+                  <AuthButtons />
                   <Link href="/ranking" className="btn-brutal accent-button px-6 py-3 text-sm">
                     Ver ranking →
                   </Link>
@@ -757,20 +799,12 @@ export default async function Home() {
               .
             </p>
 
-            <div className="mt-8 flex flex-wrap gap-3">
-              <span className="retro-label bg-[var(--color-pink)] text-[var(--color-accent-ink)]">
-                pontos na live
-              </span>
-              <span className="retro-label bg-[var(--color-blue)] text-[var(--color-accent-ink)]">
-                apostas abertas
-              </span>
-              <span className="retro-label accent-chip">efeitos ao vivo</span>
-            </div>
           </div>
 
           <HeroPoster
             heading={heroPosterHeading}
             description={heroPosterDescription}
+            loggedIn={Boolean(session?.user)}
             metrics={metrics}
           />
         </div>

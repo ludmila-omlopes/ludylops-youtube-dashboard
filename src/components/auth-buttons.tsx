@@ -4,13 +4,10 @@ import { getProviders, signIn, signOut, useSession } from "next-auth/react";
 import { startTransition, useEffect, useState } from "react";
 
 import { ViewerChannelSwitcher } from "@/components/viewer-channel-switcher";
-import {
-  GOOGLE_ACCOUNT_SWITCH_HINT,
-  GOOGLE_AUTHORIZATION_PARAMS,
-} from "@/lib/auth/google";
+import { GOOGLE_AUTHORIZATION_PARAMS } from "@/lib/auth/google";
 import { Button } from "@/components/ui/button";
 
-export function AuthButtons({ showGoogleHint = false }: { showGoogleHint?: boolean }) {
+export function AuthButtons() {
   const { data: session } = useSession();
   const [providers, setProviders] = useState<Record<string, { id: string; name: string }> | null>(
     null,
@@ -46,31 +43,24 @@ export function AuthButtons({ showGoogleHint = false }: { showGoogleHint?: boole
   const hasCredentials = Boolean(providers?.credentials);
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-col gap-2 sm:flex-row">
-        {hasGoogle ? (
-          <Button
-            type="button"
-            onClick={() => signIn("google", { callbackUrl: "/" }, GOOGLE_AUTHORIZATION_PARAMS)}
-          >
-            Entrar com Google
-          </Button>
-        ) : null}
-        {hasCredentials ? (
-          <Button
-            type="button"
-            onClick={() => signIn("credentials", { email: "ana@example.com", callbackUrl: "/" })}
-            variant="accent"
-            size="sm"
-          >
-            Modo demo
-          </Button>
-        ) : null}
-      </div>
-      {hasGoogle && showGoogleHint ? (
-        <p className="max-w-sm text-xs font-medium leading-5 text-[var(--color-ink-soft)]">
-          Tem mais de uma conta Google? {GOOGLE_ACCOUNT_SWITCH_HINT}
-        </p>
+    <div className="flex flex-col gap-2 sm:flex-row">
+      {hasGoogle ? (
+        <Button
+          type="button"
+          onClick={() => signIn("google", { callbackUrl: "/" }, GOOGLE_AUTHORIZATION_PARAMS)}
+        >
+          Entrar com Google
+        </Button>
+      ) : null}
+      {hasCredentials ? (
+        <Button
+          type="button"
+          onClick={() => signIn("credentials", { email: "ana@example.com", callbackUrl: "/" })}
+          variant="accent"
+          size="sm"
+        >
+          Modo demo
+        </Button>
       ) : null}
     </div>
   );
