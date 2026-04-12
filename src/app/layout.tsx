@@ -6,6 +6,7 @@ import { auth } from "@/auth";
 import { AppChrome } from "@/components/app-chrome";
 import { Providers } from "@/components/providers";
 import "./globals.css";
+import { adminEmails } from "@/lib/env";
 import { cn } from "@/lib/utils";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
@@ -56,6 +57,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const session = await auth();
+  const isAdmin = Boolean(session?.user?.email && adminEmails.has(session.user.email.toLowerCase()));
 
   return (
     <html
@@ -68,7 +70,9 @@ export default async function RootLayout({
           {themeScript}
         </Script>
         <Providers>
-          <AppChrome session={session}>{children}</AppChrome>
+          <AppChrome session={session} isAdmin={isAdmin}>
+            {children}
+          </AppChrome>
         </Providers>
       </body>
     </html>
