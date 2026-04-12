@@ -285,20 +285,15 @@ function HeroPoster({
   const rotations = ["rotate-[-2deg]", "rotate-[1.5deg]", "rotate-[-1deg]"];
 
   return (
-    <div className="relative min-h-[420px]">
+    <div className="relative">
 
       <StickerBadge
         variant="star"
-        className="absolute -right-2 bottom-4 hidden h-20 w-20 rotate-[10deg] lg:inline-flex"
+        className="absolute z-10 -right-2 bottom-4 hidden h-20 w-20 rotate-[10deg] lg:inline-flex"
         label="decorative star"
       />
-      <StickerBadge
-        variant="flower"
-        className="absolute right-14 top-14 hidden h-16 w-16 rotate-[-12deg] lg:inline-flex"
-        label="decorative flower"
-      />
 
-      <div className="landing-plane relative z-10 mt-10 bg-[var(--color-paper)] p-6 lg:ml-10 lg:mt-12 lg:p-8">
+      <div className="">
         {loggedIn ? (
           <>
             <div>
@@ -330,17 +325,17 @@ function HeroPoster({
           <div>
             <StickerBadge
               variant="star"
-              className="absolute left-4 top-6 h-[4.5rem] w-[4.5rem] rotate-[-8deg] sm:left-6 sm:top-8 sm:h-20 sm:w-20"
+              className="absolute z-10 left-4 top-6 h-[4.5rem] w-[4.5rem] rotate-[-8deg] sm:left-6 sm:top-8 sm:h-20 sm:w-20"
               label="estrela decorativa"
             />
             <StickerBadge
               variant="heart"
-              className="absolute right-4 top-6 h-[4.5rem] w-[4.5rem] rotate-[14deg] sm:right-6 sm:top-8 sm:h-20 sm:w-20"
+              className="absolute z-10 right-4 top-6 h-[4.5rem] hidden sm:block w-[4.5rem] rotate-[14deg] sm:right-6 sm:top-8 sm:h-20 sm:w-20"
               label="coracao decorativo"
             />
-            <div className="relative min-h-[340px] sm:min-h-[400px]">
-              <div className="absolute left-1/2 top-14 h-[270px] w-[62%] -translate-x-1/2 border-[4px] border-[var(--color-ink)] bg-[var(--color-purple)] shadow-[7px_7px_0_#000] sm:top-16">
-                <div className="absolute bottom-0 left-1/2 z-10 w-[140%] -translate-x-1/2">
+            <div className="relative min-h-[340px] sm:min-h-[340px]">
+              <div className="absolute left-1/2 top-14 h-[50%] w-[72%] sm:h-[90%] sm:w-[92%] -translate-x-1/2 border-[4px] border-[var(--color-ink)] bg-[var(--color-purple)] shadow-[7px_7px_0_#000] sm:top-16">
+                <div className="absolute bottom-0 left-1/2 z-10 w-[100%] -translate-x-1/2">
                   <Image
                     src={LUDYLOPS_PROFILE_IMAGE}
                     alt="Foto da Ludylops"
@@ -349,14 +344,6 @@ function HeroPoster({
                     height={1100}
                     priority
                   />
-                </div>
-              </div>
-
-
-
-              <div className="absolute bottom-3 right-3 z-20 flex h-20 w-20 items-center justify-center rounded-full border-[4px] border-[var(--color-ink)] bg-[var(--color-pink-hot)] shadow-[5px_5px_0_#000] sm:bottom-5 sm:right-5 sm:h-24 sm:w-24">
-                <div className="flex rotate-[20deg] h-11 w-11 items-center justify-center rounded-full bg-[var(--color-yellow)] text-xl font-black text-[var(--color-accent-ink)]">
-                =D
                 </div>
               </div>
             </div>
@@ -742,7 +729,7 @@ export default async function Home() {
         />
         <StickerBadge
           variant="heart"
-          className="absolute bottom-4 left-[46%] hidden h-16 w-16 rotate-[-12deg] lg:inline-flex"
+          className="absolute bottom-4 left-[46%] hidden h-16 w-16 rotate-[-12deg] lg:inline-flex sm:block"
           label="decorative heart"
         />
 
