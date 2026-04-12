@@ -62,6 +62,7 @@ export async function POST(request: Request) {
     const result = await placeBetFromChatCommand(payload);
     const viewerName = payload.youtubeDisplayName ?? result.viewer.youtubeDisplayName;
     const optionIndex = result.option.sortOrder + 1;
+    const wasTopUp = result.entry.amount > payload.amount;
 
     console.info("[streamerbot/bets/place] Registered chat bet.", {
       betId: result.bet.id,
@@ -81,7 +82,9 @@ export async function POST(request: Request) {
       viewerId: result.viewer.id,
       viewerExternalId: payload.viewerExternalId,
       amount: payload.amount,
-      replyMessage: `${viewerName} apostou ${formatPipetz(payload.amount)} em #${optionIndex} ${result.option.label}.`,
+      replyMessage: wasTopUp
+        ? `${viewerName} adicionou ${formatPipetz(payload.amount)} em #${optionIndex} ${result.option.label}. Total: ${formatPipetz(result.entry.amount)}.`
+        : `${viewerName} apostou ${formatPipetz(payload.amount)} em #${optionIndex} ${result.option.label}.`,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha ao registrar aposta.";

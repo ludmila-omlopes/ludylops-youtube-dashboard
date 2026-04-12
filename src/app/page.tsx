@@ -292,13 +292,13 @@ function HeroPoster({
         className="absolute -right-2 bottom-4 hidden h-20 w-20 rotate-[10deg] lg:inline-flex"
         label="decorative star"
       />
-      <StickerBadge
-        variant="flower"
-        className="absolute right-14 top-14 hidden h-16 w-16 rotate-[-12deg] lg:inline-flex"
-        label="decorative flower"
-      />
 
-      <div className="landing-plane relative z-10 mt-10 bg-[var(--color-paper)] p-6 lg:ml-10 lg:mt-12 lg:p-8">
+      <div
+        className={cn(
+          "landing-plane relative z-10 mt-10 p-6 lg:ml-10 lg:mt-12 lg:p-8",
+          loggedIn ? "bg-[var(--color-paper)]" : "bg-transparent",
+        )}
+      >
         {loggedIn ? (
           <>
             <div>
@@ -339,8 +339,9 @@ function HeroPoster({
               label="coracao decorativo"
             />
             <div className="relative min-h-[340px] sm:min-h-[400px]">
-              <div className="absolute left-1/2 top-14 h-[270px] w-[62%] -translate-x-1/2 border-[4px] border-[var(--color-ink)] bg-[var(--color-purple)] shadow-[7px_7px_0_#000] sm:top-16">
-                <div className="absolute bottom-0 left-1/2 z-10 w-[140%] -translate-x-1/2">
+              <div className="mx-auto w-[72%] max-w-[420px] pt-14 sm:pt-16">
+                <div className="relative aspect-video border-[4px] border-[var(--color-ink)] bg-[var(--color-purple)] shadow-[7px_7px_0_#000]">
+                  <div className="absolute bottom-0 left-1/2 z-10 w-[140%] -translate-x-1/2">
                   <Image
                     src={LUDYLOPS_PROFILE_IMAGE}
                     alt="Foto da Ludylops"
@@ -349,10 +350,9 @@ function HeroPoster({
                     height={1100}
                     priority
                   />
+                  </div>
                 </div>
               </div>
-
-
 
               <div className="absolute bottom-3 right-3 z-20 flex h-20 w-20 items-center justify-center rounded-full border-[4px] border-[var(--color-ink)] bg-[var(--color-pink-hot)] shadow-[5px_5px_0_#000] sm:bottom-5 sm:right-5 sm:h-24 sm:w-24">
                 <div className="flex rotate-[20deg] h-11 w-11 items-center justify-center rounded-full bg-[var(--color-yellow)] text-xl font-black text-[var(--color-accent-ink)]">
