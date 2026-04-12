@@ -140,11 +140,30 @@ function createPlaceBetDb(options?: {
   currentBalance?: number;
   insertConflict?: boolean;
   balanceDebitSucceeds?: boolean;
+  existingEntry?: {
+    id: string;
+    optionId: string;
+    amount: number;
+    createdAt?: Date;
+  };
 }) {
   const amount = options?.amount ?? 50;
   const currentBalance = options?.currentBalance ?? 100;
   const insertConflict = options?.insertConflict ?? false;
   const balanceDebitSucceeds = options?.balanceDebitSucceeds ?? true;
+  const existingEntryRow = options?.existingEntry
+    ? {
+        id: options.existingEntry.id,
+        betId: "bet-db-1",
+        optionId: options.existingEntry.optionId,
+        viewerId: "viewer-db-1",
+        amount: options.existingEntry.amount,
+        payoutAmount: null,
+        settledAt: null,
+        refundedAt: null,
+        createdAt: options.existingEntry.createdAt ?? new Date("2026-03-31T10:30:00.000Z"),
+      }
+    : null;
 
   const viewerRow = {
     id: "viewer-db-1",
@@ -225,6 +244,16 @@ function createPlaceBetDb(options?: {
             };
           }
 
+          if (table === betEntries) {
+            return {
+              where() {
+                return {
+                  limit: async () => (existingEntryRow ? [existingEntryRow] : []),
+                };
+              },
+            };
+          }
+
           throw new Error("Unexpected table in placeBet tx stub.");
         },
       };
@@ -275,6 +304,27 @@ function createPlaceBetDb(options?: {
                     balanceRow.lifetimeSpent += amount;
                     balanceRow.lastSyncedAt = new Date();
                     return [{ viewerId: balanceRow.viewerId }];
+                  },
+                };
+              },
+            };
+          },
+        };
+      }
+
+      if (table === betEntries) {
+        return {
+          set() {
+            return {
+              where() {
+                return {
+                  returning: async () => {
+                    if (!existingEntryRow) {
+                      return [];
+                    }
+
+                    existingEntryRow.amount += amount;
+                    return [existingEntryRow];
                   },
                 };
               },
@@ -350,7 +400,7 @@ function createPlaceBetDb(options?: {
 
             if (table === betEntries) {
               return {
-                where: async () => [],
+                where: async () => (existingEntryRow ? [existingEntryRow] : []),
               };
             }
 
@@ -766,9 +816,97 @@ describe("bet lifecycle transitions", () => {
   });
 });
 
+describe("placeBet demo top-ups", () => {
+  beforeEach(() => {
+    getDbMock.mockReset();
+    getDbMock.mockReturnValue(null);
+    delete (globalThis as typeof globalThis & { __lojaDemoStore?: unknown }).__lojaDemoStore;
+  });
+
+  it("allows adding more to the same option in demo mode", async () => {
+    const before = await getViewerDashboard("viewer_ana");
+    const beforeBalance = before?.balance.currentBalance ?? 0;
+
+    const firstEntry = await placeBet({
+      viewerId: "viewer_ana",
+      betId: "bet-1",
+      optionId: "opt-1a",
+      amount: 120,
+      source: "web",
+    });
+    const updatedEntry = await placeBet({
+      viewerId: "viewer_ana",
+      betId: "bet-1",
+      optionId: "opt-1a",
+      amount: 30,
+      source: "web",
+    });
+
+    expect(firstEntry.amount).toBe(120);
+    expect(updatedEntry.amount).toBe(150);
+
+    const bet = (await listBets("viewer_ana")).find((entry) => entry.id === "bet-1");
+    expect(bet?.viewerPosition).toMatchObject({
+      optionId: "opt-1a",
+      amount: 150,
+    });
+    expect(bet?.options.find((option) => option.id === "opt-1a")?.poolAmount).toBe(1400);
+
+    const after = await getViewerDashboard("viewer_ana");
+    expect(after?.balance.currentBalance).toBe(beforeBalance - 150);
+  });
+
+  it("still blocks switching sides after a first bet", async () => {
+    await placeBet({
+      viewerId: "viewer_ana",
+      betId: "bet-1",
+      optionId: "opt-1a",
+      amount: 120,
+      source: "web",
+    });
+
+    await expect(
+      placeBet({
+        viewerId: "viewer_ana",
+        betId: "bet-1",
+        optionId: "opt-1b",
+        amount: 30,
+        source: "web",
+      }),
+    ).rejects.toThrow("aposta_ja_registrada");
+  });
+});
+
 describe("placeBet database guards", () => {
   beforeEach(() => {
     getDbMock.mockReset();
+  });
+
+  it("updates the existing entry when the same option is topped up", async () => {
+    const { db, balanceRow, optionRows } = createPlaceBetDb({
+      existingEntry: {
+        id: "bet-entry-db-1",
+        optionId: "bet-opt-1",
+        amount: 25,
+      },
+    });
+    getDbMock.mockReturnValue(db);
+
+    const entry = await placeBet({
+      viewerId: "viewer-db-1",
+      betId: "bet-db-1",
+      optionId: "bet-opt-1",
+      amount: 50,
+      source: "web",
+    });
+
+    expect(entry).toMatchObject({
+      id: "bet-entry-db-1",
+      amount: 75,
+      optionId: "bet-opt-1",
+    });
+    expect(balanceRow.currentBalance).toBe(50);
+    expect(optionRows[0]?.poolAmount).toBe(150);
   });
 
   it("maps a concurrent insert conflict to duplicate bet", async () => {
@@ -837,6 +975,42 @@ describe("placeBetFromChatCommand", () => {
 
     const dashboard = await getViewerDashboard("viewer_lia");
     expect(dashboard?.balance.currentBalance).toBe(445);
+  });
+
+  it("allows topping up the same option from chat", async () => {
+    await placeBetFromChatCommand({
+      viewerExternalId: "yt_lia",
+      youtubeDisplayName: "Lia Pixel",
+      betId: "bet-1",
+      optionIndex: 2,
+      amount: 75,
+      source: "streamerbot_chat",
+    });
+
+    const result = await placeBetFromChatCommand({
+      viewerExternalId: "yt_lia",
+      youtubeDisplayName: "Lia Pixel",
+      betId: "bet-1",
+      optionIndex: 2,
+      amount: 25,
+      source: "streamerbot_chat",
+    });
+
+    expect(result.entry).toMatchObject({
+      betId: "bet-1",
+      optionId: "opt-1b",
+      viewerId: "viewer_lia",
+      amount: 100,
+    });
+
+    const bet = (await listBets("viewer_lia")).find((entry) => entry.id === "bet-1");
+    expect(bet?.viewerPosition).toMatchObject({
+      optionId: "opt-1b",
+      amount: 100,
+    });
+
+    const dashboard = await getViewerDashboard("viewer_lia");
+    expect(dashboard?.balance.currentBalance).toBe(420);
   });
 
   it("requires betId when there is more than one open bet", async () => {
