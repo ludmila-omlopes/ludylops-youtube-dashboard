@@ -6,11 +6,14 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { GAME_SUGGESTION_CREATION_COST } from "@/lib/game-suggestions/constants";
 import { validateGameSuggestionDraft } from "@/lib/game-suggestions/service";
 import { formatPipetz } from "@/lib/utils";
 
 function mapSuggestionError(message: string) {
   switch (message) {
+    case "saldo_insuficiente":
+      return `Voce precisa de ${formatPipetz(GAME_SUGGESTION_CREATION_COST)} para criar uma sugestao.`;
     case "suggestion_already_exists":
       return "Esse jogo ja esta na lista aberta.";
     case "invalid_name":
@@ -34,6 +37,11 @@ export function GameSuggestForm({
   const [description, setDescription] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const hasInsufficientBalance =
+    typeof viewerBalance === "number" && viewerBalance < GAME_SUGGESTION_CREATION_COST;
+  const missingBalance = hasInsufficientBalance
+    ? GAME_SUGGESTION_CREATION_COST - (viewerBalance ?? 0)
+    : 0;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -49,6 +57,11 @@ export function GameSuggestForm({
 
     if (!canSuggest) {
       setFeedback(loggedIn ? "Sua conta ainda nao esta pronta para sugerir." : "Faca login para sugerir.");
+      return;
+    }
+
+    if (hasInsufficientBalance) {
+      setFeedback(`Faltam ${formatPipetz(missingBalance)} para criar uma sugestao.`);
       return;
     }
 
@@ -73,7 +86,7 @@ export function GameSuggestForm({
 
       setName("");
       setDescription("");
-      setFeedback("Sugestao enviada.");
+      setFeedback(`Sugestao enviada. ${formatPipetz(GAME_SUGGESTION_CREATION_COST)} debitados.`);
       router.refresh();
     });
   }
@@ -97,12 +110,20 @@ export function GameSuggestForm({
             <p className="mt-2 text-sm text-[var(--color-ink-soft)]">
               Se tiver algo que voce quer muito me ver jogando, manda aqui.
             </p>
+            <p className="mt-2 text-xs font-bold uppercase tracking-[0.12em] text-[var(--color-ink-soft)]">
+              cada nova sugestao custa {formatPipetz(GAME_SUGGESTION_CREATION_COST)}. boost continua separado.
+            </p>
           </div>
-          {typeof viewerBalance === "number" ? (
-            <span className="retro-label neutral-chip">
-              saldo {formatPipetz(viewerBalance)}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <span className="retro-label accent-chip">
+              custa {formatPipetz(GAME_SUGGESTION_CREATION_COST)}
             </span>
-          ) : null}
+            {typeof viewerBalance === "number" ? (
+              <span className="retro-label neutral-chip">
+                saldo {formatPipetz(viewerBalance)}
+              </span>
+            ) : null}
+          </div>
         </div>
 
         <div className="mt-4 grid gap-3">
@@ -125,17 +146,25 @@ export function GameSuggestForm({
           />
           <Button
             type="submit"
-            disabled={isPending}
+            disabled={isPending || hasInsufficientBalance}
             size="lg"
             className="w-full sm:w-fit"
           >
-            {isPending ? "Enviando..." : "Enviar sugestao"}
+            {isPending
+              ? "Enviando..."
+              : `Enviar sugestao por ${formatPipetz(GAME_SUGGESTION_CREATION_COST)}`}
           </Button>
         </div>
 
         {!loggedIn ? (
           <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-[var(--color-ink-soft)]">
             faca login para sugerir e dar boost
+          </p>
+        ) : null}
+
+        {loggedIn && hasInsufficientBalance ? (
+          <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-[var(--color-ink-soft)]">
+            faltam {formatPipetz(missingBalance)} para liberar uma nova sugestao
           </p>
         ) : null}
 
