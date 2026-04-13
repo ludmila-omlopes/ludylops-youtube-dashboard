@@ -277,10 +277,26 @@ Payload recomendado para chamar uma quote especifica com `!quote 7`:
 }
 ```
 
+Payload recomendado para cobrar `50 pipetz` e exibir uma quote ja existente no overlay do OBS com `!quoteobs 7`:
+
+```json
+{
+  "action": "show",
+  "viewerExternalId": "UCxxxxxxxx",
+  "youtubeDisplayName": "Nome do viewer",
+  "youtubeHandle": "@meucanal",
+  "quoteId": 7,
+  "displayDurationSeconds": 12,
+  "source": "streamerbot_chat"
+}
+```
+
 Notas:
 
 - `create` exige que o caller seja mod, broadcaster ou admin.
 - `get` aceita `quoteId`; se ele vier vazio, o backend devolve uma quote aleatoria.
+- `show` cobra `50 pipetz`, exige `quoteId` de uma quote ja cadastrada, usa um overlay unico por vez e falha com feedback se a tela ainda estiver ocupada.
+- O browser source do OBS deve apontar para `/obs/quotes`.
 - O response inclui `replyMessage`, pensado para o Streamer.bot reutilizar direto no chat.
 
 #### Setup rapido do Streamer.bot
@@ -289,6 +305,7 @@ Os scripts prontos para colar no `Execute C# Code` estao em:
 
 - [add-quote-from-chat.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/add-quote-from-chat.cs)
 - [get-quote-from-chat.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/get-quote-from-chat.cs)
+- [show-quote-on-obs.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/show-quote-on-obs.cs)
 
 Passo a passo operacional:
 
@@ -321,10 +338,32 @@ Passo a passo operacional:
 
 7. Cole o conteudo de [get-quote-from-chat.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/get-quote-from-chat.cs).
 
+8. Crie um terceiro comando para quote paga no OBS com regex:
+
+```regex
+^!(?:quoteobs|qobs)\s+(?<quoteId>\d+)$
+```
+
+9. Na action desse comando, adicione `Core > C# > Execute C# Code`.
+
+10. Cole o conteudo de [show-quote-on-obs.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/show-quote-on-obs.cs).
+
+11. No OBS, crie um `Browser Source` apontando para:
+
+- `https://seu-app.vercel.app/obs/quotes`
+
+12. Opcionalmente, crie a Global Variable:
+
+- `lojaneon.quoteOverlayDurationSeconds`
+  Valor: `12`
+
 Notas:
 
 - No Streamer.bot, o ideal e marcar `!addquote` como comando de moderacao tambem na UI, mesmo com a checagem extra do backend.
 - O script de `!addquote` tenta descobrir o id do viewer usando `id`, `userId`, `fromId`, `authorId`, `channelId`, `youtubeUserId` e `targetUserId`.
+- O script de `!quoteobs` usa os mesmos candidatos de id do viewer do fluxo de apostas e responde no chat com o `replyMessage` devolvido pela API.
+- O modo pago de OBS nao cria quote nova; ele apenas mostra uma quote ja existente escolhida por numero.
+- Se quiser manter o `!quote` gratuito, deixe o comando pago separado como `!quoteobs`.
 - Se sua instancia do Streamer.bot usar outros nomes de argumento para permissao, ajuste `ModeratorArgCandidates`, `BroadcasterArgCandidates` e `AdminArgCandidates` no script.
 
 ### Bridge

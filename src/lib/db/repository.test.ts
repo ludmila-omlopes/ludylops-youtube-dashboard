@@ -16,6 +16,28 @@ vi.mock("@/lib/streamerbot/live-status", () => ({
   eventRequiresActiveLivestream: (eventType: string) =>
     eventType === "presence_tick" || eventType === "chat_bonus",
   isStreamerbotLivestreamActive: isStreamerbotLivestreamActiveMock,
+  resolveRequiredLivestreamState: async ({ explicitState }: { explicitState?: boolean | null } = {}) =>
+    typeof explicitState === "boolean"
+      ? explicitState
+      : Boolean(await isStreamerbotLivestreamActiveMock()),
+  requireActiveLivestream: async ({
+    explicitState,
+    failureError,
+  }: {
+    explicitState?: boolean | null;
+    failureError?: string;
+  } = {}) => {
+    const isLive =
+      typeof explicitState === "boolean"
+        ? explicitState
+        : Boolean(await isStreamerbotLivestreamActiveMock());
+
+    if (!isLive) {
+      throw new Error(failureError ?? "livestream_not_live");
+    }
+
+    return true;
+  },
 }));
 
 import { demoBetRecords, demoQuotes } from "@/lib/demo-data";
@@ -39,6 +61,7 @@ import {
   deleteProductRecommendation,
   ensureViewerFromSession,
   getViewerDashboard,
+  getActiveQuoteOverlay,
   getSessionViewerState,
   ingestStreamerbotEvent,
   listAdminProductRecommendations,
@@ -54,6 +77,7 @@ import {
   runStreamerbotCounterCommand,
   resolveBet,
   setActiveViewerForGoogleAccount,
+  showQuoteOverlayForViewer,
   updateGameSuggestionStatus,
 } from "@/lib/db/repository";
 
@@ -856,6 +880,8 @@ describe("runQuoteCommandFromChat", () => {
   beforeEach(() => {
     getDbMock.mockReset();
     getDbMock.mockReturnValue(null);
+    isStreamerbotLivestreamActiveMock.mockReset();
+    isStreamerbotLivestreamActiveMock.mockResolvedValue(true);
     delete (globalThis as typeof globalThis & { __lojaDemoStore?: unknown }).__lojaDemoStore;
   });
 
@@ -930,6 +956,150 @@ describe("runQuoteCommandFromChat", () => {
     const quotes = await listQuotes();
 
     expect(quotes.map((entry) => entry.quoteNumber)).toEqual([2, 1]);
+  });
+
+  it("charges 50 pipetz and activates the OBS overlay for a quote", async () => {
+    const result = await runQuoteCommandFromChat({
+      action: "show",
+      viewerExternalId: "yt_lia",
+      youtubeDisplayName: "Lia Pixel",
+      youtubeHandle: "@liapixel",
+      quoteId: 2,
+      source: "streamerbot_chat",
+    });
+
+    expect(result.action).toBe("show");
+    expect(result.viewer).toMatchObject({
+      youtubeChannelId: "yt_lia",
+      youtubeDisplayName: "Lia Pixel",
+    });
+    expect(result.quote).toMatchObject({
+      quoteNumber: 2,
+      body: "se eu morrer, foi estrategia",
+    });
+    expect(result.overlay).toMatchObject({
+      slot: "obs_main",
+      quoteNumber: 2,
+      quoteBody: "se eu morrer, foi estrategia",
+      requestedByDisplayName: "Lia Pixel",
+      requestedByYoutubeHandle: "@liapixel",
+      cost: 50,
+      source: "streamerbot_chat",
+    });
+
+    const dashboard = await getViewerDashboard("viewer_lia");
+    expect(dashboard?.balance.currentBalance).toBe(470);
+
+    const activeOverlay = await getActiveQuoteOverlay();
+    expect(activeOverlay).toMatchObject({
+      overlayId: result.overlay.overlayId,
+      quoteNumber: 2,
+    });
+  });
+
+  it("rejects quote overlay requests when the viewer lacks pipetz", async () => {
+    await expect(
+      runQuoteCommandFromChat({
+        action: "show",
+        viewerExternalId: "yt_low",
+        youtubeDisplayName: "Viewer Sem Saldo",
+        quoteId: 1,
+        source: "streamerbot_chat",
+      }),
+    ).rejects.toThrow("saldo_insuficiente");
+  });
+
+  it("requires an existing quote number for the OBS overlay flow", async () => {
+    await expect(
+      runQuoteCommandFromChat({
+        action: "show",
+        viewerExternalId: "yt_lia",
+        youtubeDisplayName: "Lia Pixel",
+        source: "streamerbot_chat",
+      }),
+    ).rejects.toThrow("quote_id_required");
+  });
+
+  it("blocks a second quote overlay while one is still active", async () => {
+    await runQuoteCommandFromChat({
+      action: "show",
+      viewerExternalId: "yt_lia",
+      youtubeDisplayName: "Lia Pixel",
+      quoteId: 1,
+      source: "streamerbot_chat",
+    });
+
+    await expect(
+      runQuoteCommandFromChat({
+        action: "show",
+        viewerExternalId: "yt_ana",
+        youtubeDisplayName: "Ana Neon",
+        quoteId: 2,
+        source: "streamerbot_chat",
+      }),
+    ).rejects.toThrow("quote_overlay_busy");
+  });
+
+  it("blocks the OBS quote flow when no livestream is active", async () => {
+    isStreamerbotLivestreamActiveMock.mockResolvedValue(false);
+
+    await expect(
+      runQuoteCommandFromChat({
+        action: "show",
+        viewerExternalId: "yt_lia",
+        youtubeDisplayName: "Lia Pixel",
+        quoteId: 1,
+        source: "streamerbot_chat",
+      }),
+    ).rejects.toThrow("livestream_not_live");
+  });
+});
+
+describe("showQuoteOverlayForViewer", () => {
+  beforeEach(() => {
+    getDbMock.mockReset();
+    getDbMock.mockReturnValue(null);
+    isStreamerbotLivestreamActiveMock.mockReset();
+    isStreamerbotLivestreamActiveMock.mockResolvedValue(true);
+    delete (globalThis as typeof globalThis & { __lojaDemoStore?: unknown }).__lojaDemoStore;
+  });
+
+  it("allows calling an existing quote from the site and debits the viewer", async () => {
+    const result = await showQuoteOverlayForViewer({
+      viewerId: "viewer_ana",
+      quoteId: 1,
+      source: "web",
+    });
+
+    expect(result.quote).toMatchObject({
+      quoteNumber: 1,
+      body: "isso aqui vai dar muito certo, confia",
+    });
+    expect(result.viewer).toMatchObject({
+      id: "viewer_ana",
+      youtubeDisplayName: "Ana Neon",
+    });
+    expect(result.overlay).toMatchObject({
+      quoteNumber: 1,
+      requestedByDisplayName: "Ana Neon",
+      cost: 50,
+      source: "web",
+    });
+
+    const dashboard = await getViewerDashboard("viewer_ana");
+    expect(dashboard?.balance.currentBalance).toBe(1370);
+  });
+
+  it("blocks the site quote overlay flow when the livestream is offline", async () => {
+    isStreamerbotLivestreamActiveMock.mockResolvedValue(false);
+
+    await expect(
+      showQuoteOverlayForViewer({
+        viewerId: "viewer_ana",
+        quoteId: 1,
+        source: "web",
+      }),
+    ).rejects.toThrow("livestream_not_live");
   });
 });
 

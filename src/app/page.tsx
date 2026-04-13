@@ -4,6 +4,7 @@ import Image from "next/image";
 
 import { auth } from "@/auth";
 import { AuthButtons } from "@/components/auth-buttons";
+import { LivestreamIndicator } from "@/components/livestream-indicator";
 import { QuickNavGrid } from "@/components/quick-nav-grid";
 import { StickerBadge } from "@/components/sticker-badge";
 import { env } from "@/lib/env";
@@ -17,6 +18,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { getCatalog, getLeaderboard, getViewerDashboard, listBets } from "@/lib/db/repository";
+import { isStreamerbotLivestreamActive } from "@/lib/streamerbot/live-status";
 import type { BetWithOptionsRecord, CatalogItemRecord } from "@/lib/types";
 import { cn, formatPipetz } from "@/lib/utils";
 
@@ -587,10 +589,11 @@ function LiveSpotlight({ activeBet, catalog, loggedIn = false }: SpotlightProps)
 export default async function Home() {
   const session = await auth();
   const activeViewerId = session?.user?.activeViewerId ?? null;
-  const [catalog, leaderboard, bets] = await Promise.all([
+  const [catalog, leaderboard, bets, isLive] = await Promise.all([
     getCatalog(),
     getLeaderboard(),
     listBets(activeViewerId),
+    isStreamerbotLivestreamActive(),
   ]);
   const activeBets = bets.filter((bet) => bet.status === "open");
 
@@ -751,6 +754,9 @@ export default async function Home() {
             <p className="mono text-[11px] uppercase tracking-[0.36em] text-[var(--color-ink-soft)]">
               pontos . apostas . resgates . comunidade ao vivo
             </p>
+            <div className="mt-4">
+              <LivestreamIndicator isLive={isLive} />
+            </div>
 
             <h1
               className="mt-5 max-w-4xl text-5xl leading-[0.9] sm:text-6xl lg:text-[5.5rem]"

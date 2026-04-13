@@ -28,6 +28,10 @@ export const redeemSchema = z.object({
   source: z.string().default("web"),
 });
 
+export const showQuoteOverlaySchema = z.object({
+  source: z.string().default("web"),
+});
+
 export const placeBetSchema = z.object({
   optionId: z.string().min(1),
   amount: z.number().int().min(1),
@@ -53,12 +57,13 @@ export const streamerbotChatBetSchema = z
 
 export const streamerbotQuoteCommandSchema = z
   .object({
-    action: z.enum(["create", "get"]),
+    action: z.enum(["create", "get", "show"]),
     viewerExternalId: z.string().min(1).optional(),
     youtubeDisplayName: z.string().min(1).optional(),
     youtubeHandle: z.string().min(1).optional(),
     quoteText: z.string().trim().min(1).max(500).optional(),
     quoteId: z.number().int().min(1).optional(),
+    displayDurationSeconds: z.number().int().min(5).max(30).default(12),
     isModerator: z.boolean().default(false),
     isBroadcaster: z.boolean().default(false),
     isAdmin: z.boolean().default(false),
@@ -78,6 +83,14 @@ export const streamerbotQuoteCommandSchema = z
         code: z.ZodIssueCode.custom,
         path: ["viewerExternalId"],
         message: "Viewer external id is required for create.",
+      });
+    }
+
+    if (value.action === "show" && !value.viewerExternalId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["viewerExternalId"],
+        message: "Viewer external id is required for show.",
       });
     }
   });

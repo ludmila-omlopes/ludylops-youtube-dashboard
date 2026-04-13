@@ -6,20 +6,24 @@ import type { Session } from "next-auth";
 import { useEffect, useState } from "react";
 
 import { AuthButtons } from "@/components/auth-buttons";
+import { LivestreamIndicator } from "@/components/livestream-indicator";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 
 export function AppChrome({
   children,
   isAdmin = false,
+  isLive = false,
   session,
 }: {
   children: React.ReactNode;
   isAdmin?: boolean;
+  isLive?: boolean;
   session: Session | null;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
+  const isObsView = pathname.startsWith("/obs/");
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
@@ -32,6 +36,18 @@ export function AppChrome({
     onChange();
     return () => mq.removeEventListener("change", onChange);
   }, []);
+
+  useEffect(() => {
+    if (isObsView) {
+      document.body.dataset.obsOverlay = "true";
+      return () => {
+        delete document.body.dataset.obsOverlay;
+      };
+    }
+
+    delete document.body.dataset.obsOverlay;
+    return undefined;
+  }, [isObsView]);
 
   const navLinks = [
     { href: "/indicacoes", label: "Indicacoes" },
@@ -47,6 +63,10 @@ export function AppChrome({
 
   const allLinks = [...navLinks, ...(session?.user ? authedLinks : []), ...adminLinks];
   const showTicker = pathname === "/";
+
+  if (isObsView) {
+    return <>{children}</>;
+  }
 
   const tickerText =
     "PIPETZ // GANHE ASSISTINDO // ENTRE NO POOL // RESGATE EFEITOS // SUBA NO RANKING // ";
@@ -91,6 +111,9 @@ export function AppChrome({
           </div>
 
           <div className="ml-auto flex shrink-0 items-center gap-3 md:justify-end">
+            <div className="hidden md:block">
+              <LivestreamIndicator isLive={isLive} compact />
+            </div>
             <ThemeToggle />
             <div className="hidden md:block">
               <AuthButtons />
@@ -112,6 +135,9 @@ export function AppChrome({
 
         {mobileOpen ? (
           <div className="mobile-nav-enter border-t-[3px] border-[var(--color-ink)] bg-[var(--color-paper)] p-4 md:hidden">
+            <div className="mb-4">
+              <LivestreamIndicator isLive={isLive} />
+            </div>
             <nav className="flex flex-col gap-1.5" aria-label="Navegacao principal">
               {allLinks.map((link) => (
                 <Link

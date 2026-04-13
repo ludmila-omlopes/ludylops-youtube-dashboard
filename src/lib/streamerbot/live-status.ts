@@ -143,6 +143,31 @@ export function eventRequiresActiveLivestream(eventType: StreamerbotEventType) {
   return LIVE_REQUIRED_EVENT_TYPES.includes(eventType);
 }
 
+export async function resolveRequiredLivestreamState(input?: {
+  explicitState?: boolean | null;
+}) {
+  if (typeof input?.explicitState === "boolean") {
+    return input.explicitState;
+  }
+
+  return isStreamerbotLivestreamActive();
+}
+
+export async function requireActiveLivestream(input?: {
+  explicitState?: boolean | null;
+  failureError?: string;
+}) {
+  const isLive = await resolveRequiredLivestreamState({
+    explicitState: input?.explicitState ?? null,
+  });
+
+  if (!isLive) {
+    throw new Error(input?.failureError ?? "livestream_not_live");
+  }
+
+  return true;
+}
+
 export async function isStreamerbotLivestreamActive() {
   if (!env.YOUTUBE_API_KEY) {
     warnOnce(

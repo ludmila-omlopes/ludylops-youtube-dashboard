@@ -14,7 +14,8 @@ export type LedgerKind =
   | "bet_debit"
   | "bet_payout"
   | "bet_refund"
-  | "game_suggestion_boost";
+  | "game_suggestion_boost"
+  | "quote_overlay_debit";
 
 export type BetStatus =
   | "draft"
@@ -161,6 +162,22 @@ export interface QuoteRecord {
   createdByYoutubeHandle: string | null;
   source: string;
   createdAt: string;
+}
+
+export interface QuoteOverlayStateRecord {
+  slot: string;
+  overlayId: string;
+  quoteNumber: number;
+  quoteBody: string;
+  createdByDisplayName: string;
+  createdByYoutubeHandle: string | null;
+  requestedByViewerId: string;
+  requestedByDisplayName: string;
+  requestedByYoutubeHandle: string | null;
+  source: string;
+  cost: number;
+  activatedAt: string;
+  expiresAt: string;
 }
 
 export interface StreamerbotCounterRecord {

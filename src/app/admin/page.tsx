@@ -1,3 +1,4 @@
+import { AdminObsOverlaysPanel } from "@/components/admin-obs-overlays-panel";
 import { AdminBetsPanel } from "@/components/admin-bets-panel";
 import { AdminGameSuggestionsPanel } from "@/components/admin-game-suggestions-panel";
 import { AdminRecommendationsPanel } from "@/components/admin-recommendations-panel";
@@ -101,6 +102,7 @@ export default async function AdminPage() {
       </section>
 
       <AdminBetsPanel bets={bets} />
+      <AdminObsOverlaysPanel />
       <AdminGameSuggestionsPanel suggestions={suggestions} />
       <AdminRecommendationsPanel recommendations={recommendations} />
     </div>

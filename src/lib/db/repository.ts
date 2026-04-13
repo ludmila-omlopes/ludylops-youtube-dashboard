@@ -20,6 +20,7 @@ import {
   googleAccounts,
   googleAccountViewers,
   pointLedger,
+  quoteOverlayState,
   quotes,
   productRecommendations,
   redemptions,
@@ -48,7 +49,7 @@ import {
 import { adminEmails, isDemoMode } from "@/lib/env";
 import {
   eventRequiresActiveLivestream,
-  isStreamerbotLivestreamActive,
+  requireActiveLivestream,
 } from "@/lib/streamerbot/live-status";
 import { normalizeYoutubeHandle } from "@/lib/youtube/identity";
 import { evaluateRedeemability } from "@/lib/redemptions/service";
@@ -66,6 +67,7 @@ import {
   GoogleAccountRecord,
   GoogleAccountViewerRecord,
   LedgerEntryRecord,
+  QuoteOverlayStateRecord,
   QuoteRecord,
   ProductRecommendationRecord,
   RedemptionRecord,
@@ -87,6 +89,10 @@ function shouldExcludeFromRanking(email: string | null) {
 
 const DEFAULT_DEATH_COUNTER_KEY = "death_count";
 const DEFAULT_DEATH_COUNTER_LABEL = "mortes";
+const QUOTE_OVERLAY_SLOT = "obs_main";
+const QUOTE_OVERLAY_COST = 50;
+const QUOTE_OVERLAY_DURATION_SECONDS = 12;
+const QUOTE_OVERLAY_LOCK_KEY = 42_001;
 
 type StreamerbotCounterCommandAction = "increment" | "get" | "reset";
 
@@ -126,6 +132,7 @@ type DemoStore = {
   catalog: CatalogItemRecord[];
   ledger: LedgerEntryRecord[];
   quotes: QuoteRecord[];
+  quoteOverlayState: QuoteOverlayStateRecord | null;
   redemptions: RedemptionRecord[];
   bets: BetRecord[];
   betOptions: BetOptionRecord[];
@@ -151,6 +158,7 @@ function getDemoStore(): DemoStore {
       catalog: structuredClone(demoCatalog),
       ledger: structuredClone(demoLedger),
       quotes: structuredClone(demoQuotes),
+      quoteOverlayState: null,
       redemptions: structuredClone(demoRedemptions),
       bets: structuredClone(demoBetRecords),
       betOptions: structuredClone(demoBetOptions),
@@ -866,6 +874,63 @@ function serializeQuote(row: typeof quotes.$inferSelect): QuoteRecord {
   };
 }
 
+function serializeQuoteOverlayState(
+  row: typeof quoteOverlayState.$inferSelect,
+): QuoteOverlayStateRecord {
+  return {
+    slot: row.slot,
+    overlayId: row.overlayId,
+    quoteNumber: row.quoteNumber,
+    quoteBody: row.quoteBody,
+    createdByDisplayName: row.createdByDisplayName,
+    createdByYoutubeHandle: row.createdByYoutubeHandle ?? null,
+    requestedByViewerId: row.requestedByViewerId,
+    requestedByDisplayName: row.requestedByDisplayName,
+    requestedByYoutubeHandle: row.requestedByYoutubeHandle ?? null,
+    source: row.source,
+    cost: row.cost,
+    activatedAt: row.activatedAt.toISOString(),
+    expiresAt: row.expiresAt.toISOString(),
+  };
+}
+
+function buildQuoteOverlayState(input: {
+  quote: QuoteRecord;
+  viewer: ViewerRecord;
+  source: string;
+  cost?: number;
+  durationSeconds?: number;
+}) {
+  const activatedAt = new Date();
+  const expiresAt = new Date(
+    activatedAt.getTime() + (input.durationSeconds ?? QUOTE_OVERLAY_DURATION_SECONDS) * 1000,
+  );
+
+  return {
+    slot: QUOTE_OVERLAY_SLOT,
+    overlayId: randomUUID(),
+    quoteNumber: input.quote.quoteNumber,
+    quoteBody: input.quote.body,
+    createdByDisplayName: input.quote.createdByDisplayName,
+    createdByYoutubeHandle: input.quote.createdByYoutubeHandle,
+    requestedByViewerId: input.viewer.id,
+    requestedByDisplayName: input.viewer.youtubeDisplayName,
+    requestedByYoutubeHandle: input.viewer.youtubeHandle ?? null,
+    source: input.source,
+    cost: input.cost ?? QUOTE_OVERLAY_COST,
+    activatedAt: activatedAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+  } satisfies QuoteOverlayStateRecord;
+}
+
+function isQuoteOverlayActive(overlay: QuoteOverlayStateRecord | null, now = Date.now()) {
+  if (!overlay) {
+    return false;
+  }
+
+  return new Date(overlay.expiresAt).getTime() > now;
+}
+
 function serializeProductRecommendation(
   row: typeof productRecommendations.$inferSelect,
 ): ProductRecommendationRecord {
@@ -1016,6 +1081,170 @@ async function getQuoteRecord(input: { quoteId?: number | null }) {
   }
 
   return serializeQuote(allQuotes[Math.floor(Math.random() * allQuotes.length)]!);
+}
+
+export async function getActiveQuoteOverlay() {
+  const now = Date.now();
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const overlay = getDemoStore().quoteOverlayState;
+    return isQuoteOverlayActive(overlay, now) ? overlay : null;
+  }
+
+  const [overlay] = await db
+    .select()
+    .from(quoteOverlayState)
+    .where(eq(quoteOverlayState.slot, QUOTE_OVERLAY_SLOT))
+    .limit(1);
+
+  if (!overlay) {
+    return null;
+  }
+
+  const serialized = serializeQuoteOverlayState(overlay);
+  return isQuoteOverlayActive(serialized, now) ? serialized : null;
+}
+
+async function activateQuoteOverlay(input: {
+  quote: QuoteRecord;
+  viewer: ViewerRecord;
+  source: string;
+  cost?: number;
+  durationSeconds?: number;
+}) {
+  await requireActiveLivestream({
+    failureError: "livestream_not_live",
+  });
+
+  const cost = input.cost ?? QUOTE_OVERLAY_COST;
+  const overlay = buildQuoteOverlayState({
+    quote: input.quote,
+    viewer: input.viewer,
+    source: input.source,
+    cost,
+    durationSeconds: input.durationSeconds,
+  });
+
+  const db = getDb();
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const activeOverlay = store.quoteOverlayState;
+    if (isQuoteOverlayActive(activeOverlay)) {
+      throw new Error("quote_overlay_busy");
+    }
+
+    const balance = getBalance(store, input.viewer.id);
+    if (balance.currentBalance < cost) {
+      throw new Error("saldo_insuficiente");
+    }
+
+    balance.currentBalance -= cost;
+    balance.lifetimeSpent += cost;
+    balance.lastSyncedAt = overlay.activatedAt;
+
+    createLedgerEntry(store, {
+      viewerId: input.viewer.id,
+      kind: "quote_overlay_debit",
+      amount: -cost,
+      source: input.source,
+      externalEventId: null,
+      metadata: {
+        overlayId: overlay.overlayId,
+        quoteNumber: input.quote.quoteNumber,
+        durationSeconds: input.durationSeconds ?? QUOTE_OVERLAY_DURATION_SECONDS,
+      },
+      createdAt: overlay.activatedAt,
+    });
+
+    store.quoteOverlayState = overlay;
+    return overlay;
+  }
+
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(${QUOTE_OVERLAY_LOCK_KEY})`);
+
+    const [existingOverlay] = await tx
+      .select()
+      .from(quoteOverlayState)
+      .where(eq(quoteOverlayState.slot, QUOTE_OVERLAY_SLOT))
+      .limit(1);
+
+    if (existingOverlay && existingOverlay.expiresAt.getTime() > Date.now()) {
+      throw new Error("quote_overlay_busy");
+    }
+
+    const debitedBalances = await tx
+      .update(viewerBalances)
+      .set({
+        currentBalance: sql`${viewerBalances.currentBalance} - ${cost}`,
+        lifetimeSpent: sql`${viewerBalances.lifetimeSpent} + ${cost}`,
+        lastSyncedAt: new Date(overlay.activatedAt),
+      })
+      .where(
+        and(
+          eq(viewerBalances.viewerId, input.viewer.id),
+          gte(viewerBalances.currentBalance, cost),
+        ),
+      )
+      .returning({ viewerId: viewerBalances.viewerId });
+
+    if (debitedBalances.length === 0) {
+      throw new Error("saldo_insuficiente");
+    }
+
+    await tx.insert(pointLedger).values({
+      id: randomUUID(),
+      viewerId: input.viewer.id,
+      kind: "quote_overlay_debit",
+      amount: -cost,
+      source: input.source,
+      externalEventId: null,
+      metadata: {
+        overlayId: overlay.overlayId,
+        quoteNumber: input.quote.quoteNumber,
+        durationSeconds: input.durationSeconds ?? QUOTE_OVERLAY_DURATION_SECONDS,
+      },
+      createdAt: new Date(overlay.activatedAt),
+    });
+
+    await tx
+      .insert(quoteOverlayState)
+      .values({
+        slot: overlay.slot,
+        overlayId: overlay.overlayId,
+        quoteNumber: overlay.quoteNumber,
+        quoteBody: overlay.quoteBody,
+        createdByDisplayName: overlay.createdByDisplayName,
+        createdByYoutubeHandle: overlay.createdByYoutubeHandle,
+        requestedByViewerId: overlay.requestedByViewerId,
+        requestedByDisplayName: overlay.requestedByDisplayName,
+        requestedByYoutubeHandle: overlay.requestedByYoutubeHandle,
+        source: overlay.source,
+        cost: overlay.cost,
+        activatedAt: new Date(overlay.activatedAt),
+        expiresAt: new Date(overlay.expiresAt),
+      })
+      .onConflictDoUpdate({
+        target: quoteOverlayState.slot,
+        set: {
+          overlayId: overlay.overlayId,
+          quoteNumber: overlay.quoteNumber,
+          quoteBody: overlay.quoteBody,
+          createdByDisplayName: overlay.createdByDisplayName,
+          createdByYoutubeHandle: overlay.createdByYoutubeHandle,
+          requestedByViewerId: overlay.requestedByViewerId,
+          requestedByDisplayName: overlay.requestedByDisplayName,
+          requestedByYoutubeHandle: overlay.requestedByYoutubeHandle,
+          source: overlay.source,
+          cost: overlay.cost,
+          activatedAt: new Date(overlay.activatedAt),
+          expiresAt: new Date(overlay.expiresAt),
+        },
+      });
+  });
+
+  return overlay;
 }
 
 function listDemoGameSuggestions(viewerId?: string | null) {
@@ -2769,12 +2998,13 @@ export async function placeBetFromChatCommand(input: {
 }
 
 export async function runQuoteCommandFromChat(input: {
-  action: "create" | "get";
+  action: "create" | "get" | "show";
   viewerExternalId?: string;
   youtubeDisplayName?: string | null;
   youtubeHandle?: string | null;
   quoteText?: string | null;
   quoteId?: number | null;
+  displayDurationSeconds?: number | null;
   isModerator?: boolean;
   isBroadcaster?: boolean;
   isAdmin?: boolean;
@@ -2807,11 +3037,67 @@ export async function runQuoteCommandFromChat(input: {
     };
   }
 
+  if (input.action === "show") {
+    if (!input.viewerExternalId?.trim()) {
+      throw new Error("viewer_external_id_required");
+    }
+
+    if (!input.quoteId) {
+      throw new Error("quote_id_required");
+    }
+
+    const viewer = await ensureViewerFromStreamerbotIdentity({
+      viewerExternalId: input.viewerExternalId,
+      youtubeDisplayName: input.youtubeDisplayName,
+      youtubeHandle: input.youtubeHandle,
+    });
+    const quote = await getQuoteRecord({ quoteId: input.quoteId });
+    const overlay = await activateQuoteOverlay({
+      quote,
+      viewer,
+      source: input.source,
+      durationSeconds: input.displayDurationSeconds ?? undefined,
+    });
+
+    return {
+      action: "show" as const,
+      quote,
+      viewer,
+      overlay,
+    };
+  }
+
   const quote = await getQuoteRecord({ quoteId: input.quoteId });
   return {
     action: "get" as const,
     quote,
     viewer: null,
+  };
+}
+
+export async function showQuoteOverlayForViewer(input: {
+  viewerId: string;
+  quoteId: number;
+  source: string;
+  displayDurationSeconds?: number | null;
+}) {
+  const viewer = await withViewerById(input.viewerId);
+  if (!viewer) {
+    throw new Error("Viewer not found.");
+  }
+
+  const quote = await getQuoteRecord({ quoteId: input.quoteId });
+  const overlay = await activateQuoteOverlay({
+    quote,
+    viewer,
+    source: input.source,
+    durationSeconds: input.displayDurationSeconds ?? undefined,
+  });
+
+  return {
+    quote,
+    viewer,
+    overlay,
   };
 }
 
@@ -3943,12 +4229,12 @@ export async function ingestStreamerbotEvent(input: {
   }
 
   if (eventRequiresActiveLivestream(input.eventType)) {
-    const explicitLivestreamState = parseExplicitLivestreamState(input.payload);
-    const isLive =
-      explicitLivestreamState === null
-        ? await isStreamerbotLivestreamActive()
-        : explicitLivestreamState;
-    if (!isLive) {
+    try {
+      await requireActiveLivestream({
+        explicitState: parseExplicitLivestreamState(input.payload),
+        failureError: "livestream_not_live",
+      });
+    } catch {
       return {
         mode: "database" as const,
         deduped: false,

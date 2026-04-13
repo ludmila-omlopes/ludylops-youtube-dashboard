@@ -15,6 +15,20 @@
       "when": 1775335098298,
       "tag": "0001_lively_risque",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776111854034,
+      "tag": "0002_old_zombie",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1776114962107,
+      "tag": "0003_yielding_fat_cobra",
+      "breakpoints": true
     }
   ]
 }

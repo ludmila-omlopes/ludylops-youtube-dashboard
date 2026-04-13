@@ -1,0 +1,465 @@
+using System;
+using System.Net.Http;
+using System.Security.Cryptography;
+using System.Text;
+
+public class CPHInline
+{
+    private static readonly HttpClient Http = new HttpClient
+    {
+        Timeout = TimeSpan.FromSeconds(10),
+    };
+
+    private static readonly string[] ViewerIdArgCandidates = new[]
+    {
+        "id",
+        "userId",
+        "fromId",
+        "authorId",
+        "channelId",
+        "youtubeUserId",
+        "targetUserId",
+    };
+
+    private static readonly string[] DisplayNameArgCandidates = new[]
+    {
+        "display",
+        "displayName",
+        "authorName",
+        "targetUser",
+        "user",
+    };
+
+    private static readonly string[] HandleArgCandidates = new[]
+    {
+        "userName",
+        "youtubeHandle",
+        "handle",
+    };
+
+    private static readonly string[] QuoteIdArgCandidates = new[]
+    {
+        "quoteId",
+        "input0",
+        "commandInput",
+        "rawInput",
+        "message",
+        "text",
+    };
+
+    public bool Execute()
+    {
+        string appBaseUrl = ReadRequiredGlobal("lojaneon.appBaseUrl");
+        string sharedSecret = ReadRequiredGlobal("lojaneon.streamerbotSharedSecret");
+        bool useBotAccount = ReadOptionalBoolGlobal("lojaneon.useBotAccount", true);
+        int displayDurationSeconds = ReadOptionalIntGlobal("lojaneon.quoteOverlayDurationSeconds", 12);
+
+        if (string.IsNullOrWhiteSpace(appBaseUrl) || string.IsNullOrWhiteSpace(sharedSecret))
+        {
+            return false;
+        }
+
+        if (!TryGetRequiredQuoteId(out string quoteId))
+        {
+            Reply("Comando invalido. Use !quoteobs <numero>.", useBotAccount);
+            return false;
+        }
+
+        string viewerExternalId = GetFirstArgString(ViewerIdArgCandidates);
+        if (string.IsNullOrWhiteSpace(viewerExternalId))
+        {
+            CPH.LogError("[Loja Neon] Nao consegui descobrir o id do viewer para mostrar a quote no OBS.");
+            Reply("Nao consegui identificar quem executou o comando.", useBotAccount);
+            return false;
+        }
+
+        string displayName = GetFirstArgString(DisplayNameArgCandidates);
+        string youtubeHandle = NormalizeHandle(GetFirstArgString(HandleArgCandidates));
+
+        string body = BuildRequestBody(
+            viewerExternalId,
+            displayName,
+            youtubeHandle,
+            quoteId,
+            displayDurationSeconds,
+            "streamerbot_chat"
+        );
+        string timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+        string signature = BuildSignature(body, timestamp, sharedSecret);
+
+        try
+        {
+            using (var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                string.Format("{0}/api/internal/streamerbot/quotes", appBaseUrl.TrimEnd('/'))
+            ))
+            {
+                request.Headers.TryAddWithoutValidation("x-timestamp", timestamp);
+                request.Headers.TryAddWithoutValidation("x-signature", signature);
+                request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+
+                using (HttpResponseMessage response = Http.SendAsync(request).GetAwaiter().GetResult())
+                {
+                    string responseText = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                    string replyMessage = ExtractReplyMessage(responseText);
+
+                    if (string.IsNullOrWhiteSpace(replyMessage))
+                    {
+                        replyMessage = response.IsSuccessStatusCode
+                            ? "Quote enviada para o OBS."
+                            : "Nao consegui colocar a quote na tela agora.";
+                    }
+
+                    Reply(replyMessage, useBotAccount);
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        CPH.LogWarn(string.Format(
+                            "[Loja Neon] Falha ao mostrar quote no OBS: HTTP {0} - {1}",
+                            (int)response.StatusCode,
+                            responseText
+                        ));
+                    }
+
+                    return response.IsSuccessStatusCode;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            CPH.LogError(string.Format("[Loja Neon] Erro ao chamar API de quote overlay: {0}", ex));
+            Reply("Nao consegui colocar a quote na tela agora.", useBotAccount);
+            return false;
+        }
+    }
+
+    private void Reply(string message, bool useBot)
+    {
+        CPH.SendYouTubeMessageToLatestMonitored(message, useBot, true);
+    }
+
+    private string ReadRequiredGlobal(string variableName)
+    {
+        string value = ReadOptionalGlobal(variableName);
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        CPH.LogError(string.Format("[Loja Neon] Global obrigatoria ausente: {0}", variableName));
+        return string.Empty;
+    }
+
+    private string ReadOptionalGlobal(string variableName)
+    {
+        try
+        {
+            return CPH.GetGlobalVar<string>(variableName, true) ?? string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private bool ReadOptionalBoolGlobal(string variableName, bool defaultValue)
+    {
+        try
+        {
+            return CPH.GetGlobalVar<bool>(variableName, true);
+        }
+        catch
+        {
+            return defaultValue;
+        }
+    }
+
+    private int ReadOptionalIntGlobal(string variableName, int defaultValue)
+    {
+        try
+        {
+            int value = CPH.GetGlobalVar<int>(variableName, true);
+            return value > 0 ? value : defaultValue;
+        }
+        catch
+        {
+            return defaultValue;
+        }
+    }
+
+    private string GetArgString(string argName)
+    {
+        if (args != null && args.ContainsKey(argName) && args[argName] != null)
+        {
+            string directValue = args[argName].ToString();
+            if (!string.IsNullOrWhiteSpace(directValue))
+            {
+                return directValue.Trim();
+            }
+        }
+
+        if (CPH.TryGetArg(argName, out string value) && !string.IsNullOrWhiteSpace(value))
+        {
+            return value.Trim();
+        }
+
+        return null;
+    }
+
+    private string GetFirstArgString(string[] candidates)
+    {
+        foreach (string candidate in candidates)
+        {
+            string value = GetArgString(candidate);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private bool TryGetRequiredQuoteId(out string quoteId)
+    {
+        quoteId = null;
+
+        foreach (string candidate in QuoteIdArgCandidates)
+        {
+            string rawValue = NormalizeCommandPayload(GetArgString(candidate));
+            if (string.IsNullOrWhiteSpace(rawValue))
+            {
+                continue;
+            }
+
+            string firstToken = ExtractFirstToken(rawValue);
+            if (string.IsNullOrWhiteSpace(firstToken))
+            {
+                continue;
+            }
+
+            if (!int.TryParse(firstToken, out int parsed) || parsed <= 0)
+            {
+                quoteId = null;
+                return false;
+            }
+
+            quoteId = parsed.ToString();
+            return true;
+        }
+
+        return false;
+    }
+
+    private string NormalizeHandle(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        string trimmed = value.Trim();
+        return trimmed.StartsWith("@") ? trimmed : string.Format("@{0}", trimmed);
+    }
+
+    private string NormalizeCommandPayload(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        string trimmed = value.Trim();
+        if (!trimmed.StartsWith("!"))
+        {
+            return trimmed;
+        }
+
+        int firstSpace = trimmed.IndexOf(' ');
+        if (firstSpace < 0 || firstSpace == trimmed.Length - 1)
+        {
+            return null;
+        }
+
+        return trimmed.Substring(firstSpace + 1).Trim();
+    }
+
+    private string ExtractFirstToken(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        string trimmed = value.Trim();
+        int firstSpace = trimmed.IndexOf(' ');
+        if (firstSpace < 0)
+        {
+            return trimmed;
+        }
+
+        return trimmed.Substring(0, firstSpace).Trim();
+    }
+
+    private string BuildSignature(string body, string timestamp, string secret)
+    {
+        using (var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret)))
+        {
+            byte[] hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(string.Format("{0}.{1}", timestamp, body)));
+            return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+        }
+    }
+
+    private string ExtractReplyMessage(string responseText)
+    {
+        if (string.IsNullOrWhiteSpace(responseText))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            if (TryExtractJsonStringProperty(responseText, "replyMessage", out string reply))
+            {
+                return JsonUnescape(reply);
+            }
+
+            if (TryExtractJsonStringProperty(responseText, "error", out string errorMessage))
+            {
+                return JsonUnescape(errorMessage);
+            }
+        }
+        catch (Exception ex)
+        {
+            CPH.LogWarn(string.Format("[Loja Neon] Nao consegui ler a resposta de quote overlay: {0}", ex.Message));
+        }
+
+        return string.Empty;
+    }
+
+    private bool TryExtractJsonStringProperty(string json, string propertyName, out string value)
+    {
+        value = string.Empty;
+
+        string needle = "\"" + propertyName + "\"";
+        int propertyIndex = json.IndexOf(needle, StringComparison.Ordinal);
+        if (propertyIndex < 0)
+        {
+            return false;
+        }
+
+        int colonIndex = json.IndexOf(':', propertyIndex + needle.Length);
+        if (colonIndex < 0)
+        {
+            return false;
+        }
+
+        int valueStart = colonIndex + 1;
+        while (valueStart < json.Length && char.IsWhiteSpace(json[valueStart]))
+        {
+            valueStart++;
+        }
+
+        if (valueStart >= json.Length || json[valueStart] != '"')
+        {
+            return false;
+        }
+
+        var builder = new StringBuilder();
+        bool escaping = false;
+
+        for (int i = valueStart + 1; i < json.Length; i++)
+        {
+            char current = json[i];
+
+            if (escaping)
+            {
+                builder.Append('\\');
+                builder.Append(current);
+                escaping = false;
+                continue;
+            }
+
+            if (current == '\\')
+            {
+                escaping = true;
+                continue;
+            }
+
+            if (current == '"')
+            {
+                value = builder.ToString();
+                return true;
+            }
+
+            builder.Append(current);
+        }
+
+        return false;
+    }
+
+    private string BuildRequestBody(
+        string viewerExternalId,
+        string displayName,
+        string youtubeHandle,
+        string quoteId,
+        int displayDurationSeconds,
+        string source
+    )
+    {
+        var builder = new StringBuilder();
+        builder.Append("{");
+        builder.Append("\"action\":\"show\"");
+        builder.AppendFormat(",\"viewerExternalId\":\"{0}\"", JsonEscape(viewerExternalId));
+
+        if (!string.IsNullOrWhiteSpace(displayName))
+        {
+            builder.AppendFormat(",\"youtubeDisplayName\":\"{0}\"", JsonEscape(displayName));
+        }
+
+        if (!string.IsNullOrWhiteSpace(youtubeHandle))
+        {
+            builder.AppendFormat(",\"youtubeHandle\":\"{0}\"", JsonEscape(youtubeHandle));
+        }
+
+        if (!string.IsNullOrWhiteSpace(quoteId))
+        {
+            builder.AppendFormat(",\"quoteId\":{0}", quoteId);
+        }
+
+        builder.AppendFormat(",\"displayDurationSeconds\":{0}", displayDurationSeconds);
+        builder.AppendFormat(",\"source\":\"{0}\"", JsonEscape(source));
+        builder.Append("}");
+        return builder.ToString();
+    }
+
+    private string JsonEscape(string value)
+    {
+        if (value == null)
+        {
+            return string.Empty;
+        }
+
+        return value
+            .Replace("\\", "\\\\")
+            .Replace("\"", "\\\"")
+            .Replace("\r", "\\r")
+            .Replace("\n", "\\n")
+            .Replace("\t", "\\t");
+    }
+
+    private string JsonUnescape(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        return value
+            .Replace("\\\"", "\"")
+            .Replace("\\\\", "\\")
+            .Replace("\\r", "\r")
+            .Replace("\\n", "\n")
+            .Replace("\\t", "\t");
+    }
+}

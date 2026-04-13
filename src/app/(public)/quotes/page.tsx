@@ -1,3 +1,5 @@
+import { auth } from "@/auth";
+import { QuoteOverlayTrigger } from "@/components/quote-overlay-trigger";
 import {
   Card,
   CardContent,
@@ -6,8 +8,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { listQuotes } from "@/lib/db/repository";
-import { formatDateTime } from "@/lib/utils";
+import { getViewerDashboard, listQuotes } from "@/lib/db/repository";
+import { formatDateTime, formatPipetz } from "@/lib/utils";
 
 const quoteCardBackgrounds = [
   "bg-[var(--color-paper)]",
@@ -17,7 +19,13 @@ const quoteCardBackgrounds = [
 ];
 
 export default async function QuotesPage() {
-  const quotes = await listQuotes();
+  const session = await auth();
+  const activeViewerId = session?.user?.activeViewerId ?? null;
+  const [quotes, dashboard] = await Promise.all([
+    listQuotes(),
+    activeViewerId ? getViewerDashboard(activeViewerId) : Promise.resolve(null),
+  ]);
+  const canShowOnOverlay = Boolean(activeViewerId);
 
   return (
     <div className="flex w-full flex-col pb-20 pt-8">
@@ -38,6 +46,9 @@ export default async function QuotesPage() {
               Aqui ficam as melhores perolas salvas pelo chat. Tudo em ordem de cadastro, com o
               numero da quote e quem registrou.
             </p>
+            <p className="mt-3 inline-flex items-center gap-2 border-[3px] border-[var(--color-ink)] bg-[var(--color-paper)] px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-[var(--color-ink)] shadow-[4px_4px_0_#000]">
+              Mostrar no OBS custa {formatPipetz(50)} pipetz
+            </p>
           </div>
           <div className="sticker hidden accent-chip-strong px-4 py-2 text-sm sm:inline-flex">
             {quotes.length} quotes
@@ -55,7 +66,7 @@ export default async function QuotesPage() {
                   variant="poster"
                   className={`gap-4 p-5 ${quoteCardBackgrounds[index % quoteCardBackgrounds.length]}`}
                 >
-                  <CardHeader className="flex-row items-start justify-between gap-4">
+                  <CardHeader>
                     <div>
                       <CardDescription className="mono text-[10px] uppercase tracking-[0.28em] text-[var(--color-ink-soft)]">
                         Quote registrada
@@ -67,9 +78,6 @@ export default async function QuotesPage() {
                         #{quote.quoteNumber}
                       </CardTitle>
                     </div>
-                    <div className="card-brutal-static bg-[var(--color-paper)] px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em]">
-                      {quote.source.replaceAll("_", " ")}
-                    </div>
                   </CardHeader>
 
                   <CardContent>
@@ -80,12 +88,18 @@ export default async function QuotesPage() {
                     </blockquote>
                   </CardContent>
 
-                  <CardFooter className="flex flex-wrap items-center justify-between gap-3 text-sm font-bold text-[var(--color-ink-soft)]">
-                    <div>
+                  <CardFooter className="flex flex-wrap items-end justify-between gap-4 text-sm font-bold text-[var(--color-ink-soft)]">
+                    <div className="flex flex-col gap-1">
                       <span>{quote.createdByDisplayName}</span>
                       {quote.createdByYoutubeHandle ? ` • ${quote.createdByYoutubeHandle}` : ""}
+                      <span>{formatDateTime(quote.createdAt)}</span>
                     </div>
-                    <span>{formatDateTime(quote.createdAt)}</span>
+                    <QuoteOverlayTrigger
+                      quoteId={quote.quoteNumber}
+                      loggedIn={Boolean(session?.user)}
+                      canShow={canShowOnOverlay}
+                      viewerBalance={dashboard?.balance.currentBalance}
+                    />
                   </CardFooter>
                 </Card>
               ))

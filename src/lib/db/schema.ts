@@ -300,6 +300,24 @@ export const quotes = pgTable(
   }),
 );
 
+export const quoteOverlayState = pgTable("quote_overlay_state", {
+  slot: varchar("slot", { length: 32 }).primaryKey(),
+  overlayId: varchar("overlay_id", { length: 64 }).notNull(),
+  quoteNumber: integer("quote_number").notNull(),
+  quoteBody: text("quote_body").notNull(),
+  createdByDisplayName: varchar("created_by_display_name", { length: 255 }).notNull(),
+  createdByYoutubeHandle: varchar("created_by_youtube_handle", { length: 255 }),
+  requestedByViewerId: varchar("requested_by_viewer_id", { length: 64 })
+    .references(() => users.id)
+    .notNull(),
+  requestedByDisplayName: varchar("requested_by_display_name", { length: 255 }).notNull(),
+  requestedByYoutubeHandle: varchar("requested_by_youtube_handle", { length: 255 }),
+  source: varchar("source", { length: 64 }).default("streamerbot_chat").notNull(),
+  cost: integer("cost").notNull(),
+  activatedAt: timestamp("activated_at", { withTimezone: true }).defaultNow().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
 export const streamerbotCounters = pgTable("streamerbot_counters", {
   key: varchar("key", { length: 64 }).primaryKey(),
   value: integer("value").default(0).notNull(),
