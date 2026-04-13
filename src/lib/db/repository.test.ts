@@ -41,6 +41,7 @@ import {
   ensureViewerFromSession,
   getViewerDashboard,
   getSessionViewerState,
+  getViewerBalanceFromChatCommand,
   ingestStreamerbotEvent,
   listAdminProductRecommendations,
   listBets,
@@ -1024,6 +1025,79 @@ describe("placeBetFromChatCommand", () => {
         source: "streamerbot_chat",
       }),
     ).rejects.toThrow("multiple_open_bets");
+  });
+});
+
+describe("getViewerBalanceFromChatCommand", () => {
+  beforeEach(() => {
+    getDbMock.mockReset();
+    getDbMock.mockReturnValue(null);
+    delete (globalThis as typeof globalThis & { __lojaDemoStore?: unknown }).__lojaDemoStore;
+  });
+
+  it("returns the current balance for an existing chat viewer without mutating the store", async () => {
+    const before = await getViewerDashboard("viewer_lia");
+    const beforeStore = structuredClone(
+      (globalThis as typeof globalThis & {
+        __lojaDemoStore?: {
+          viewers: Array<{
+            id: string;
+            youtubeChannelId: string | null;
+            youtubeDisplayName: string;
+          }>;
+          balances: Array<{
+            viewerId: string;
+            currentBalance: number;
+          }>;
+        };
+      }).__lojaDemoStore,
+    );
+
+    const result = await getViewerBalanceFromChatCommand({
+      viewerExternalId: "yt_lia",
+      youtubeDisplayName: "Lia Pixel Renomeada",
+      source: "streamerbot_chat",
+    });
+
+    const after = await getViewerDashboard("viewer_lia");
+    const afterStore = (globalThis as typeof globalThis & {
+      __lojaDemoStore?: {
+        viewers: Array<{
+          id: string;
+          youtubeChannelId: string | null;
+          youtubeDisplayName: string;
+        }>;
+        balances: Array<{
+          viewerId: string;
+          currentBalance: number;
+        }>;
+      };
+    }).__lojaDemoStore;
+
+    expect(result.viewer.id).toBe("viewer_lia");
+    expect(result.balance.currentBalance).toBe(520);
+    expect(after?.balance.currentBalance).toBe(before?.balance.currentBalance);
+    expect(afterStore).toEqual(beforeStore);
+  });
+
+  it("returns a clear error when the chat viewer does not exist yet", async () => {
+    await expect(
+      getViewerBalanceFromChatCommand({
+        viewerExternalId: "yt_novo",
+        youtubeDisplayName: "Viewer Novo",
+        source: "streamerbot_chat",
+      }),
+    ).rejects.toThrow("viewer_not_ready");
+
+    const store = (globalThis as typeof globalThis & {
+      __lojaDemoStore?: {
+        viewers: Array<{
+          youtubeChannelId: string | null;
+        }>;
+      };
+    }).__lojaDemoStore;
+
+    expect(store?.viewers.some((entry) => entry.youtubeChannelId === "yt_novo")).toBe(false);
   });
 });
 

@@ -51,6 +51,13 @@ export const streamerbotChatBetSchema = z
     path: ["optionId"],
   });
 
+export const streamerbotViewerBalanceCommandSchema = z.object({
+  viewerExternalId: z.string().min(1),
+  youtubeDisplayName: z.string().min(1).optional(),
+  youtubeHandle: z.string().min(1).optional(),
+  source: z.string().default("streamerbot_chat"),
+});
+
 export const streamerbotQuoteCommandSchema = z
   .object({
     action: z.enum(["create", "get"]),
