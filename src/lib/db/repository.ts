@@ -1497,6 +1497,10 @@ export async function ensureViewerFromSession(input: SessionBootstrapInput) {
   }
 
   const youtubeChannels = normalizeSessionYoutubeChannels(input.youtubeChannels);
+  const syntheticYoutubeChannelId = buildSyntheticYoutubeChannelId({
+    googleUserId: input.googleUserId,
+    email: input.email,
+  });
   const db = getDb();
   if (isDemoMode || !db) {
     const store = getDemoStore();
@@ -1591,20 +1595,20 @@ export async function ensureViewerFromSession(input: SessionBootstrapInput) {
           : activeViewer ?? listDemoViewersForGoogleAccount(store, googleAccount.id)[0] ?? null;
 
     if (!preferredViewer) {
-      preferredViewer = buildViewerRecord({
-        googleUserId: input.googleUserId,
-        email: input.email,
-        name: input.name,
-        image: input.image,
-        youtubeChannelId: buildSyntheticYoutubeChannelId({
+      preferredViewer = getDemoViewerByYoutubeChannelId(store, syntheticYoutubeChannelId);
+      if (!preferredViewer) {
+        preferredViewer = buildViewerRecord({
           googleUserId: input.googleUserId,
           email: input.email,
-        }),
-        youtubeDisplayName: input.name ?? input.email.split("@")[0],
-        isLinked: false,
-      });
-      store.viewers.push(preferredViewer);
-      getBalance(store, preferredViewer.id);
+          name: input.name,
+          image: input.image,
+          youtubeChannelId: syntheticYoutubeChannelId,
+          youtubeDisplayName: input.name ?? input.email.split("@")[0],
+          isLinked: false,
+        });
+        store.viewers.push(preferredViewer);
+        getBalance(store, preferredViewer.id);
+      }
     }
 
     preferredViewer.googleUserId = input.googleUserId;
@@ -1763,15 +1767,16 @@ export async function ensureViewerFromSession(input: SessionBootstrapInput) {
   }
 
   if (!preferredViewer) {
+    preferredViewer = await withViewerByYoutubeChannelId(syntheticYoutubeChannelId);
+  }
+
+  if (!preferredViewer) {
     preferredViewer = buildViewerRecord({
       googleUserId: input.googleUserId,
       email: input.email,
       name: input.name,
       image: input.image,
-      youtubeChannelId: buildSyntheticYoutubeChannelId({
-        googleUserId: input.googleUserId,
-        email: input.email,
-      }),
+      youtubeChannelId: syntheticYoutubeChannelId,
       youtubeDisplayName: input.name ?? input.email.split("@")[0],
       isLinked: false,
     });

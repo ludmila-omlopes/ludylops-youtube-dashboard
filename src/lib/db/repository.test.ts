@@ -1573,6 +1573,44 @@ describe("ensureViewerFromSession", () => {
     expect(store.googleAccountViewers.some((entry: { viewerId: string }) => entry.viewerId === fallbackViewer?.id)).toBe(false);
   });
 
+  it("reuses an orphan synthetic fallback viewer instead of creating a duplicate session channel", async () => {
+    getDbMock.mockReturnValue(null);
+
+    const fallbackViewer = await ensureViewerFromSession({
+      googleUserId: "google_retry",
+      email: "retry@example.com",
+      name: "Retry",
+      image: null,
+    });
+
+    const store = (globalThis as typeof globalThis & {
+      __lojaDemoStore?: {
+        googleAccounts: Array<{ id: string; email: string; activeViewerId: string | null }>;
+        googleAccountViewers: Array<{ id: string; googleAccountId: string; viewerId: string; createdAt: string }>;
+      };
+    }).__lojaDemoStore;
+    const account = store?.googleAccounts.find((entry) => entry.email === "retry@example.com");
+    if (!store || !account || !fallbackViewer) {
+      throw new Error("Expected demo account and fallback viewer for retry@example.com.");
+    }
+
+    store.googleAccountViewers = store.googleAccountViewers.filter((entry) => entry.viewerId !== fallbackViewer.id);
+    account.activeViewerId = null;
+
+    const retriedViewer = await ensureViewerFromSession({
+      googleUserId: "google_retry",
+      email: "retry@example.com",
+      name: "Retry",
+      image: null,
+    });
+
+    expect(retriedViewer?.id).toBe(fallbackViewer.id);
+
+    const channels = await listViewerChannelsForGoogleAccount(account.id);
+    expect(channels).toHaveLength(1);
+    expect(channels[0]?.youtubeChannelId).toBe("session:google_retry");
+  });
+
   it("attaches an orphan chat viewer when the same user later logs in with Google", async () => {
     getDbMock.mockReturnValue(null);
 
