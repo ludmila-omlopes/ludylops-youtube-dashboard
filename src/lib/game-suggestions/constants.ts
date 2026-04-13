@@ -1,0 +1,1 @@
+export const GAME_SUGGESTION_CREATION_COST = 200;

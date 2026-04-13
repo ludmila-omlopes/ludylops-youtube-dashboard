@@ -46,6 +46,7 @@ import {
   demoViewers,
 } from "@/lib/demo-data";
 import { adminEmails, isDemoMode } from "@/lib/env";
+import { GAME_SUGGESTION_CREATION_COST } from "@/lib/game-suggestions/constants";
 import {
   eventRequiresActiveLivestream,
   isStreamerbotLivestreamActive,
@@ -2111,6 +2112,7 @@ export async function createGameSuggestion(input: {
   name: string;
   description?: string | null;
   linkUrl?: string | null;
+  source?: string;
 }) {
   const viewer = await withViewerById(input.viewerId);
   if (!viewer) {
@@ -2125,6 +2127,8 @@ export async function createGameSuggestion(input: {
     throw new Error("invalid_name");
   }
 
+  const source = input.source ?? "web";
+  const suggestionId = randomUUID();
   const db = getDb();
   if (isDemoMode || !db) {
     const store = getDemoStore();
@@ -2135,9 +2139,18 @@ export async function createGameSuggestion(input: {
       throw new Error("suggestion_already_exists");
     }
 
+    const balance = getBalance(store, input.viewerId);
+    if (balance.currentBalance < GAME_SUGGESTION_CREATION_COST) {
+      throw new Error("saldo_insuficiente");
+    }
+
     const createdAt = new Date().toISOString();
+    balance.currentBalance -= GAME_SUGGESTION_CREATION_COST;
+    balance.lifetimeSpent += GAME_SUGGESTION_CREATION_COST;
+    balance.lastSyncedAt = createdAt;
+
     const suggestion: GameSuggestionRecord = {
-      id: randomUUID(),
+      id: suggestionId,
       viewerId: input.viewerId,
       slug,
       name,
@@ -2149,33 +2162,75 @@ export async function createGameSuggestion(input: {
       updatedAt: createdAt,
     };
     store.gameSuggestions.unshift(suggestion);
+
+    createLedgerEntry(store, {
+      viewerId: input.viewerId,
+      kind: "game_suggestion_creation",
+      amount: -GAME_SUGGESTION_CREATION_COST,
+      source,
+      externalEventId: null,
+      metadata: { suggestionId, slug },
+      createdAt,
+    });
+
     return buildGameSuggestionWithMeta({ suggestion, viewer, boosts: [] });
   }
 
-  const [existing] = await db
-    .select()
-    .from(gameSuggestions)
-    .where(and(eq(gameSuggestions.slug, slug), inArray(gameSuggestions.status, ["open", "accepted"])))
-    .limit(1);
-  if (existing) {
-    throw new Error("suggestion_already_exists");
-  }
-
   const createdAt = new Date();
-  await db.insert(gameSuggestions).values({
-    id: randomUUID(),
-    viewerId: input.viewerId,
-    slug,
-    name,
-    description,
-    linkUrl,
-    status: "open",
-    totalVotes: 0,
-    createdAt,
-    updatedAt: createdAt,
+  await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(gameSuggestions)
+      .where(and(eq(gameSuggestions.slug, slug), inArray(gameSuggestions.status, ["open", "accepted"])))
+      .limit(1);
+    if (existing) {
+      throw new Error("suggestion_already_exists");
+    }
+
+    const [debited] = await tx
+      .update(viewerBalances)
+      .set({
+        currentBalance: sql`${viewerBalances.currentBalance} - ${GAME_SUGGESTION_CREATION_COST}`,
+        lifetimeSpent: sql`${viewerBalances.lifetimeSpent} + ${GAME_SUGGESTION_CREATION_COST}`,
+        lastSyncedAt: createdAt,
+      })
+      .where(
+        and(
+          eq(viewerBalances.viewerId, input.viewerId),
+          gte(viewerBalances.currentBalance, GAME_SUGGESTION_CREATION_COST),
+        ),
+      )
+      .returning({ viewerId: viewerBalances.viewerId });
+    if (!debited) {
+      throw new Error("saldo_insuficiente");
+    }
+
+    await tx.insert(gameSuggestions).values({
+      id: suggestionId,
+      viewerId: input.viewerId,
+      slug,
+      name,
+      description,
+      linkUrl,
+      status: "open",
+      totalVotes: 0,
+      createdAt,
+      updatedAt: createdAt,
+    });
+
+    await tx.insert(pointLedger).values({
+      id: randomUUID(),
+      viewerId: input.viewerId,
+      kind: "game_suggestion_creation",
+      amount: -GAME_SUGGESTION_CREATION_COST,
+      source,
+      externalEventId: null,
+      metadata: { suggestionId, slug },
+      createdAt,
+    });
   });
 
-  const created = (await listGameSuggestions(input.viewerId)).find((entry) => entry.slug === slug);
+  const created = (await listGameSuggestions(input.viewerId)).find((entry) => entry.id === suggestionId);
   if (!created) {
     throw new Error("Falha ao criar sugestao.");
   }

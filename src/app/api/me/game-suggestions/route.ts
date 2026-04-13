@@ -34,6 +34,7 @@ export async function POST(request: Request) {
       viewerId: session.user.activeViewerId,
       name: parsed.data.name,
       description: parsed.data.description,
+      source: "web",
     });
 
     return ok(suggestion, { status: 201 });

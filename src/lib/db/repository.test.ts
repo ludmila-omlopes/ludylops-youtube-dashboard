@@ -30,6 +30,7 @@ import {
   users,
   viewerBalances,
 } from "@/lib/db/schema";
+import { GAME_SUGGESTION_CREATION_COST } from "@/lib/game-suggestions/constants";
 import {
   boostGameSuggestion,
   cancelBet,
@@ -1092,10 +1093,16 @@ describe("game suggestions", () => {
   });
 
   it("creates a new game suggestion in demo mode", async () => {
+    const before = await getViewerDashboard("viewer_ana");
+    expect(before).not.toBeNull();
+    const beforeBalance = before?.balance.currentBalance ?? 0;
+    const beforeSpent = before?.balance.lifetimeSpent ?? 0;
+
     const created = await createGameSuggestion({
       viewerId: "viewer_ana",
       name: "Balatro",
       description: "Me deixa te ver quebrando a run.",
+      source: "web",
     });
 
     expect(created).toMatchObject({
@@ -1107,6 +1114,29 @@ describe("game suggestions", () => {
 
     const suggestions = await listGameSuggestions("viewer_ana");
     expect(suggestions.some((entry) => entry.name === "Balatro")).toBe(true);
+
+    const after = await getViewerDashboard("viewer_ana");
+    expect(after?.balance.currentBalance).toBe(beforeBalance - GAME_SUGGESTION_CREATION_COST);
+    expect(after?.balance.lifetimeSpent).toBe(beforeSpent + GAME_SUGGESTION_CREATION_COST);
+
+    const store = (globalThis as typeof globalThis & {
+      __lojaDemoStore?: {
+        ledger: Array<{
+          viewerId: string;
+          kind: string;
+          amount: number;
+          source: string;
+          metadata: Record<string, unknown>;
+        }>;
+      };
+    }).__lojaDemoStore;
+    expect(store?.ledger[0]).toMatchObject({
+      viewerId: "viewer_ana",
+      kind: "game_suggestion_creation",
+      amount: -GAME_SUGGESTION_CREATION_COST,
+      source: "web",
+      metadata: { suggestionId: created.id },
+    });
   });
 
   it("rejects duplicate open suggestions by slug", async () => {
@@ -1116,6 +1146,31 @@ describe("game suggestions", () => {
         name: "Hades II",
       }),
     ).rejects.toThrow("suggestion_already_exists");
+  });
+
+  it("blocks new suggestions when the viewer has insufficient balance", async () => {
+    void (await getViewerDashboard("viewer_lia"));
+    const store = (globalThis as typeof globalThis & {
+      __lojaDemoStore?: {
+        balances: Array<{
+          viewerId: string;
+          currentBalance: number;
+        }>;
+      };
+    }).__lojaDemoStore;
+
+    const balance = store?.balances.find((entry) => entry.viewerId === "viewer_lia");
+    if (!balance) {
+      throw new Error("Expected viewer_lia balance in the demo store.");
+    }
+    balance.currentBalance = GAME_SUGGESTION_CREATION_COST - 1;
+
+    await expect(
+      createGameSuggestion({
+        viewerId: "viewer_lia",
+        name: "Signalis",
+      }),
+    ).rejects.toThrow("saldo_insuficiente");
   });
 
   it("spends balance and increases votes when boosting", async () => {
