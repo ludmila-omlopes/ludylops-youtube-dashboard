@@ -7,6 +7,8 @@ import { AuthButtons } from "@/components/auth-buttons";
 import { LivestreamIndicator } from "@/components/livestream-indicator";
 import { QuickNavGrid } from "@/components/quick-nav-grid";
 import { StickerBadge } from "@/components/sticker-badge";
+import { YoutubePermissionRetryButton } from "@/components/youtube-permission-retry-button";
+import { GOOGLE_ACCOUNT_SWITCH_HINT } from "@/lib/auth/google";
 import { env } from "@/lib/env";
 import type { YoutubeChannelLookupStatus } from "@/lib/google/youtube-channel";
 import {
@@ -94,19 +96,37 @@ function YoutubeLinkingNotice({
     status === "empty"
       ? "Nao encontrei nenhum canal do YouTube nesta conta."
       : status === "scope_missing"
-        ? "O login Google entrou sem permissao para consultar seu canal."
-        : "Nao consegui confirmar seu canal do YouTube nesta tentativa.";
+        ? "Faltou a permissão do YouTube para conectar sua conta."
+        : status === "authorization_required" || status === "insufficient_permissions"
+          ? "Preciso que você reautorize o acesso ao YouTube."
+        : "Não consegui confirmar seu canal do YouTube nesta tentativa.";
+  const ctaLabel =
+    status === "scope_missing" || status === "authorization_required" || status === "insufficient_permissions"
+      ? "Conceder acesso ao YouTube"
+      : "Tentar novamente com Google";
+  const whyItMatters =
+    status === "scope_missing" || status === "authorization_required" || status === "insufficient_permissions"
+      ? "Preciso da leitura do YouTube para descobrir qual canal deve receber seu saldo, ranking e recursos da live."
+      : "Sem confirmar o canal do YouTube, eu não consigo liberar com segurança a sessão vinculada da live.";
 
   return (
     <div className="card-poster mt-6 border-[3px] border-[var(--color-ink)] bg-[var(--color-pink)] p-4 text-[var(--color-accent-ink)]">
       <p className="mono text-[10px] uppercase tracking-[0.24em]">linking google/youtube</p>
       <p className="mt-2 text-lg font-black uppercase leading-tight">{title}</p>
       <p className="mt-3 text-sm font-bold leading-6">{message}</p>
+      <p className="mt-3 text-sm font-medium leading-6">{whyItMatters}</p>
       <p className="mt-3 text-xs font-medium leading-5">
-        Por seguranca, eu nao criei nem troquei automaticamente o viewer desta sessao enquanto esse
+        Por segurança, eu não criei nem troquei automaticamente o viewer desta sessão enquanto esse
         diagnostico nao for resolvido.
       </p>
+      <p className="mt-3 text-xs font-medium leading-5">{GOOGLE_ACCOUNT_SWITCH_HINT}</p>
       <div className="mt-4 flex flex-wrap gap-3">
+        <YoutubePermissionRetryButton
+          label={ctaLabel}
+          pendingLabel="Abrindo Google..."
+          variant="neutral"
+          size="sm"
+        />
         <a
           href={issueUrl}
           target="_blank"
@@ -294,13 +314,13 @@ function HeroPoster({
         className="absolute -right-2 bottom-4 hidden h-20 w-20 rotate-[10deg] lg:inline-flex"
         label="decorative star"
       />
-      <StickerBadge
-        variant="flower"
-        className="absolute right-14 top-14 hidden h-16 w-16 rotate-[-12deg] lg:inline-flex"
-        label="decorative flower"
-      />
 
-      <div className="landing-plane relative z-10 mt-10 bg-[var(--color-paper)] p-6 lg:ml-10 lg:mt-12 lg:p-8">
+      <div
+        className={cn(
+          "landing-plane relative z-10 mt-10 p-6 lg:ml-10 lg:mt-12 lg:p-8",
+          loggedIn ? "bg-[var(--color-paper)]" : "bg-transparent",
+        )}
+      >
         {loggedIn ? (
           <>
             <div>
@@ -341,8 +361,9 @@ function HeroPoster({
               label="coracao decorativo"
             />
             <div className="relative min-h-[340px] sm:min-h-[400px]">
-              <div className="absolute left-1/2 top-14 h-[270px] w-[62%] -translate-x-1/2 border-[4px] border-[var(--color-ink)] bg-[var(--color-purple)] shadow-[7px_7px_0_#000] sm:top-16">
-                <div className="absolute bottom-0 left-1/2 z-10 w-[140%] -translate-x-1/2">
+              <div className="mx-auto w-[72%] max-w-[420px] pt-14 sm:pt-16">
+                <div className="relative aspect-video border-[4px] border-[var(--color-ink)] bg-[var(--color-purple)] shadow-[7px_7px_0_#000]">
+                  <div className="absolute bottom-0 left-1/2 z-10 w-[140%] -translate-x-1/2">
                   <Image
                     src={LUDYLOPS_PROFILE_IMAGE}
                     alt="Foto da Ludylops"
@@ -351,10 +372,9 @@ function HeroPoster({
                     height={1100}
                     priority
                   />
+                  </div>
                 </div>
               </div>
-
-
 
               <div className="absolute bottom-3 right-3 z-20 flex h-20 w-20 items-center justify-center rounded-full border-[4px] border-[var(--color-ink)] bg-[var(--color-pink-hot)] shadow-[5px_5px_0_#000] sm:bottom-5 sm:right-5 sm:h-24 sm:w-24">
                 <div className="flex rotate-[20deg] h-11 w-11 items-center justify-center rounded-full bg-[var(--color-yellow)] text-xl font-black text-[var(--color-accent-ink)]">

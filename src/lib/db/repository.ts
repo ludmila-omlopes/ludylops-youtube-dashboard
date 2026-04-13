@@ -47,6 +47,7 @@ import {
   demoViewers,
 } from "@/lib/demo-data";
 import { adminEmails, isDemoMode } from "@/lib/env";
+import { GAME_SUGGESTION_CREATION_COST } from "@/lib/game-suggestions/constants";
 import {
   eventRequiresActiveLivestream,
   requireActiveLivestream,
@@ -1725,6 +1726,10 @@ export async function ensureViewerFromSession(input: SessionBootstrapInput) {
   }
 
   const youtubeChannels = normalizeSessionYoutubeChannels(input.youtubeChannels);
+  const syntheticYoutubeChannelId = buildSyntheticYoutubeChannelId({
+    googleUserId: input.googleUserId,
+    email: input.email,
+  });
   const db = getDb();
   if (isDemoMode || !db) {
     const store = getDemoStore();
@@ -1819,20 +1824,20 @@ export async function ensureViewerFromSession(input: SessionBootstrapInput) {
           : activeViewer ?? listDemoViewersForGoogleAccount(store, googleAccount.id)[0] ?? null;
 
     if (!preferredViewer) {
-      preferredViewer = buildViewerRecord({
-        googleUserId: input.googleUserId,
-        email: input.email,
-        name: input.name,
-        image: input.image,
-        youtubeChannelId: buildSyntheticYoutubeChannelId({
+      preferredViewer = getDemoViewerByYoutubeChannelId(store, syntheticYoutubeChannelId);
+      if (!preferredViewer) {
+        preferredViewer = buildViewerRecord({
           googleUserId: input.googleUserId,
           email: input.email,
-        }),
-        youtubeDisplayName: input.name ?? input.email.split("@")[0],
-        isLinked: false,
-      });
-      store.viewers.push(preferredViewer);
-      getBalance(store, preferredViewer.id);
+          name: input.name,
+          image: input.image,
+          youtubeChannelId: syntheticYoutubeChannelId,
+          youtubeDisplayName: input.name ?? input.email.split("@")[0],
+          isLinked: false,
+        });
+        store.viewers.push(preferredViewer);
+        getBalance(store, preferredViewer.id);
+      }
     }
 
     preferredViewer.googleUserId = input.googleUserId;
@@ -1991,15 +1996,16 @@ export async function ensureViewerFromSession(input: SessionBootstrapInput) {
   }
 
   if (!preferredViewer) {
+    preferredViewer = await withViewerByYoutubeChannelId(syntheticYoutubeChannelId);
+  }
+
+  if (!preferredViewer) {
     preferredViewer = buildViewerRecord({
       googleUserId: input.googleUserId,
       email: input.email,
       name: input.name,
       image: input.image,
-      youtubeChannelId: buildSyntheticYoutubeChannelId({
-        googleUserId: input.googleUserId,
-        email: input.email,
-      }),
+      youtubeChannelId: syntheticYoutubeChannelId,
       youtubeDisplayName: input.name ?? input.email.split("@")[0],
       isLinked: false,
     });
@@ -2340,6 +2346,7 @@ export async function createGameSuggestion(input: {
   name: string;
   description?: string | null;
   linkUrl?: string | null;
+  source?: string;
 }) {
   const viewer = await withViewerById(input.viewerId);
   if (!viewer) {
@@ -2354,6 +2361,8 @@ export async function createGameSuggestion(input: {
     throw new Error("invalid_name");
   }
 
+  const source = input.source ?? "web";
+  const suggestionId = randomUUID();
   const db = getDb();
   if (isDemoMode || !db) {
     const store = getDemoStore();
@@ -2364,9 +2373,18 @@ export async function createGameSuggestion(input: {
       throw new Error("suggestion_already_exists");
     }
 
+    const balance = getBalance(store, input.viewerId);
+    if (balance.currentBalance < GAME_SUGGESTION_CREATION_COST) {
+      throw new Error("saldo_insuficiente");
+    }
+
     const createdAt = new Date().toISOString();
+    balance.currentBalance -= GAME_SUGGESTION_CREATION_COST;
+    balance.lifetimeSpent += GAME_SUGGESTION_CREATION_COST;
+    balance.lastSyncedAt = createdAt;
+
     const suggestion: GameSuggestionRecord = {
-      id: randomUUID(),
+      id: suggestionId,
       viewerId: input.viewerId,
       slug,
       name,
@@ -2378,33 +2396,75 @@ export async function createGameSuggestion(input: {
       updatedAt: createdAt,
     };
     store.gameSuggestions.unshift(suggestion);
+
+    createLedgerEntry(store, {
+      viewerId: input.viewerId,
+      kind: "game_suggestion_creation",
+      amount: -GAME_SUGGESTION_CREATION_COST,
+      source,
+      externalEventId: null,
+      metadata: { suggestionId, slug },
+      createdAt,
+    });
+
     return buildGameSuggestionWithMeta({ suggestion, viewer, boosts: [] });
   }
 
-  const [existing] = await db
-    .select()
-    .from(gameSuggestions)
-    .where(and(eq(gameSuggestions.slug, slug), inArray(gameSuggestions.status, ["open", "accepted"])))
-    .limit(1);
-  if (existing) {
-    throw new Error("suggestion_already_exists");
-  }
-
   const createdAt = new Date();
-  await db.insert(gameSuggestions).values({
-    id: randomUUID(),
-    viewerId: input.viewerId,
-    slug,
-    name,
-    description,
-    linkUrl,
-    status: "open",
-    totalVotes: 0,
-    createdAt,
-    updatedAt: createdAt,
+  await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(gameSuggestions)
+      .where(and(eq(gameSuggestions.slug, slug), inArray(gameSuggestions.status, ["open", "accepted"])))
+      .limit(1);
+    if (existing) {
+      throw new Error("suggestion_already_exists");
+    }
+
+    const [debited] = await tx
+      .update(viewerBalances)
+      .set({
+        currentBalance: sql`${viewerBalances.currentBalance} - ${GAME_SUGGESTION_CREATION_COST}`,
+        lifetimeSpent: sql`${viewerBalances.lifetimeSpent} + ${GAME_SUGGESTION_CREATION_COST}`,
+        lastSyncedAt: createdAt,
+      })
+      .where(
+        and(
+          eq(viewerBalances.viewerId, input.viewerId),
+          gte(viewerBalances.currentBalance, GAME_SUGGESTION_CREATION_COST),
+        ),
+      )
+      .returning({ viewerId: viewerBalances.viewerId });
+    if (!debited) {
+      throw new Error("saldo_insuficiente");
+    }
+
+    await tx.insert(gameSuggestions).values({
+      id: suggestionId,
+      viewerId: input.viewerId,
+      slug,
+      name,
+      description,
+      linkUrl,
+      status: "open",
+      totalVotes: 0,
+      createdAt,
+      updatedAt: createdAt,
+    });
+
+    await tx.insert(pointLedger).values({
+      id: randomUUID(),
+      viewerId: input.viewerId,
+      kind: "game_suggestion_creation",
+      amount: -GAME_SUGGESTION_CREATION_COST,
+      source,
+      externalEventId: null,
+      metadata: { suggestionId, slug },
+      createdAt,
+    });
   });
 
-  const created = (await listGameSuggestions(input.viewerId)).find((entry) => entry.slug === slug);
+  const created = (await listGameSuggestions(input.viewerId)).find((entry) => entry.id === suggestionId);
   if (!created) {
     throw new Error("Falha ao criar sugestao.");
   }
@@ -2817,10 +2877,10 @@ async function placeBetForViewer(input: {
       throw new Error("Aposta nao encontrada.");
     }
 
-    const duplicate = store.betEntries.find(
+    const existingStoredEntry = store.betEntries.find(
       (entry) => entry.betId === input.betId && entry.viewerId === dashboard.viewer.id,
     );
-    if (duplicate) {
+    if (existingStoredEntry && existingStoredEntry.optionId !== input.optionId) {
       throw new Error("aposta_ja_registrada");
     }
 
@@ -2833,7 +2893,14 @@ async function placeBetForViewer(input: {
     balance.lifetimeSpent += input.amount;
     balance.lastSyncedAt = new Date().toISOString();
     option.poolAmount += input.amount;
-    store.betEntries.unshift(createdEntry);
+    const persistedEntry = existingStoredEntry
+      ? { ...existingStoredEntry, amount: existingStoredEntry.amount + input.amount }
+      : createdEntry;
+    if (existingStoredEntry) {
+      existingStoredEntry.amount = persistedEntry.amount;
+    } else {
+      store.betEntries.unshift(createdEntry);
+    }
     createLedgerEntry(store, {
       viewerId: dashboard.viewer.id,
       kind: "bet_debit",
@@ -2842,16 +2909,21 @@ async function placeBetForViewer(input: {
       externalEventId: null,
       metadata: { betId: input.betId, optionId: input.optionId },
     });
-    return createdEntry;
+    return { ...persistedEntry };
   }
 
+  let persistedEntry = createdEntry;
   await db.transaction(async (tx) => {
-    const [betRow] = await tx.select().from(bets).where(eq(bets.id, input.betId)).limit(1);
-    const [optionRow] = await tx
-      .select()
-      .from(betOptions)
-      .where(eq(betOptions.id, input.optionId))
-      .limit(1);
+    const [betRow, optionRow, storedEntry] = await Promise.all([
+      tx.select().from(bets).where(eq(bets.id, input.betId)).limit(1).then((rows) => rows[0] ?? null),
+      tx.select().from(betOptions).where(eq(betOptions.id, input.optionId)).limit(1).then((rows) => rows[0] ?? null),
+      tx
+        .select()
+        .from(betEntries)
+        .where(and(eq(betEntries.betId, input.betId), eq(betEntries.viewerId, dashboard.viewer.id)))
+        .limit(1)
+        .then((rows) => rows[0] ?? null),
+    ]);
 
     if (!betRow || !optionRow || optionRow.betId !== input.betId) {
       throw new Error("Aposta nao encontrada.");
@@ -2863,26 +2935,68 @@ async function placeBetForViewer(input: {
       throw new Error("bet_closed");
     }
 
-    const insertedEntries = await tx
-      .insert(betEntries)
-      .values({
-        id: createdEntry.id,
-        betId: input.betId,
-        optionId: input.optionId,
-        viewerId: dashboard.viewer.id,
-        amount: input.amount,
-        payoutAmount: null,
-        settledAt: null,
-        refundedAt: null,
-        createdAt: new Date(createdEntry.createdAt),
-      })
-      .onConflictDoNothing({
-        target: [betEntries.betId, betEntries.viewerId],
-      })
-      .returning({ id: betEntries.id });
-
-    if (insertedEntries.length === 0) {
+    if (storedEntry && storedEntry.optionId !== input.optionId) {
       throw new Error("aposta_ja_registrada");
+    }
+
+    if (storedEntry) {
+      const [updatedEntry] = await tx
+        .update(betEntries)
+        .set({
+          amount: sql`${betEntries.amount} + ${input.amount}`,
+        })
+        .where(eq(betEntries.id, storedEntry.id))
+        .returning();
+
+      if (!updatedEntry) {
+        throw new Error("aposta_ja_registrada");
+      }
+
+      persistedEntry = serializeBetEntry(updatedEntry);
+    } else {
+      const insertedEntries = await tx
+        .insert(betEntries)
+        .values({
+          id: createdEntry.id,
+          betId: input.betId,
+          optionId: input.optionId,
+          viewerId: dashboard.viewer.id,
+          amount: input.amount,
+          payoutAmount: null,
+          settledAt: null,
+          refundedAt: null,
+          createdAt: new Date(createdEntry.createdAt),
+        })
+        .onConflictDoNothing({
+          target: [betEntries.betId, betEntries.viewerId],
+        })
+        .returning({ id: betEntries.id });
+
+      if (insertedEntries.length === 0) {
+        const [conflictingEntry] = await tx
+          .select()
+          .from(betEntries)
+          .where(and(eq(betEntries.betId, input.betId), eq(betEntries.viewerId, dashboard.viewer.id)))
+          .limit(1);
+
+        if (!conflictingEntry || conflictingEntry.optionId !== input.optionId) {
+          throw new Error("aposta_ja_registrada");
+        }
+
+        const [updatedEntry] = await tx
+          .update(betEntries)
+          .set({
+            amount: sql`${betEntries.amount} + ${input.amount}`,
+          })
+          .where(eq(betEntries.id, conflictingEntry.id))
+          .returning();
+
+        if (!updatedEntry) {
+          throw new Error("aposta_ja_registrada");
+        }
+
+        persistedEntry = serializeBetEntry(updatedEntry);
+      }
     }
 
     const debitedBalances = await tx
@@ -2922,7 +3036,7 @@ async function placeBetForViewer(input: {
     });
   });
 
-  return createdEntry;
+  return persistedEntry;
 }
 
 export async function placeBet({

@@ -16,6 +16,8 @@ export type LedgerKind =
   | "bet_refund"
   | "game_suggestion_boost"
   | "quote_overlay_debit";
+  | "game_suggestion_creation"
+  | "game_suggestion_boost";
 
 export type BetStatus =
   | "draft"

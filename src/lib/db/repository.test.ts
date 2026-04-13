@@ -52,6 +52,7 @@ import {
   users,
   viewerBalances,
 } from "@/lib/db/schema";
+import { GAME_SUGGESTION_CREATION_COST } from "@/lib/game-suggestions/constants";
 import {
   boostGameSuggestion,
   cancelBet,
@@ -164,11 +165,30 @@ function createPlaceBetDb(options?: {
   currentBalance?: number;
   insertConflict?: boolean;
   balanceDebitSucceeds?: boolean;
+  existingEntry?: {
+    id: string;
+    optionId: string;
+    amount: number;
+    createdAt?: Date;
+  };
 }) {
   const amount = options?.amount ?? 50;
   const currentBalance = options?.currentBalance ?? 100;
   const insertConflict = options?.insertConflict ?? false;
   const balanceDebitSucceeds = options?.balanceDebitSucceeds ?? true;
+  const existingEntryRow = options?.existingEntry
+    ? {
+        id: options.existingEntry.id,
+        betId: "bet-db-1",
+        optionId: options.existingEntry.optionId,
+        viewerId: "viewer-db-1",
+        amount: options.existingEntry.amount,
+        payoutAmount: null,
+        settledAt: null,
+        refundedAt: null,
+        createdAt: options.existingEntry.createdAt ?? new Date("2026-03-31T10:30:00.000Z"),
+      }
+    : null;
 
   const viewerRow = {
     id: "viewer-db-1",
@@ -249,6 +269,16 @@ function createPlaceBetDb(options?: {
             };
           }
 
+          if (table === betEntries) {
+            return {
+              where() {
+                return {
+                  limit: async () => (existingEntryRow ? [existingEntryRow] : []),
+                };
+              },
+            };
+          }
+
           throw new Error("Unexpected table in placeBet tx stub.");
         },
       };
@@ -299,6 +329,27 @@ function createPlaceBetDb(options?: {
                     balanceRow.lifetimeSpent += amount;
                     balanceRow.lastSyncedAt = new Date();
                     return [{ viewerId: balanceRow.viewerId }];
+                  },
+                };
+              },
+            };
+          },
+        };
+      }
+
+      if (table === betEntries) {
+        return {
+          set() {
+            return {
+              where() {
+                return {
+                  returning: async () => {
+                    if (!existingEntryRow) {
+                      return [];
+                    }
+
+                    existingEntryRow.amount += amount;
+                    return [existingEntryRow];
                   },
                 };
               },
@@ -374,7 +425,7 @@ function createPlaceBetDb(options?: {
 
             if (table === betEntries) {
               return {
-                where: async () => [],
+                where: async () => (existingEntryRow ? [existingEntryRow] : []),
               };
             }
 
@@ -790,9 +841,97 @@ describe("bet lifecycle transitions", () => {
   });
 });
 
+describe("placeBet demo top-ups", () => {
+  beforeEach(() => {
+    getDbMock.mockReset();
+    getDbMock.mockReturnValue(null);
+    delete (globalThis as typeof globalThis & { __lojaDemoStore?: unknown }).__lojaDemoStore;
+  });
+
+  it("allows adding more to the same option in demo mode", async () => {
+    const before = await getViewerDashboard("viewer_ana");
+    const beforeBalance = before?.balance.currentBalance ?? 0;
+
+    const firstEntry = await placeBet({
+      viewerId: "viewer_ana",
+      betId: "bet-1",
+      optionId: "opt-1a",
+      amount: 120,
+      source: "web",
+    });
+    const updatedEntry = await placeBet({
+      viewerId: "viewer_ana",
+      betId: "bet-1",
+      optionId: "opt-1a",
+      amount: 30,
+      source: "web",
+    });
+
+    expect(firstEntry.amount).toBe(120);
+    expect(updatedEntry.amount).toBe(150);
+
+    const bet = (await listBets("viewer_ana")).find((entry) => entry.id === "bet-1");
+    expect(bet?.viewerPosition).toMatchObject({
+      optionId: "opt-1a",
+      amount: 150,
+    });
+    expect(bet?.options.find((option) => option.id === "opt-1a")?.poolAmount).toBe(1400);
+
+    const after = await getViewerDashboard("viewer_ana");
+    expect(after?.balance.currentBalance).toBe(beforeBalance - 150);
+  });
+
+  it("still blocks switching sides after a first bet", async () => {
+    await placeBet({
+      viewerId: "viewer_ana",
+      betId: "bet-1",
+      optionId: "opt-1a",
+      amount: 120,
+      source: "web",
+    });
+
+    await expect(
+      placeBet({
+        viewerId: "viewer_ana",
+        betId: "bet-1",
+        optionId: "opt-1b",
+        amount: 30,
+        source: "web",
+      }),
+    ).rejects.toThrow("aposta_ja_registrada");
+  });
+});
+
 describe("placeBet database guards", () => {
   beforeEach(() => {
     getDbMock.mockReset();
+  });
+
+  it("updates the existing entry when the same option is topped up", async () => {
+    const { db, balanceRow, optionRows } = createPlaceBetDb({
+      existingEntry: {
+        id: "bet-entry-db-1",
+        optionId: "bet-opt-1",
+        amount: 25,
+      },
+    });
+    getDbMock.mockReturnValue(db);
+
+    const entry = await placeBet({
+      viewerId: "viewer-db-1",
+      betId: "bet-db-1",
+      optionId: "bet-opt-1",
+      amount: 50,
+      source: "web",
+    });
+
+    expect(entry).toMatchObject({
+      id: "bet-entry-db-1",
+      amount: 75,
+      optionId: "bet-opt-1",
+    });
+    expect(balanceRow.currentBalance).toBe(50);
+    expect(optionRows[0]?.poolAmount).toBe(150);
   });
 
   it("maps a concurrent insert conflict to duplicate bet", async () => {
@@ -861,6 +1000,42 @@ describe("placeBetFromChatCommand", () => {
 
     const dashboard = await getViewerDashboard("viewer_lia");
     expect(dashboard?.balance.currentBalance).toBe(445);
+  });
+
+  it("allows topping up the same option from chat", async () => {
+    await placeBetFromChatCommand({
+      viewerExternalId: "yt_lia",
+      youtubeDisplayName: "Lia Pixel",
+      betId: "bet-1",
+      optionIndex: 2,
+      amount: 75,
+      source: "streamerbot_chat",
+    });
+
+    const result = await placeBetFromChatCommand({
+      viewerExternalId: "yt_lia",
+      youtubeDisplayName: "Lia Pixel",
+      betId: "bet-1",
+      optionIndex: 2,
+      amount: 25,
+      source: "streamerbot_chat",
+    });
+
+    expect(result.entry).toMatchObject({
+      betId: "bet-1",
+      optionId: "opt-1b",
+      viewerId: "viewer_lia",
+      amount: 100,
+    });
+
+    const bet = (await listBets("viewer_lia")).find((entry) => entry.id === "bet-1");
+    expect(bet?.viewerPosition).toMatchObject({
+      optionId: "opt-1b",
+      amount: 100,
+    });
+
+    const dashboard = await getViewerDashboard("viewer_lia");
+    expect(dashboard?.balance.currentBalance).toBe(420);
   });
 
   it("requires betId when there is more than one open bet", async () => {
@@ -1262,10 +1437,16 @@ describe("game suggestions", () => {
   });
 
   it("creates a new game suggestion in demo mode", async () => {
+    const before = await getViewerDashboard("viewer_ana");
+    expect(before).not.toBeNull();
+    const beforeBalance = before?.balance.currentBalance ?? 0;
+    const beforeSpent = before?.balance.lifetimeSpent ?? 0;
+
     const created = await createGameSuggestion({
       viewerId: "viewer_ana",
       name: "Balatro",
       description: "Me deixa te ver quebrando a run.",
+      source: "web",
     });
 
     expect(created).toMatchObject({
@@ -1277,6 +1458,29 @@ describe("game suggestions", () => {
 
     const suggestions = await listGameSuggestions("viewer_ana");
     expect(suggestions.some((entry) => entry.name === "Balatro")).toBe(true);
+
+    const after = await getViewerDashboard("viewer_ana");
+    expect(after?.balance.currentBalance).toBe(beforeBalance - GAME_SUGGESTION_CREATION_COST);
+    expect(after?.balance.lifetimeSpent).toBe(beforeSpent + GAME_SUGGESTION_CREATION_COST);
+
+    const store = (globalThis as typeof globalThis & {
+      __lojaDemoStore?: {
+        ledger: Array<{
+          viewerId: string;
+          kind: string;
+          amount: number;
+          source: string;
+          metadata: Record<string, unknown>;
+        }>;
+      };
+    }).__lojaDemoStore;
+    expect(store?.ledger[0]).toMatchObject({
+      viewerId: "viewer_ana",
+      kind: "game_suggestion_creation",
+      amount: -GAME_SUGGESTION_CREATION_COST,
+      source: "web",
+      metadata: { suggestionId: created.id },
+    });
   });
 
   it("rejects duplicate open suggestions by slug", async () => {
@@ -1286,6 +1490,31 @@ describe("game suggestions", () => {
         name: "Hades II",
       }),
     ).rejects.toThrow("suggestion_already_exists");
+  });
+
+  it("blocks new suggestions when the viewer has insufficient balance", async () => {
+    void (await getViewerDashboard("viewer_lia"));
+    const store = (globalThis as typeof globalThis & {
+      __lojaDemoStore?: {
+        balances: Array<{
+          viewerId: string;
+          currentBalance: number;
+        }>;
+      };
+    }).__lojaDemoStore;
+
+    const balance = store?.balances.find((entry) => entry.viewerId === "viewer_lia");
+    if (!balance) {
+      throw new Error("Expected viewer_lia balance in the demo store.");
+    }
+    balance.currentBalance = GAME_SUGGESTION_CREATION_COST - 1;
+
+    await expect(
+      createGameSuggestion({
+        viewerId: "viewer_lia",
+        name: "Signalis",
+      }),
+    ).rejects.toThrow("saldo_insuficiente");
   });
 
   it("spends balance and increases votes when boosting", async () => {
@@ -1512,6 +1741,44 @@ describe("ensureViewerFromSession", () => {
     expect(channels.map((entry) => entry.youtubeChannelId)).toEqual(["UC_LUD_REAL"]);
     expect(store.viewers.some((entry: { id: string }) => entry.id === fallbackViewer?.id)).toBe(false);
     expect(store.googleAccountViewers.some((entry: { viewerId: string }) => entry.viewerId === fallbackViewer?.id)).toBe(false);
+  });
+
+  it("reuses an orphan synthetic fallback viewer instead of creating a duplicate session channel", async () => {
+    getDbMock.mockReturnValue(null);
+
+    const fallbackViewer = await ensureViewerFromSession({
+      googleUserId: "google_retry",
+      email: "retry@example.com",
+      name: "Retry",
+      image: null,
+    });
+
+    const store = (globalThis as typeof globalThis & {
+      __lojaDemoStore?: {
+        googleAccounts: Array<{ id: string; email: string; activeViewerId: string | null }>;
+        googleAccountViewers: Array<{ id: string; googleAccountId: string; viewerId: string; createdAt: string }>;
+      };
+    }).__lojaDemoStore;
+    const account = store?.googleAccounts.find((entry) => entry.email === "retry@example.com");
+    if (!store || !account || !fallbackViewer) {
+      throw new Error("Expected demo account and fallback viewer for retry@example.com.");
+    }
+
+    store.googleAccountViewers = store.googleAccountViewers.filter((entry) => entry.viewerId !== fallbackViewer.id);
+    account.activeViewerId = null;
+
+    const retriedViewer = await ensureViewerFromSession({
+      googleUserId: "google_retry",
+      email: "retry@example.com",
+      name: "Retry",
+      image: null,
+    });
+
+    expect(retriedViewer?.id).toBe(fallbackViewer.id);
+
+    const channels = await listViewerChannelsForGoogleAccount(account.id);
+    expect(channels).toHaveLength(1);
+    expect(channels[0]?.youtubeChannelId).toBe("session:google_retry");
   });
 
   it("attaches an orphan chat viewer when the same user later logs in with Google", async () => {

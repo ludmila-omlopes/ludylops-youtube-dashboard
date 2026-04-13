@@ -84,7 +84,7 @@ export function BetCard({
   canBet?: boolean;
 }) {
   const router = useRouter();
-  const [selectedOption, setSelectedOption] = useState<string | null>(bet.viewerPosition?.optionId ?? null);
+  const [draftSelectedOption, setDraftSelectedOption] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -107,6 +107,9 @@ export function BetCard({
   const isOpen = bet.status === "open" && new Date(bet.closesAt).getTime() > nowMs;
   const isResolved = bet.status === "resolved";
   const hasViewerBet = Boolean(bet.viewerPosition);
+  const selectedOption = bet.viewerPosition?.optionId ?? draftSelectedOption;
+  const selectedOptionLabel =
+    bet.options.find((option) => option.id === selectedOption)?.label ?? "opcao selecionada";
   const accent = accentColors[index % accentColors.length];
 
   function handlePlace() {
@@ -137,7 +140,7 @@ export function BetCard({
       }
 
       setAmount("");
-      setFeedback("Aposta registrada.");
+      setFeedback(hasViewerBet ? "Aposta reforcada." : "Aposta registrada.");
       router.refresh();
     });
   }
@@ -209,14 +212,14 @@ export function BetCard({
           const isViewerPick = bet.viewerPosition?.optionId === opt.id;
           const pct = bet.totalPool > 0 ? Math.round((opt.poolAmount / bet.totalPool) * 100) : 0;
           const bgClass = optionBgs[i % optionBgs.length];
-          const selectable = isOpen && !hasViewerBet && canBet;
+          const selectable = isOpen && canBet && !hasViewerBet;
 
           return (
             <button
               key={opt.id}
               type="button"
               disabled={!selectable}
-              onClick={() => setSelectedOption(selectedOption === opt.id ? null : opt.id)}
+              onClick={() => setDraftSelectedOption(selectedOption === opt.id ? null : opt.id)}
               className={`card-flat relative flex items-center justify-between overflow-hidden p-3 text-left ${
                 isWinner
                   ? "border-[var(--color-ink)] bg-[var(--color-mint)] ring-2 ring-[var(--color-ink)]"
@@ -282,6 +285,11 @@ export function BetCard({
             {formatPipetz(bet.viewerPosition.amount)} em{" "}
             {bet.options.find((option) => option.id === bet.viewerPosition?.optionId)?.label ?? "opcao"}
           </p>
+          {isOpen && canBet ? (
+            <p className="mt-1 text-[var(--color-ink-soft)]">
+              Voce pode adicionar mais pipetz nessa mesma opcao ate a janela fechar.
+            </p>
+          ) : null}
           {bet.viewerPosition.payoutAmount !== null ? (
             <p className="mt-1 text-[var(--color-ink-soft)]">
               retorno: {formatPipetz(bet.viewerPosition.payoutAmount)}
@@ -293,10 +301,10 @@ export function BetCard({
         </div>
       ) : null}
 
-      {isOpen && selectedOption && !hasViewerBet ? (
+      {isOpen && selectedOption && canBet ? (
         <div className="surface-card mt-4 flex flex-wrap items-center gap-3 rounded-[var(--radius)] border-2 border-dashed border-[var(--color-ink)] p-3">
           <span className="text-xs font-bold uppercase tracking-wide text-[var(--color-ink-soft)]">
-            Quanto apostar?
+            {hasViewerBet ? `Adicionar em ${selectedOptionLabel}?` : "Quanto apostar?"}
           </span>
           <Input
             type="number"
@@ -312,7 +320,7 @@ export function BetCard({
             disabled={isPending}
             size="sm"
           >
-            {isPending ? "Enviando..." : "Apostar"}
+            {isPending ? "Enviando..." : hasViewerBet ? "Adicionar mais" : "Apostar"}
           </Button>
         </div>
       ) : null}
