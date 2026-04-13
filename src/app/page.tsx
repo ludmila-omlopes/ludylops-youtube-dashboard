@@ -6,6 +6,8 @@ import { auth } from "@/auth";
 import { AuthButtons } from "@/components/auth-buttons";
 import { QuickNavGrid } from "@/components/quick-nav-grid";
 import { StickerBadge } from "@/components/sticker-badge";
+import { YoutubePermissionRetryButton } from "@/components/youtube-permission-retry-button";
+import { GOOGLE_ACCOUNT_SWITCH_HINT } from "@/lib/auth/google";
 import { env } from "@/lib/env";
 import type { YoutubeChannelLookupStatus } from "@/lib/google/youtube-channel";
 import {
@@ -92,19 +94,37 @@ function YoutubeLinkingNotice({
     status === "empty"
       ? "Nao encontrei nenhum canal do YouTube nesta conta."
       : status === "scope_missing"
-        ? "O login Google entrou sem permissao para consultar seu canal."
-        : "Nao consegui confirmar seu canal do YouTube nesta tentativa.";
+        ? "Faltou a permissão do YouTube para conectar sua conta."
+        : status === "authorization_required" || status === "insufficient_permissions"
+          ? "Preciso que você reautorize o acesso ao YouTube."
+        : "Não consegui confirmar seu canal do YouTube nesta tentativa.";
+  const ctaLabel =
+    status === "scope_missing" || status === "authorization_required" || status === "insufficient_permissions"
+      ? "Conceder acesso ao YouTube"
+      : "Tentar novamente com Google";
+  const whyItMatters =
+    status === "scope_missing" || status === "authorization_required" || status === "insufficient_permissions"
+      ? "Preciso da leitura do YouTube para descobrir qual canal deve receber seu saldo, ranking e recursos da live."
+      : "Sem confirmar o canal do YouTube, eu não consigo liberar com segurança a sessão vinculada da live.";
 
   return (
     <div className="card-poster mt-6 border-[3px] border-[var(--color-ink)] bg-[var(--color-pink)] p-4 text-[var(--color-accent-ink)]">
       <p className="mono text-[10px] uppercase tracking-[0.24em]">linking google/youtube</p>
       <p className="mt-2 text-lg font-black uppercase leading-tight">{title}</p>
       <p className="mt-3 text-sm font-bold leading-6">{message}</p>
+      <p className="mt-3 text-sm font-medium leading-6">{whyItMatters}</p>
       <p className="mt-3 text-xs font-medium leading-5">
-        Por seguranca, eu nao criei nem troquei automaticamente o viewer desta sessao enquanto esse
+        Por segurança, eu não criei nem troquei automaticamente o viewer desta sessão enquanto esse
         diagnostico nao for resolvido.
       </p>
+      <p className="mt-3 text-xs font-medium leading-5">{GOOGLE_ACCOUNT_SWITCH_HINT}</p>
       <div className="mt-4 flex flex-wrap gap-3">
+        <YoutubePermissionRetryButton
+          label={ctaLabel}
+          pendingLabel="Abrindo Google..."
+          variant="neutral"
+          size="sm"
+        />
         <a
           href={issueUrl}
           target="_blank"
