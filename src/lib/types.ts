@@ -117,6 +117,36 @@ export interface ViewerBalanceRecord {
   lastSyncedAt: string;
 }
 
+export interface AdminViewerDirectoryRecord {
+  id: string;
+  email: string | null;
+  googleUserId: string | null;
+  youtubeChannelId: string;
+  youtubeDisplayName: string;
+  youtubeHandle?: string | null;
+  avatarUrl: string | null;
+  isLinked: boolean;
+  excludeFromRanking: boolean;
+  createdAt: string;
+  currentBalance: number | null;
+  lifetimeEarned: number | null;
+  lifetimeSpent: number | null;
+  lastSyncedAt: string | null;
+  googleAccountId: string | null;
+  googleAccountEmail: string | null;
+  googleAccountDisplayName: string | null;
+  googleAccountActiveViewerId: string | null;
+  isSyntheticYoutubeChannel: boolean;
+}
+
+export interface AdminViewerLinkResult {
+  googleAccountId: string;
+  sourceViewerId: string;
+  targetViewerId: string;
+  transferredOwnerLink: boolean;
+  viewer: AdminViewerDirectoryRecord;
+}
+
 export interface CatalogItemRecord {
   id: string;
   slug: string;

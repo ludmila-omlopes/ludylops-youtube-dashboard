@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/card";
 import { getCatalog, getLeaderboard, getViewerDashboard, listBets } from "@/lib/db/repository";
 import { isStreamerbotLivestreamActive } from "@/lib/streamerbot/live-status";
-import type { BetWithOptionsRecord, CatalogItemRecord } from "@/lib/types";
+import type { BetWithOptionsRecord } from "@/lib/types";
 import { cn, formatPipetz } from "@/lib/utils";
 
 type HomeMetric = {
@@ -39,7 +39,6 @@ type HomeMetric = {
 
 type SpotlightProps = {
   activeBet: BetWithOptionsRecord | undefined;
-  catalog: CatalogItemRecord[];
   loggedIn?: boolean;
 };
 
@@ -289,41 +288,6 @@ function SpotlightOptionCard({
   );
 }
 
-function RedemptionSpotlightCard({
-  item,
-  colorClass,
-}: {
-  item: CatalogItemRecord;
-  colorClass: string;
-}) {
-  return (
-    <Card variant="poster" className={`h-full justify-between gap-4 p-4 sm:p-5 ${colorClass}`}>
-      <CardHeader className="gap-0">
-        <CardDescription className="mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
-          {item.type.replaceAll("_", " ")}
-        </CardDescription>
-        <CardTitle
-          className="mt-4 text-2xl uppercase leading-none"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          {item.name}
-        </CardTitle>
-        <CardContent className="mt-3">
-          <p className="text-sm leading-6 text-[var(--color-ink-soft)]">{item.description}</p>
-        </CardContent>
-      </CardHeader>
-      <CardFooter className="flex flex-wrap items-center justify-between gap-3">
-        <span className="mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
-          resgate instantaneo
-        </span>
-        <span className="text-sm font-black uppercase tracking-[0.08em] text-[var(--color-ink)]">
-          {formatPipetz(item.cost)}
-        </span>
-      </CardFooter>
-    </Card>
-  );
-}
-
 function HeroPoster({
   heading,
   description,
@@ -541,9 +505,12 @@ function RankingHeroCard({
   );
 }
 
-function LiveSpotlight({ activeBet, catalog, loggedIn = false }: SpotlightProps) {
-  if (activeBet) {
-      return (
+function LiveSpotlight({ activeBet, loggedIn = false }: SpotlightProps) {
+  if (!activeBet) {
+    return null;
+  }
+
+  return (
       <div className="p-6 sm:p-8">
         <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
           <div>
@@ -586,54 +553,6 @@ function LiveSpotlight({ activeBet, catalog, loggedIn = false }: SpotlightProps)
           </div>
         </div>
       </div>
-    );
-  }
-
-  const featured = catalog.slice(0, 3);
-  const colors = ["bg-[var(--color-blue)]", "bg-[var(--color-purple)]", "bg-[var(--color-pink)]"];
-
-  return (
-    <div className="p-6 sm:p-8">
-      <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
-        <div>
-          <p className="mono text-[11px] uppercase tracking-[0.28em] text-[var(--color-ink-soft)]">
-            resgates . loja da comunidade
-          </p>
-
-          <h2
-            className="mt-4 max-w-xl text-4xl uppercase leading-[0.9] sm:text-5xl"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            Em breve.
-          </h2>
-
-          <p className="mt-4 max-w-xl text-base leading-7 text-[var(--color-ink-soft)]">
-            Quando nao tem aposta aberta, voces ainda conseguem mexer na live com sons,
-            imagens e outras baguncas ao vivo.
-          </p>
-
-          <p className="mono mt-6 text-[11px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
-            {catalog.length} itens ativos . som . imagem . caos
-          </p>
-
-          <div className="mt-6">
-            <Link href="/resgates" className="btn-brutal ink-button px-5 py-3 text-xs">
-              Explorar resgates →
-            </Link>
-          </div>
-        </div>
-
-        <div className="grid gap-4">
-          {featured.map((item, index) => (
-            <RedemptionSpotlightCard
-              key={item.id}
-              item={item}
-              colorClass={colors[index % colors.length]}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -797,7 +716,7 @@ export default async function Home({ searchParams }: HomePageProps) {
       : null;
 
   return (
-    <div className="flex w-full flex-col pb-20 pt-8">
+    <div className="flex w-full flex-col pb-20">
       <section className="landing-plane surface-hero relative py-8 sm:py-10 lg:py-12">
         <div className="bg-micro-grid pointer-events-none absolute inset-0 opacity-30" />
         <StickerBadge
@@ -886,14 +805,6 @@ export default async function Home({ searchParams }: HomePageProps) {
         <QuickNavGrid
           items={[
             {
-              href: "/resgates",
-              label: "Resgates",
-              value: `${catalog.length} itens`,
-              sublabel: "Bagunce a minha live",
-              emoji: "SHOP",
-              bg: "bg-[var(--color-purple)]",
-            },
-            {
               href: "/apostas",
               label: "Apostas",
               value: `${activeBets.length} abertas`,
@@ -927,11 +838,13 @@ export default async function Home({ searchParams }: HomePageProps) {
         </div>
       </section>
 
-      <section className="landing-plane landing-divider bg-[var(--color-paper)] py-8 sm:py-10">
-        <div className="mx-auto w-full max-w-[1520px] px-4 sm:px-6 lg:px-10">
-          <LiveSpotlight activeBet={activeBets[0]} catalog={catalog} loggedIn={hasUsableSession} />
-        </div>
-      </section>
+      {activeBets[0] ? (
+        <section className="landing-plane landing-divider bg-[var(--color-paper)] py-8 sm:py-10">
+          <div className="mx-auto w-full max-w-[1520px] px-4 sm:px-6 lg:px-10">
+            <LiveSpotlight activeBet={activeBets[0]} loggedIn={hasUsableSession} />
+          </div>
+        </section>
+      ) : null}
 
     </div>
   );

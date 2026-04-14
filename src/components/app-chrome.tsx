@@ -52,7 +52,6 @@ export function AppChrome({
 
   const navLinks = [
     { href: "/indicacoes", label: "Indicacoes" },
-    { href: "/resgates", label: "Resgates" },
     { href: "/apostas", label: "Apostas" },
     { href: "/jogos", label: "Jogos" },
     { href: "/quotes", label: "Quotes" },
