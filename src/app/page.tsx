@@ -317,7 +317,7 @@ function HeroPoster({
 
       <div
         className={cn(
-          "landing-plane relative z-10 mt-10 p-6 lg:ml-10 lg:mt-12 lg:p-8",
+          "landing-plane relative z-10 mt-10 overflow-visible p-6 lg:ml-10 lg:mt-12 lg:p-8",
           loggedIn ? "bg-[var(--color-paper)]" : "bg-transparent",
         )}
       >
@@ -360,17 +360,17 @@ function HeroPoster({
               className="absolute right-4 top-6 h-[4.5rem] w-[4.5rem] rotate-[14deg] sm:right-6 sm:top-8 sm:h-20 sm:w-20"
               label="coracao decorativo"
             />
-            <div className="relative min-h-[340px] sm:min-h-[400px]">
-              <div className="mx-auto w-[72%] max-w-[420px] pt-14 sm:pt-16">
+            <div className="relative min-h-[340px] overflow-visible sm:min-h-[400px]">
+              <div className="mx-auto w-[72%] max-w-[420px] pt-[4.75rem] sm:pt-[5.5rem]">
                 <div className="relative aspect-video border-[4px] border-[var(--color-ink)] bg-[var(--color-purple)] shadow-[7px_7px_0_#000]">
-                  <div className="absolute bottom-0 left-1/2 z-10 w-[140%] -translate-x-1/2">
+                  <div className="absolute bottom-0 left-1/2 z-10 w-[118%] -translate-x-1/2 sm:w-[122%]">
                   <Image
                     src={LUDYLOPS_PROFILE_IMAGE}
                     alt="Foto da Ludylops"
-                    className="h-auto w-full object-contain contrast-125"
+                    className="h-auto w-full contrast-125"
                     width={1100}
                     height={1100}
-                    priority
+                    preload
                   />
                   </div>
                 </div>
