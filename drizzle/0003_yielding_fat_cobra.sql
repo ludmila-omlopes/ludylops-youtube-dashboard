@@ -1,0 +1,2 @@
+ALTER TABLE "quote_overlay_state" ADD COLUMN "created_by_display_name" varchar(255) NOT NULL;--> statement-breakpoint
+ALTER TABLE "quote_overlay_state" ADD COLUMN "created_by_youtube_handle" varchar(255);

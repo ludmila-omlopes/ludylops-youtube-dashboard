@@ -240,6 +240,10 @@ body {
   transition: background-color 180ms ease, color 180ms ease, background 180ms ease;
 }
 
+body[data-obs-overlay="true"] {
+  background: transparent !important;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -746,6 +750,33 @@ a:focus-visible {
 
 .pulse-live {
   animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+@keyframes quoteOverlayPop {
+  0% {
+    opacity: 0;
+    transform: translateY(48px) scale(0.92) rotate(-1.2deg);
+  }
+
+  15% {
+    opacity: 1;
+    transform: translateY(0) scale(1.02) rotate(0.6deg);
+  }
+
+  85% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.98) rotate(0deg);
+  }
+}
+
+.quote-overlay-pop {
+  animation: quoteOverlayPop 12s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: bottom center;
 }
 
 @layer base {

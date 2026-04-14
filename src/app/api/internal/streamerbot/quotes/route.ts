@@ -11,9 +11,12 @@ function formatQuoteReply(input: { quoteNumber: number; body: string }) {
 
 function mapChatQuoteReply(input: {
   message: string;
-  action?: "create" | "get";
+  action?: "create" | "get" | "show";
   quoteId?: number;
+  viewerName?: string;
 }) {
+  const prefix = input.viewerName ? `${input.viewerName}, ` : "";
+
   switch (input.message) {
     case "quote_not_found":
       return input.quoteId
@@ -23,25 +26,41 @@ function mapChatQuoteReply(input: {
       return "Nenhuma quote cadastrada ainda.";
     case "quote_text_required":
       return "Envie o texto da quote junto do comando.";
+    case "quote_id_required":
+      return "Use !quoteobs <numero> para escolher uma quote ja existente.";
     case "viewer_external_id_required":
       return "Nao consegui identificar quem executou o comando.";
+    case "livestream_not_live":
+      return "Essa quote so pode ir para o OBS enquanto a live estiver acontecendo.";
+    case "saldo_insuficiente":
+      return `${prefix}voce precisa de 50 pipetz para colocar a quote no OBS.`;
+    case "quote_overlay_busy":
+      return "Ja tem uma quote ocupando o overlay. Tenta de novo em alguns segundos.";
     default:
-      return input.action === "create"
-        ? "Nao consegui salvar a quote agora."
-        : "Nao consegui buscar a quote agora.";
+      if (input.action === "create") {
+        return "Nao consegui salvar a quote agora.";
+      }
+
+      if (input.action === "show") {
+        return "Nao consegui colocar a quote na tela agora.";
+      }
+
+      return "Nao consegui buscar a quote agora.";
   }
 }
 
 function readPayloadContext(raw: string) {
   try {
     const payload = JSON.parse(raw) as {
-      action?: "create" | "get";
+      action?: "create" | "get" | "show";
       quoteId?: number;
+      youtubeDisplayName?: string;
     };
 
     return {
       action: payload.action,
       quoteId: payload.quoteId,
+      viewerName: payload.youtubeDisplayName,
     };
   } catch {
     return {};
@@ -81,7 +100,14 @@ export async function POST(request: Request) {
     const replyMessage =
       result.action === "create"
         ? `Quote #${result.quote.quoteNumber} salva: "${result.quote.body}"`
-        : formatQuoteReply(result.quote);
+        : result.action === "show"
+          ? `${payload.youtubeDisplayName ?? result.viewer?.youtubeDisplayName ?? "Viewer"} colocou a quote #${
+              result.quote.quoteNumber
+            } no OBS por ${Math.round(
+              (new Date(result.overlay.expiresAt).getTime() - new Date(result.overlay.activatedAt).getTime()) /
+                1000,
+            )}s (-${result.overlay.cost} pipetz).`
+          : formatQuoteReply(result.quote);
 
     console.info("[streamerbot/quotes] Processed quote command.", {
       action: payload.action,
@@ -97,6 +123,7 @@ export async function POST(request: Request) {
         action: result.action,
         quoteId: result.quote.quoteNumber,
         quote: result.quote,
+        overlay: result.action === "show" ? result.overlay : null,
         replyMessage,
       },
     });
@@ -113,6 +140,7 @@ export async function POST(request: Request) {
           message,
           action: context.action,
           quoteId: context.quoteId,
+          viewerName: context.viewerName,
         }),
       },
       { status: 400 },

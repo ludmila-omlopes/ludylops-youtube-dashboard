@@ -3,12 +3,15 @@
 import { getProviders, signIn, signOut, useSession } from "next-auth/react";
 import { startTransition, useEffect, useState } from "react";
 
+import { hasUsableAppSession } from "@/lib/auth/session-state";
 import { ViewerChannelSwitcher } from "@/components/viewer-channel-switcher";
 import { GOOGLE_AUTHORIZATION_PARAMS } from "@/lib/auth/google";
 import { Button } from "@/components/ui/button";
 
 export function AuthButtons() {
   const { data: session } = useSession();
+  const hasUsableSession = hasUsableAppSession(session);
+  const protectionStatus = session?.user?.accountProtectionStatus ?? null;
   const [providers, setProviders] = useState<Record<string, { id: string; name: string }> | null>(
     null,
   );
@@ -23,7 +26,7 @@ export function AuthButtons() {
     });
   }, []);
 
-  if (session?.user) {
+  if (hasUsableSession) {
     return (
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <ViewerChannelSwitcher />
@@ -60,6 +63,16 @@ export function AuthButtons() {
           size="sm"
         >
           Modo demo
+        </Button>
+      ) : null}
+      {protectionStatus ? (
+        <Button
+          type="button"
+          onClick={() => signOut({ callbackUrl: "/" })}
+          variant="neutral"
+          size="sm"
+        >
+          Limpar sessao
         </Button>
       ) : null}
     </div>

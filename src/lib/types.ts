@@ -14,7 +14,9 @@ export type LedgerKind =
   | "bet_debit"
   | "bet_payout"
   | "bet_refund"
-  | "game_suggestion_boost";
+  | "game_suggestion_creation"
+  | "game_suggestion_boost"
+  | "quote_overlay_debit";
 
 export type BetStatus =
   | "draft"
@@ -70,6 +72,11 @@ export interface GoogleAccountRecord {
   displayName: string | null;
   avatarUrl: string | null;
   activeViewerId: string | null;
+  crossAccountProtectionState: "ok" | "google_signin_blocked";
+  crossAccountProtectionEvent: string | null;
+  crossAccountProtectionReason: string | null;
+  crossAccountProtectionUpdatedAt: string;
+  sessionsRevokedAt: string | null;
   createdAt: string;
 }
 
@@ -78,6 +85,16 @@ export interface GoogleAccountViewerRecord {
   googleAccountId: string;
   viewerId: string;
   createdAt: string;
+}
+
+export interface GoogleRiscDeliveryRecord {
+  jti: string;
+  eventTypes: string[];
+  receivedAt: string;
+  issuedAt: string | null;
+  processedAt: string | null;
+  matchedAccountCount: number;
+  lastError: string | null;
 }
 
 export interface ViewerChannelOptionRecord {
@@ -161,6 +178,22 @@ export interface QuoteRecord {
   createdByYoutubeHandle: string | null;
   source: string;
   createdAt: string;
+}
+
+export interface QuoteOverlayStateRecord {
+  slot: string;
+  overlayId: string;
+  quoteNumber: number;
+  quoteBody: string;
+  createdByDisplayName: string;
+  createdByYoutubeHandle: string | null;
+  requestedByViewerId: string;
+  requestedByDisplayName: string;
+  requestedByYoutubeHandle: string | null;
+  source: string;
+  cost: number;
+  activatedAt: string;
+  expiresAt: string;
 }
 
 export interface StreamerbotCounterRecord {

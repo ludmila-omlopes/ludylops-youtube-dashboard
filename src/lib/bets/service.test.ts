@@ -41,7 +41,32 @@ describe("evaluateBetPlacement", () => {
     ).toEqual({ canPlace: false, reason: "saldo_insuficiente" });
   });
 
-  it("blocks duplicate bet", () => {
+  it("blocks switching sides after an existing bet", () => {
+    const entry: BetEntryRecord = {
+      id: "entry-1",
+      betId: "bet-1",
+      optionId: "yes",
+      viewerId: "viewer-1",
+      amount: 50,
+      payoutAmount: null,
+      settledAt: null,
+      refundedAt: null,
+      createdAt: new Date("2026-03-31T10:30:00.000Z").toISOString(),
+    };
+
+    expect(
+      evaluateBetPlacement({
+        bet: baseBet,
+        amount: 20,
+        optionId: "no",
+        balance: 100,
+        existingEntry: entry,
+        now: new Date("2026-03-31T11:00:00.000Z"),
+      }),
+    ).toEqual({ canPlace: false, reason: "aposta_ja_registrada" });
+  });
+
+  it("allows adding more to the same option", () => {
     const entry: BetEntryRecord = {
       id: "entry-1",
       betId: "bet-1",
@@ -63,7 +88,7 @@ describe("evaluateBetPlacement", () => {
         existingEntry: entry,
         now: new Date("2026-03-31T11:00:00.000Z"),
       }),
-    ).toEqual({ canPlace: false, reason: "aposta_ja_registrada" });
+    ).toEqual({ canPlace: true });
   });
 
   it("allows a valid bet", () => {

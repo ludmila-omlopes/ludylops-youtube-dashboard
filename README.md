@@ -56,6 +56,8 @@ copy bridge\\.env.example bridge\\.env
 - `DATABASE_URL`
 - `AUTH_GOOGLE_ID`
 - `AUTH_GOOGLE_SECRET`
+- `GOOGLE_RISC_ALLOWED_AUDIENCES` (opcional, se tiver mais de um OAuth client aceito pelo receiver)
+- `GOOGLE_RISC_RECEIVER_URL` (opcional, para fixar a URL HTTPS do receiver RISC)
 - `YOUTUBE_API_KEY`
 - `ADMIN_EMAILS`
 - `STREAM_YOUTUBE_CHANNEL_ID` (opcional, se quiser forcar o canal monitorado em vez de usar a conta admin vinculada)
@@ -83,7 +85,14 @@ npm run db:generate
 npm run db:push
 npm run bridge:dev
 npm run backfill:youtube-names -- --dry-run
+npm run google:risc -- status
 ```
+
+## Google Cross-Account Protection
+
+O passo a passo completo de producao para o alerta de `Protecao entre contas`, incluindo service account, registro do stream RISC, teste de verificacao e checklist final no painel do Google, estÃ¡ em:
+
+- [docs/google-cross-account-protection.md](/D:/Codigos_Diversos/lojinha-youtube/docs/google-cross-account-protection.md)
 
 ## Banco e Drizzle
 
@@ -236,6 +245,83 @@ Referencias oficiais:
 - Variaveis em C#: [docs.streamer.bot/faq/variables-in-csharp](https://docs.streamer.bot/faq/variables-in-csharp)
 - Resposta no chat do YouTube: [docs.streamer.bot/api/csharp/methods/youtube/chat/send-youtube-message-to-latest-monitored](https://docs.streamer.bot/api/csharp/methods/youtube/chat/send-youtube-message-to-latest-monitored)
 
+### Saldo por comando de chat
+
+Para permitir que cada viewer consulte os proprios pipetz no chat do YouTube via Streamer.bot, use:
+
+- `POST /api/internal/streamerbot/points`
+
+Headers obrigatorios:
+
+- `x-timestamp`
+- `x-signature`
+
+Assinatura:
+
+- HMAC SHA-256 de `timestamp.body`
+- Secret: `STREAMERBOT_SHARED_SECRET`
+
+Payload recomendado para `!pontos`, `!saldo` ou `!pipetz`:
+
+```json
+{
+  "viewerExternalId": "UCxxxxxxxx",
+  "youtubeDisplayName": "Nome do canal",
+  "youtubeHandle": "@meucanal",
+  "source": "streamerbot_chat"
+}
+```
+
+Notas:
+
+- A consulta e read-only: ela nao cria viewer, nao ajusta saldo e nao altera nomes/handles salvos.
+- Se o viewer ainda nao existir no backend, a rota responde com mensagem clara para indicar que a conta ainda nao esta pronta para consulta.
+- O response inclui `replyMessage`, pensado para o Streamer.bot reutilizar direto no chat.
+
+#### Setup rapido do Streamer.bot
+
+O setup pronto para colar no `Execute C# Code` esta em:
+
+- [get-points-from-chat.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/get-points-from-chat.cs)
+
+Passo a passo operacional:
+
+1. Crie estas Global Variables no Streamer.bot:
+
+- `lojaneon.appBaseUrl`
+  Valor: `https://seu-app.vercel.app`
+- `lojaneon.streamerbotSharedSecret`
+  Valor: o mesmo `STREAMERBOT_SHARED_SECRET` do app
+- `lojaneon.useBotAccount`
+  Valor: `true`
+
+2. Crie um comando do YouTube com regex:
+
+```regex
+^!(?:pontos|saldo|pipetz)$
+```
+
+3. Na action desse comando, adicione `Core > C# > Execute C# Code`.
+
+4. Cole o conteudo de [get-points-from-chat.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/get-points-from-chat.cs).
+
+5. O proprio script responde no chat com `CPH.SendYouTubeMessageToLatestMonitored(...)`, entao nao precisa de um segundo sub-action.
+
+Troubleshooting rapido:
+
+- `Assinatura invalida no comando de saldo.`
+  Verifique `lojaneon.streamerbotSharedSecret`, o relogio da maquina do Streamer.bot e se a action esta chamando a URL correta.
+- `Nao consegui identificar seu canal do YouTube para consultar seus pipetz.`
+  Verifique se o evento/comando do Streamer.bot expoe um dos argumentos aceitos pelo script: `id`, `userId`, `fromId`, `authorId`, `channelId`, `youtubeUserId` ou `targetUserId`.
+- `Ainda nao encontrei sua conta da live para consultar seus pipetz.`
+  Esse comando nao cria cadastro novo. Aguarde o viewer aparecer no backend pelos eventos da live ou confirme se a integracao que registra viewers no chat ja esta funcionando.
+
+Referencias oficiais:
+
+- Variaveis e argumentos: [docs.streamer.bot/guide/variables](https://docs.streamer.bot/guide/variables)
+- Variaveis em C#: [docs.streamer.bot/api/csharp/guide/variables](https://docs.streamer.bot/api/csharp/guide/variables)
+- Resposta no chat do YouTube: [docs.streamer.bot/api/sub-actions/youtube/send-message-to-channel](https://docs.streamer.bot/api/sub-actions/youtube/send-message-to-channel/)
+
 ### Quotes por comando de chat
 
 Para criar e chamar quotes pelo chat do YouTube via Streamer.bot, use:
@@ -277,10 +363,26 @@ Payload recomendado para chamar uma quote especifica com `!quote 7`:
 }
 ```
 
+Payload recomendado para cobrar `50 pipetz` e exibir uma quote ja existente no overlay do OBS com `!quoteobs 7`:
+
+```json
+{
+  "action": "show",
+  "viewerExternalId": "UCxxxxxxxx",
+  "youtubeDisplayName": "Nome do viewer",
+  "youtubeHandle": "@meucanal",
+  "quoteId": 7,
+  "displayDurationSeconds": 12,
+  "source": "streamerbot_chat"
+}
+```
+
 Notas:
 
 - `create` exige que o caller seja mod, broadcaster ou admin.
 - `get` aceita `quoteId`; se ele vier vazio, o backend devolve uma quote aleatoria.
+- `show` cobra `50 pipetz`, exige `quoteId` de uma quote ja cadastrada, usa um overlay unico por vez e falha com feedback se a tela ainda estiver ocupada.
+- O browser source do OBS deve apontar para `/obs/quotes`.
 - O response inclui `replyMessage`, pensado para o Streamer.bot reutilizar direto no chat.
 
 #### Setup rapido do Streamer.bot
@@ -289,6 +391,7 @@ Os scripts prontos para colar no `Execute C# Code` estao em:
 
 - [add-quote-from-chat.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/add-quote-from-chat.cs)
 - [get-quote-from-chat.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/get-quote-from-chat.cs)
+- [show-quote-on-obs.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/show-quote-on-obs.cs)
 
 Passo a passo operacional:
 
@@ -321,10 +424,32 @@ Passo a passo operacional:
 
 7. Cole o conteudo de [get-quote-from-chat.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/get-quote-from-chat.cs).
 
+8. Crie um terceiro comando para quote paga no OBS com regex:
+
+```regex
+^!(?:quoteobs|qobs)\s+(?<quoteId>\d+)$
+```
+
+9. Na action desse comando, adicione `Core > C# > Execute C# Code`.
+
+10. Cole o conteudo de [show-quote-on-obs.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/show-quote-on-obs.cs).
+
+11. No OBS, crie um `Browser Source` apontando para:
+
+- `https://seu-app.vercel.app/obs/quotes`
+
+12. Opcionalmente, crie a Global Variable:
+
+- `lojaneon.quoteOverlayDurationSeconds`
+  Valor: `12`
+
 Notas:
 
 - No Streamer.bot, o ideal e marcar `!addquote` como comando de moderacao tambem na UI, mesmo com a checagem extra do backend.
 - O script de `!addquote` tenta descobrir o id do viewer usando `id`, `userId`, `fromId`, `authorId`, `channelId`, `youtubeUserId` e `targetUserId`.
+- O script de `!quoteobs` usa os mesmos candidatos de id do viewer do fluxo de apostas e responde no chat com o `replyMessage` devolvido pela API.
+- O modo pago de OBS nao cria quote nova; ele apenas mostra uma quote ja existente escolhida por numero.
+- Se quiser manter o `!quote` gratuito, deixe o comando pago separado como `!quoteobs`.
 - Se sua instancia do Streamer.bot usar outros nomes de argumento para permissao, ajuste `ModeratorArgCandidates`, `BroadcasterArgCandidates` e `AdminArgCandidates` no script.
 
 ### Bridge

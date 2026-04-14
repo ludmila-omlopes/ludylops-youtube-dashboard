@@ -13,6 +13,10 @@ const envSchema = z.object({
   APP_URL: z.string().url().optional(),
   NEXT_PUBLIC_APP_URL: z.string().url().optional(),
   NEXT_PUBLIC_GITHUB_ISSUES_URL: z.string().url().optional(),
+  GOOGLE_RISC_ALLOWED_AUDIENCES: z.string().optional(),
+  GOOGLE_RISC_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  GOOGLE_RISC_SERVICE_ACCOUNT_FILE: z.string().optional(),
+  GOOGLE_RISC_RECEIVER_URL: z.string().url().optional(),
 });
 
 export const env = envSchema.parse(process.env);

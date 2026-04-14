@@ -19,7 +19,9 @@ import {
   gameSuggestions,
   googleAccounts,
   googleAccountViewers,
+  googleRiscDeliveries,
   pointLedger,
+  quoteOverlayState,
   quotes,
   productRecommendations,
   redemptions,
@@ -39,6 +41,7 @@ import {
   demoGameSuggestions,
   demoGoogleAccounts,
   demoGoogleAccountViewers,
+  demoGoogleRiscDeliveries,
   demoLedger,
   demoQuotes,
   demoProductRecommendations,
@@ -46,9 +49,10 @@ import {
   demoViewers,
 } from "@/lib/demo-data";
 import { adminEmails, isDemoMode } from "@/lib/env";
+import { GAME_SUGGESTION_CREATION_COST } from "@/lib/game-suggestions/constants";
 import {
   eventRequiresActiveLivestream,
-  isStreamerbotLivestreamActive,
+  requireActiveLivestream,
 } from "@/lib/streamerbot/live-status";
 import { normalizeYoutubeHandle } from "@/lib/youtube/identity";
 import { evaluateRedeemability } from "@/lib/redemptions/service";
@@ -65,7 +69,9 @@ import {
   GameSuggestionWithMeta,
   GoogleAccountRecord,
   GoogleAccountViewerRecord,
+  GoogleRiscDeliveryRecord,
   LedgerEntryRecord,
+  QuoteOverlayStateRecord,
   QuoteRecord,
   ProductRecommendationRecord,
   RedemptionRecord,
@@ -87,6 +93,10 @@ function shouldExcludeFromRanking(email: string | null) {
 
 const DEFAULT_DEATH_COUNTER_KEY = "death_count";
 const DEFAULT_DEATH_COUNTER_LABEL = "mortes";
+const QUOTE_OVERLAY_SLOT = "obs_main";
+const QUOTE_OVERLAY_COST = 50;
+const QUOTE_OVERLAY_DURATION_SECONDS = 12;
+const QUOTE_OVERLAY_LOCK_KEY = 42_001;
 
 type StreamerbotCounterCommandAction = "increment" | "get" | "reset";
 
@@ -122,10 +132,12 @@ type DemoStore = {
   viewers: ViewerRecord[];
   googleAccounts: GoogleAccountRecord[];
   googleAccountViewers: GoogleAccountViewerRecord[];
+  googleRiscDeliveries: GoogleRiscDeliveryRecord[];
   balances: ViewerBalanceRecord[];
   catalog: CatalogItemRecord[];
   ledger: LedgerEntryRecord[];
   quotes: QuoteRecord[];
+  quoteOverlayState: QuoteOverlayStateRecord | null;
   redemptions: RedemptionRecord[];
   bets: BetRecord[];
   betOptions: BetOptionRecord[];
@@ -147,10 +159,12 @@ function getDemoStore(): DemoStore {
       viewers: structuredClone(demoViewers),
       googleAccounts: structuredClone(demoGoogleAccounts),
       googleAccountViewers: structuredClone(demoGoogleAccountViewers),
+      googleRiscDeliveries: structuredClone(demoGoogleRiscDeliveries),
       balances: structuredClone(demoBalances),
       catalog: structuredClone(demoCatalog),
       ledger: structuredClone(demoLedger),
       quotes: structuredClone(demoQuotes),
+      quoteOverlayState: null,
       redemptions: structuredClone(demoRedemptions),
       bets: structuredClone(demoBetRecords),
       betOptions: structuredClone(demoBetOptions),
@@ -290,6 +304,26 @@ type GoogleAccountSessionState = {
   activeViewer: ViewerRecord;
 };
 
+type ApplyGoogleCrossAccountProtectionEventInput = {
+  eventId: string;
+  eventType: string;
+  googleUserId: string;
+  occurredAt?: string | null;
+  reason?: string | null;
+};
+
+type ApplyGoogleCrossAccountProtectionEventResult = {
+  matchedAccountId: string | null;
+  crossAccountProtectionState: GoogleAccountRecord["crossAccountProtectionState"] | null;
+  sessionsRevokedAt: string | null;
+};
+
+type RegisterGoogleRiscDeliveryInput = {
+  jti: string;
+  eventTypes: string[];
+  issuedAt?: string | null;
+};
+
 function serializeViewer(row: typeof users.$inferSelect): ViewerRecord {
   return {
     id: row.id,
@@ -323,6 +357,11 @@ function serializeGoogleAccount(row: typeof googleAccounts.$inferSelect): Google
     displayName: row.displayName,
     avatarUrl: row.avatarUrl,
     activeViewerId: row.activeViewerId,
+    crossAccountProtectionState: row.crossAccountProtectionState as GoogleAccountRecord["crossAccountProtectionState"],
+    crossAccountProtectionEvent: row.crossAccountProtectionEvent,
+    crossAccountProtectionReason: row.crossAccountProtectionReason,
+    crossAccountProtectionUpdatedAt: row.crossAccountProtectionUpdatedAt.toISOString(),
+    sessionsRevokedAt: row.sessionsRevokedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -333,6 +372,18 @@ function serializeGoogleAccountViewer(row: typeof googleAccountViewers.$inferSel
     googleAccountId: row.googleAccountId,
     viewerId: row.viewerId,
     createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function serializeGoogleRiscDelivery(row: typeof googleRiscDeliveries.$inferSelect): GoogleRiscDeliveryRecord {
+  return {
+    jti: row.jti,
+    eventTypes: Array.isArray(row.eventTypes) ? (row.eventTypes as string[]) : [],
+    receivedAt: row.receivedAt.toISOString(),
+    issuedAt: row.issuedAt?.toISOString() ?? null,
+    processedAt: row.processedAt?.toISOString() ?? null,
+    matchedAccountCount: row.matchedAccountCount,
+    lastError: row.lastError,
   };
 }
 
@@ -388,8 +439,57 @@ function buildGoogleAccountRecord(input: {
     displayName: input.name,
     avatarUrl: input.image,
     activeViewerId: null,
+    crossAccountProtectionState: "ok",
+    crossAccountProtectionEvent: null,
+    crossAccountProtectionReason: null,
+    crossAccountProtectionUpdatedAt: new Date().toISOString(),
+    sessionsRevokedAt: null,
     createdAt: new Date().toISOString(),
   } satisfies GoogleAccountRecord;
+}
+
+function resolveProtectionEventTimestamp(occurredAt?: string | null) {
+  if (!occurredAt) {
+    return new Date();
+  }
+
+  const parsed = new Date(occurredAt);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+function buildGoogleCrossAccountProtectionMutation(input: ApplyGoogleCrossAccountProtectionEventInput) {
+  const effectiveAt = resolveProtectionEventTimestamp(input.occurredAt);
+  const mutation = {
+    crossAccountProtectionState: "ok" as GoogleAccountRecord["crossAccountProtectionState"],
+    crossAccountProtectionEvent: input.eventType,
+    crossAccountProtectionReason: input.reason ?? null,
+    crossAccountProtectionUpdatedAt: effectiveAt,
+    sessionsRevokedAt: undefined as Date | undefined,
+  };
+
+  switch (input.eventType) {
+    case "https://schemas.openid.net/secevent/risc/event-type/sessions-revoked":
+    case "https://schemas.openid.net/secevent/oauth/event-type/tokens-revoked":
+      mutation.sessionsRevokedAt = effectiveAt;
+      break;
+    case "https://schemas.openid.net/secevent/oauth/event-type/token-revoked":
+      break;
+    case "https://schemas.openid.net/secevent/risc/event-type/account-disabled":
+      mutation.crossAccountProtectionState = "google_signin_blocked";
+      if (input.reason === "hijacking") {
+        mutation.sessionsRevokedAt = effectiveAt;
+      }
+      break;
+    case "https://schemas.openid.net/secevent/risc/event-type/account-enabled":
+      mutation.crossAccountProtectionReason = null;
+      break;
+    case "https://schemas.openid.net/secevent/risc/event-type/account-credential-change-required":
+    case "https://schemas.openid.net/secevent/risc/event-type/verification":
+    default:
+      break;
+  }
+
+  return mutation;
 }
 
 function buildGoogleAccountViewerLink(input: { googleAccountId: string; viewerId: string }) {
@@ -866,6 +966,63 @@ function serializeQuote(row: typeof quotes.$inferSelect): QuoteRecord {
   };
 }
 
+function serializeQuoteOverlayState(
+  row: typeof quoteOverlayState.$inferSelect,
+): QuoteOverlayStateRecord {
+  return {
+    slot: row.slot,
+    overlayId: row.overlayId,
+    quoteNumber: row.quoteNumber,
+    quoteBody: row.quoteBody,
+    createdByDisplayName: row.createdByDisplayName,
+    createdByYoutubeHandle: row.createdByYoutubeHandle ?? null,
+    requestedByViewerId: row.requestedByViewerId,
+    requestedByDisplayName: row.requestedByDisplayName,
+    requestedByYoutubeHandle: row.requestedByYoutubeHandle ?? null,
+    source: row.source,
+    cost: row.cost,
+    activatedAt: row.activatedAt.toISOString(),
+    expiresAt: row.expiresAt.toISOString(),
+  };
+}
+
+function buildQuoteOverlayState(input: {
+  quote: QuoteRecord;
+  viewer: ViewerRecord;
+  source: string;
+  cost?: number;
+  durationSeconds?: number;
+}) {
+  const activatedAt = new Date();
+  const expiresAt = new Date(
+    activatedAt.getTime() + (input.durationSeconds ?? QUOTE_OVERLAY_DURATION_SECONDS) * 1000,
+  );
+
+  return {
+    slot: QUOTE_OVERLAY_SLOT,
+    overlayId: randomUUID(),
+    quoteNumber: input.quote.quoteNumber,
+    quoteBody: input.quote.body,
+    createdByDisplayName: input.quote.createdByDisplayName,
+    createdByYoutubeHandle: input.quote.createdByYoutubeHandle,
+    requestedByViewerId: input.viewer.id,
+    requestedByDisplayName: input.viewer.youtubeDisplayName,
+    requestedByYoutubeHandle: input.viewer.youtubeHandle ?? null,
+    source: input.source,
+    cost: input.cost ?? QUOTE_OVERLAY_COST,
+    activatedAt: activatedAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+  } satisfies QuoteOverlayStateRecord;
+}
+
+function isQuoteOverlayActive(overlay: QuoteOverlayStateRecord | null, now = Date.now()) {
+  if (!overlay) {
+    return false;
+  }
+
+  return new Date(overlay.expiresAt).getTime() > now;
+}
+
 function serializeProductRecommendation(
   row: typeof productRecommendations.$inferSelect,
 ): ProductRecommendationRecord {
@@ -1016,6 +1173,170 @@ async function getQuoteRecord(input: { quoteId?: number | null }) {
   }
 
   return serializeQuote(allQuotes[Math.floor(Math.random() * allQuotes.length)]!);
+}
+
+export async function getActiveQuoteOverlay() {
+  const now = Date.now();
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const overlay = getDemoStore().quoteOverlayState;
+    return isQuoteOverlayActive(overlay, now) ? overlay : null;
+  }
+
+  const [overlay] = await db
+    .select()
+    .from(quoteOverlayState)
+    .where(eq(quoteOverlayState.slot, QUOTE_OVERLAY_SLOT))
+    .limit(1);
+
+  if (!overlay) {
+    return null;
+  }
+
+  const serialized = serializeQuoteOverlayState(overlay);
+  return isQuoteOverlayActive(serialized, now) ? serialized : null;
+}
+
+async function activateQuoteOverlay(input: {
+  quote: QuoteRecord;
+  viewer: ViewerRecord;
+  source: string;
+  cost?: number;
+  durationSeconds?: number;
+}) {
+  await requireActiveLivestream({
+    failureError: "livestream_not_live",
+  });
+
+  const cost = input.cost ?? QUOTE_OVERLAY_COST;
+  const overlay = buildQuoteOverlayState({
+    quote: input.quote,
+    viewer: input.viewer,
+    source: input.source,
+    cost,
+    durationSeconds: input.durationSeconds,
+  });
+
+  const db = getDb();
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const activeOverlay = store.quoteOverlayState;
+    if (isQuoteOverlayActive(activeOverlay)) {
+      throw new Error("quote_overlay_busy");
+    }
+
+    const balance = getBalance(store, input.viewer.id);
+    if (balance.currentBalance < cost) {
+      throw new Error("saldo_insuficiente");
+    }
+
+    balance.currentBalance -= cost;
+    balance.lifetimeSpent += cost;
+    balance.lastSyncedAt = overlay.activatedAt;
+
+    createLedgerEntry(store, {
+      viewerId: input.viewer.id,
+      kind: "quote_overlay_debit",
+      amount: -cost,
+      source: input.source,
+      externalEventId: null,
+      metadata: {
+        overlayId: overlay.overlayId,
+        quoteNumber: input.quote.quoteNumber,
+        durationSeconds: input.durationSeconds ?? QUOTE_OVERLAY_DURATION_SECONDS,
+      },
+      createdAt: overlay.activatedAt,
+    });
+
+    store.quoteOverlayState = overlay;
+    return overlay;
+  }
+
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(${QUOTE_OVERLAY_LOCK_KEY})`);
+
+    const [existingOverlay] = await tx
+      .select()
+      .from(quoteOverlayState)
+      .where(eq(quoteOverlayState.slot, QUOTE_OVERLAY_SLOT))
+      .limit(1);
+
+    if (existingOverlay && existingOverlay.expiresAt.getTime() > Date.now()) {
+      throw new Error("quote_overlay_busy");
+    }
+
+    const debitedBalances = await tx
+      .update(viewerBalances)
+      .set({
+        currentBalance: sql`${viewerBalances.currentBalance} - ${cost}`,
+        lifetimeSpent: sql`${viewerBalances.lifetimeSpent} + ${cost}`,
+        lastSyncedAt: new Date(overlay.activatedAt),
+      })
+      .where(
+        and(
+          eq(viewerBalances.viewerId, input.viewer.id),
+          gte(viewerBalances.currentBalance, cost),
+        ),
+      )
+      .returning({ viewerId: viewerBalances.viewerId });
+
+    if (debitedBalances.length === 0) {
+      throw new Error("saldo_insuficiente");
+    }
+
+    await tx.insert(pointLedger).values({
+      id: randomUUID(),
+      viewerId: input.viewer.id,
+      kind: "quote_overlay_debit",
+      amount: -cost,
+      source: input.source,
+      externalEventId: null,
+      metadata: {
+        overlayId: overlay.overlayId,
+        quoteNumber: input.quote.quoteNumber,
+        durationSeconds: input.durationSeconds ?? QUOTE_OVERLAY_DURATION_SECONDS,
+      },
+      createdAt: new Date(overlay.activatedAt),
+    });
+
+    await tx
+      .insert(quoteOverlayState)
+      .values({
+        slot: overlay.slot,
+        overlayId: overlay.overlayId,
+        quoteNumber: overlay.quoteNumber,
+        quoteBody: overlay.quoteBody,
+        createdByDisplayName: overlay.createdByDisplayName,
+        createdByYoutubeHandle: overlay.createdByYoutubeHandle,
+        requestedByViewerId: overlay.requestedByViewerId,
+        requestedByDisplayName: overlay.requestedByDisplayName,
+        requestedByYoutubeHandle: overlay.requestedByYoutubeHandle,
+        source: overlay.source,
+        cost: overlay.cost,
+        activatedAt: new Date(overlay.activatedAt),
+        expiresAt: new Date(overlay.expiresAt),
+      })
+      .onConflictDoUpdate({
+        target: quoteOverlayState.slot,
+        set: {
+          overlayId: overlay.overlayId,
+          quoteNumber: overlay.quoteNumber,
+          quoteBody: overlay.quoteBody,
+          createdByDisplayName: overlay.createdByDisplayName,
+          createdByYoutubeHandle: overlay.createdByYoutubeHandle,
+          requestedByViewerId: overlay.requestedByViewerId,
+          requestedByDisplayName: overlay.requestedByDisplayName,
+          requestedByYoutubeHandle: overlay.requestedByYoutubeHandle,
+          source: overlay.source,
+          cost: overlay.cost,
+          activatedAt: new Date(overlay.activatedAt),
+          expiresAt: new Date(overlay.expiresAt),
+        },
+      });
+  });
+
+  return overlay;
 }
 
 function listDemoGameSuggestions(viewerId?: string | null) {
@@ -1285,6 +1606,10 @@ async function withGoogleAccountByIdentity(input: Pick<SessionBootstrapInput, "g
   return byEmail ? serializeGoogleAccount(byEmail) : null;
 }
 
+export async function getGoogleAccountByIdentity(input: Pick<SessionBootstrapInput, "googleUserId" | "email">) {
+  return withGoogleAccountByIdentity(input);
+}
+
 async function withViewerById(viewerId: string) {
   const db = getDb();
 
@@ -1490,12 +1815,170 @@ export async function getSessionViewerState(
   };
 }
 
+export async function registerGoogleRiscDelivery(input: RegisterGoogleRiscDeliveryInput) {
+  const db = getDb();
+  const issuedAt = resolveProtectionEventTimestamp(input.issuedAt);
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const existing = store.googleRiscDeliveries.find((entry) => entry.jti === input.jti);
+    if (existing) {
+      return {
+        accepted: false,
+        delivery: existing,
+      };
+    }
+
+    const created: GoogleRiscDeliveryRecord = {
+      jti: input.jti,
+      eventTypes: [...input.eventTypes],
+      receivedAt: new Date().toISOString(),
+      issuedAt: issuedAt.toISOString(),
+      processedAt: null,
+      matchedAccountCount: 0,
+      lastError: null,
+    };
+    store.googleRiscDeliveries.unshift(created);
+    return {
+      accepted: true,
+      delivery: created,
+    };
+  }
+
+  const inserted = await db
+    .insert(googleRiscDeliveries)
+    .values({
+      jti: input.jti,
+      eventTypes: input.eventTypes,
+      issuedAt,
+      processedAt: null,
+      matchedAccountCount: 0,
+      lastError: null,
+    })
+    .onConflictDoNothing({
+      target: [googleRiscDeliveries.jti],
+    })
+    .returning();
+
+  if (inserted.length > 0) {
+    return {
+      accepted: true,
+      delivery: serializeGoogleRiscDelivery(inserted[0]!),
+    };
+  }
+
+  const [existing] = await db.select().from(googleRiscDeliveries).where(eq(googleRiscDeliveries.jti, input.jti)).limit(1);
+  return {
+    accepted: false,
+    delivery: existing ? serializeGoogleRiscDelivery(existing) : null,
+  };
+}
+
+export async function finalizeGoogleRiscDelivery(input: {
+  jti: string;
+  matchedAccountCount: number;
+  lastError?: string | null;
+}) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const existing = store.googleRiscDeliveries.find((entry) => entry.jti === input.jti);
+    if (!existing) {
+      return null;
+    }
+
+    existing.processedAt = new Date().toISOString();
+    existing.matchedAccountCount = input.matchedAccountCount;
+    existing.lastError = input.lastError ?? null;
+    return existing;
+  }
+
+  const [updated] = await db
+    .update(googleRiscDeliveries)
+    .set({
+      processedAt: new Date(),
+      matchedAccountCount: input.matchedAccountCount,
+      lastError: input.lastError ?? null,
+    })
+    .where(eq(googleRiscDeliveries.jti, input.jti))
+    .returning();
+
+  return updated ? serializeGoogleRiscDelivery(updated) : null;
+}
+
+export async function applyGoogleCrossAccountProtectionEvent(
+  input: ApplyGoogleCrossAccountProtectionEventInput,
+): Promise<ApplyGoogleCrossAccountProtectionEventResult> {
+  const mutation = buildGoogleCrossAccountProtectionMutation(input);
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const account = getDemoStore().googleAccounts.find((entry) => entry.googleUserId === input.googleUserId) ?? null;
+    if (!account) {
+      return {
+        matchedAccountId: null,
+        crossAccountProtectionState: null,
+        sessionsRevokedAt: null,
+      };
+    }
+
+    account.crossAccountProtectionState = mutation.crossAccountProtectionState;
+    account.crossAccountProtectionEvent = mutation.crossAccountProtectionEvent;
+    account.crossAccountProtectionReason = mutation.crossAccountProtectionReason;
+    account.crossAccountProtectionUpdatedAt = mutation.crossAccountProtectionUpdatedAt.toISOString();
+    if (mutation.sessionsRevokedAt) {
+      account.sessionsRevokedAt = mutation.sessionsRevokedAt.toISOString();
+    }
+
+    return {
+      matchedAccountId: account.id,
+      crossAccountProtectionState: account.crossAccountProtectionState,
+      sessionsRevokedAt: account.sessionsRevokedAt,
+    };
+  }
+
+  const [existing] = await db
+    .select()
+    .from(googleAccounts)
+    .where(eq(googleAccounts.googleUserId, input.googleUserId))
+    .limit(1);
+  if (!existing) {
+    return {
+      matchedAccountId: null,
+      crossAccountProtectionState: null,
+      sessionsRevokedAt: null,
+    };
+  }
+
+  await db
+    .update(googleAccounts)
+    .set({
+      crossAccountProtectionState: mutation.crossAccountProtectionState,
+      crossAccountProtectionEvent: mutation.crossAccountProtectionEvent,
+      crossAccountProtectionReason: mutation.crossAccountProtectionReason,
+      crossAccountProtectionUpdatedAt: mutation.crossAccountProtectionUpdatedAt,
+      ...(mutation.sessionsRevokedAt ? { sessionsRevokedAt: mutation.sessionsRevokedAt } : {}),
+    })
+    .where(eq(googleAccounts.id, existing.id));
+
+  return {
+    matchedAccountId: existing.id,
+    crossAccountProtectionState: mutation.crossAccountProtectionState,
+    sessionsRevokedAt: mutation.sessionsRevokedAt?.toISOString() ?? existing.sessionsRevokedAt?.toISOString() ?? null,
+  };
+}
+
 export async function ensureViewerFromSession(input: SessionBootstrapInput) {
   if (!input.email) {
     return null;
   }
 
   const youtubeChannels = normalizeSessionYoutubeChannels(input.youtubeChannels);
+  const syntheticYoutubeChannelId = buildSyntheticYoutubeChannelId({
+    googleUserId: input.googleUserId,
+    email: input.email,
+  });
   const db = getDb();
   if (isDemoMode || !db) {
     const store = getDemoStore();
@@ -1590,20 +2073,20 @@ export async function ensureViewerFromSession(input: SessionBootstrapInput) {
           : activeViewer ?? listDemoViewersForGoogleAccount(store, googleAccount.id)[0] ?? null;
 
     if (!preferredViewer) {
-      preferredViewer = buildViewerRecord({
-        googleUserId: input.googleUserId,
-        email: input.email,
-        name: input.name,
-        image: input.image,
-        youtubeChannelId: buildSyntheticYoutubeChannelId({
+      preferredViewer = getDemoViewerByYoutubeChannelId(store, syntheticYoutubeChannelId);
+      if (!preferredViewer) {
+        preferredViewer = buildViewerRecord({
           googleUserId: input.googleUserId,
           email: input.email,
-        }),
-        youtubeDisplayName: input.name ?? input.email.split("@")[0],
-        isLinked: false,
-      });
-      store.viewers.push(preferredViewer);
-      getBalance(store, preferredViewer.id);
+          name: input.name,
+          image: input.image,
+          youtubeChannelId: syntheticYoutubeChannelId,
+          youtubeDisplayName: input.name ?? input.email.split("@")[0],
+          isLinked: false,
+        });
+        store.viewers.push(preferredViewer);
+        getBalance(store, preferredViewer.id);
+      }
     }
 
     preferredViewer.googleUserId = input.googleUserId;
@@ -1639,15 +2122,20 @@ export async function ensureViewerFromSession(input: SessionBootstrapInput) {
       image: input.image,
     });
 
-    await db.insert(googleAccounts).values({
-      id: googleAccount.id,
-      googleUserId: googleAccount.googleUserId,
-      email: googleAccount.email,
-      displayName: googleAccount.displayName,
-      avatarUrl: googleAccount.avatarUrl,
-      activeViewerId: null,
-      createdAt: new Date(googleAccount.createdAt),
-    });
+      await db.insert(googleAccounts).values({
+        id: googleAccount.id,
+        googleUserId: googleAccount.googleUserId,
+        email: googleAccount.email,
+        displayName: googleAccount.displayName,
+        avatarUrl: googleAccount.avatarUrl,
+        activeViewerId: null,
+        crossAccountProtectionState: googleAccount.crossAccountProtectionState,
+        crossAccountProtectionEvent: googleAccount.crossAccountProtectionEvent,
+        crossAccountProtectionReason: googleAccount.crossAccountProtectionReason,
+        crossAccountProtectionUpdatedAt: new Date(googleAccount.crossAccountProtectionUpdatedAt),
+        sessionsRevokedAt: null,
+        createdAt: new Date(googleAccount.createdAt),
+      });
   }
 
   const activeViewer = googleAccount.activeViewerId ? await withViewerById(googleAccount.activeViewerId) : null;
@@ -1762,15 +2250,16 @@ export async function ensureViewerFromSession(input: SessionBootstrapInput) {
   }
 
   if (!preferredViewer) {
+    preferredViewer = await withViewerByYoutubeChannelId(syntheticYoutubeChannelId);
+  }
+
+  if (!preferredViewer) {
     preferredViewer = buildViewerRecord({
       googleUserId: input.googleUserId,
       email: input.email,
       name: input.name,
       image: input.image,
-      youtubeChannelId: buildSyntheticYoutubeChannelId({
-        googleUserId: input.googleUserId,
-        email: input.email,
-      }),
+      youtubeChannelId: syntheticYoutubeChannelId,
       youtubeDisplayName: input.name ?? input.email.split("@")[0],
       isLinked: false,
     });
@@ -2111,6 +2600,7 @@ export async function createGameSuggestion(input: {
   name: string;
   description?: string | null;
   linkUrl?: string | null;
+  source?: string;
 }) {
   const viewer = await withViewerById(input.viewerId);
   if (!viewer) {
@@ -2125,6 +2615,8 @@ export async function createGameSuggestion(input: {
     throw new Error("invalid_name");
   }
 
+  const source = input.source ?? "web";
+  const suggestionId = randomUUID();
   const db = getDb();
   if (isDemoMode || !db) {
     const store = getDemoStore();
@@ -2135,9 +2627,18 @@ export async function createGameSuggestion(input: {
       throw new Error("suggestion_already_exists");
     }
 
+    const balance = getBalance(store, input.viewerId);
+    if (balance.currentBalance < GAME_SUGGESTION_CREATION_COST) {
+      throw new Error("saldo_insuficiente");
+    }
+
     const createdAt = new Date().toISOString();
+    balance.currentBalance -= GAME_SUGGESTION_CREATION_COST;
+    balance.lifetimeSpent += GAME_SUGGESTION_CREATION_COST;
+    balance.lastSyncedAt = createdAt;
+
     const suggestion: GameSuggestionRecord = {
-      id: randomUUID(),
+      id: suggestionId,
       viewerId: input.viewerId,
       slug,
       name,
@@ -2149,33 +2650,75 @@ export async function createGameSuggestion(input: {
       updatedAt: createdAt,
     };
     store.gameSuggestions.unshift(suggestion);
+
+    createLedgerEntry(store, {
+      viewerId: input.viewerId,
+      kind: "game_suggestion_creation",
+      amount: -GAME_SUGGESTION_CREATION_COST,
+      source,
+      externalEventId: null,
+      metadata: { suggestionId, slug },
+      createdAt,
+    });
+
     return buildGameSuggestionWithMeta({ suggestion, viewer, boosts: [] });
   }
 
-  const [existing] = await db
-    .select()
-    .from(gameSuggestions)
-    .where(and(eq(gameSuggestions.slug, slug), inArray(gameSuggestions.status, ["open", "accepted"])))
-    .limit(1);
-  if (existing) {
-    throw new Error("suggestion_already_exists");
-  }
-
   const createdAt = new Date();
-  await db.insert(gameSuggestions).values({
-    id: randomUUID(),
-    viewerId: input.viewerId,
-    slug,
-    name,
-    description,
-    linkUrl,
-    status: "open",
-    totalVotes: 0,
-    createdAt,
-    updatedAt: createdAt,
+  await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(gameSuggestions)
+      .where(and(eq(gameSuggestions.slug, slug), inArray(gameSuggestions.status, ["open", "accepted"])))
+      .limit(1);
+    if (existing) {
+      throw new Error("suggestion_already_exists");
+    }
+
+    const [debited] = await tx
+      .update(viewerBalances)
+      .set({
+        currentBalance: sql`${viewerBalances.currentBalance} - ${GAME_SUGGESTION_CREATION_COST}`,
+        lifetimeSpent: sql`${viewerBalances.lifetimeSpent} + ${GAME_SUGGESTION_CREATION_COST}`,
+        lastSyncedAt: createdAt,
+      })
+      .where(
+        and(
+          eq(viewerBalances.viewerId, input.viewerId),
+          gte(viewerBalances.currentBalance, GAME_SUGGESTION_CREATION_COST),
+        ),
+      )
+      .returning({ viewerId: viewerBalances.viewerId });
+    if (!debited) {
+      throw new Error("saldo_insuficiente");
+    }
+
+    await tx.insert(gameSuggestions).values({
+      id: suggestionId,
+      viewerId: input.viewerId,
+      slug,
+      name,
+      description,
+      linkUrl,
+      status: "open",
+      totalVotes: 0,
+      createdAt,
+      updatedAt: createdAt,
+    });
+
+    await tx.insert(pointLedger).values({
+      id: randomUUID(),
+      viewerId: input.viewerId,
+      kind: "game_suggestion_creation",
+      amount: -GAME_SUGGESTION_CREATION_COST,
+      source,
+      externalEventId: null,
+      metadata: { suggestionId, slug },
+      createdAt,
+    });
   });
 
-  const created = (await listGameSuggestions(input.viewerId)).find((entry) => entry.slug === slug);
+  const created = (await listGameSuggestions(input.viewerId)).find((entry) => entry.id === suggestionId);
   if (!created) {
     throw new Error("Falha ao criar sugestao.");
   }
@@ -2588,10 +3131,10 @@ async function placeBetForViewer(input: {
       throw new Error("Aposta nao encontrada.");
     }
 
-    const duplicate = store.betEntries.find(
+    const existingStoredEntry = store.betEntries.find(
       (entry) => entry.betId === input.betId && entry.viewerId === dashboard.viewer.id,
     );
-    if (duplicate) {
+    if (existingStoredEntry && existingStoredEntry.optionId !== input.optionId) {
       throw new Error("aposta_ja_registrada");
     }
 
@@ -2604,7 +3147,14 @@ async function placeBetForViewer(input: {
     balance.lifetimeSpent += input.amount;
     balance.lastSyncedAt = new Date().toISOString();
     option.poolAmount += input.amount;
-    store.betEntries.unshift(createdEntry);
+    const persistedEntry = existingStoredEntry
+      ? { ...existingStoredEntry, amount: existingStoredEntry.amount + input.amount }
+      : createdEntry;
+    if (existingStoredEntry) {
+      existingStoredEntry.amount = persistedEntry.amount;
+    } else {
+      store.betEntries.unshift(createdEntry);
+    }
     createLedgerEntry(store, {
       viewerId: dashboard.viewer.id,
       kind: "bet_debit",
@@ -2613,16 +3163,21 @@ async function placeBetForViewer(input: {
       externalEventId: null,
       metadata: { betId: input.betId, optionId: input.optionId },
     });
-    return createdEntry;
+    return { ...persistedEntry };
   }
 
+  let persistedEntry = createdEntry;
   await db.transaction(async (tx) => {
-    const [betRow] = await tx.select().from(bets).where(eq(bets.id, input.betId)).limit(1);
-    const [optionRow] = await tx
-      .select()
-      .from(betOptions)
-      .where(eq(betOptions.id, input.optionId))
-      .limit(1);
+    const [betRow, optionRow, storedEntry] = await Promise.all([
+      tx.select().from(bets).where(eq(bets.id, input.betId)).limit(1).then((rows) => rows[0] ?? null),
+      tx.select().from(betOptions).where(eq(betOptions.id, input.optionId)).limit(1).then((rows) => rows[0] ?? null),
+      tx
+        .select()
+        .from(betEntries)
+        .where(and(eq(betEntries.betId, input.betId), eq(betEntries.viewerId, dashboard.viewer.id)))
+        .limit(1)
+        .then((rows) => rows[0] ?? null),
+    ]);
 
     if (!betRow || !optionRow || optionRow.betId !== input.betId) {
       throw new Error("Aposta nao encontrada.");
@@ -2634,26 +3189,68 @@ async function placeBetForViewer(input: {
       throw new Error("bet_closed");
     }
 
-    const insertedEntries = await tx
-      .insert(betEntries)
-      .values({
-        id: createdEntry.id,
-        betId: input.betId,
-        optionId: input.optionId,
-        viewerId: dashboard.viewer.id,
-        amount: input.amount,
-        payoutAmount: null,
-        settledAt: null,
-        refundedAt: null,
-        createdAt: new Date(createdEntry.createdAt),
-      })
-      .onConflictDoNothing({
-        target: [betEntries.betId, betEntries.viewerId],
-      })
-      .returning({ id: betEntries.id });
-
-    if (insertedEntries.length === 0) {
+    if (storedEntry && storedEntry.optionId !== input.optionId) {
       throw new Error("aposta_ja_registrada");
+    }
+
+    if (storedEntry) {
+      const [updatedEntry] = await tx
+        .update(betEntries)
+        .set({
+          amount: sql`${betEntries.amount} + ${input.amount}`,
+        })
+        .where(eq(betEntries.id, storedEntry.id))
+        .returning();
+
+      if (!updatedEntry) {
+        throw new Error("aposta_ja_registrada");
+      }
+
+      persistedEntry = serializeBetEntry(updatedEntry);
+    } else {
+      const insertedEntries = await tx
+        .insert(betEntries)
+        .values({
+          id: createdEntry.id,
+          betId: input.betId,
+          optionId: input.optionId,
+          viewerId: dashboard.viewer.id,
+          amount: input.amount,
+          payoutAmount: null,
+          settledAt: null,
+          refundedAt: null,
+          createdAt: new Date(createdEntry.createdAt),
+        })
+        .onConflictDoNothing({
+          target: [betEntries.betId, betEntries.viewerId],
+        })
+        .returning({ id: betEntries.id });
+
+      if (insertedEntries.length === 0) {
+        const [conflictingEntry] = await tx
+          .select()
+          .from(betEntries)
+          .where(and(eq(betEntries.betId, input.betId), eq(betEntries.viewerId, dashboard.viewer.id)))
+          .limit(1);
+
+        if (!conflictingEntry || conflictingEntry.optionId !== input.optionId) {
+          throw new Error("aposta_ja_registrada");
+        }
+
+        const [updatedEntry] = await tx
+          .update(betEntries)
+          .set({
+            amount: sql`${betEntries.amount} + ${input.amount}`,
+          })
+          .where(eq(betEntries.id, conflictingEntry.id))
+          .returning();
+
+        if (!updatedEntry) {
+          throw new Error("aposta_ja_registrada");
+        }
+
+        persistedEntry = serializeBetEntry(updatedEntry);
+      }
     }
 
     const debitedBalances = await tx
@@ -2693,7 +3290,7 @@ async function placeBetForViewer(input: {
     });
   });
 
-  return createdEntry;
+  return persistedEntry;
 }
 
 export async function placeBet({
@@ -2768,13 +3365,42 @@ export async function placeBetFromChatCommand(input: {
   };
 }
 
+export async function getViewerBalanceFromChatCommand(input: {
+  viewerExternalId: string;
+  youtubeDisplayName?: string | null;
+  youtubeHandle?: string | null;
+  source: string;
+}) {
+  const viewerExternalId = input.viewerExternalId.trim();
+  if (!viewerExternalId) {
+    throw new Error("viewer_external_id_required");
+  }
+
+  const viewer = await withViewerByYoutubeChannelId(viewerExternalId);
+  if (!viewer) {
+    throw new Error("viewer_not_ready");
+  }
+
+  const dashboard = await getViewerDashboard(viewer.id);
+  if (!dashboard) {
+    throw new Error("viewer_not_ready");
+  }
+
+  return {
+    viewer: dashboard.viewer,
+    balance: dashboard.balance,
+    source: input.source,
+  };
+}
+
 export async function runQuoteCommandFromChat(input: {
-  action: "create" | "get";
+  action: "create" | "get" | "show";
   viewerExternalId?: string;
   youtubeDisplayName?: string | null;
   youtubeHandle?: string | null;
   quoteText?: string | null;
   quoteId?: number | null;
+  displayDurationSeconds?: number | null;
   isModerator?: boolean;
   isBroadcaster?: boolean;
   isAdmin?: boolean;
@@ -2807,11 +3433,67 @@ export async function runQuoteCommandFromChat(input: {
     };
   }
 
+  if (input.action === "show") {
+    if (!input.viewerExternalId?.trim()) {
+      throw new Error("viewer_external_id_required");
+    }
+
+    if (!input.quoteId) {
+      throw new Error("quote_id_required");
+    }
+
+    const viewer = await ensureViewerFromStreamerbotIdentity({
+      viewerExternalId: input.viewerExternalId,
+      youtubeDisplayName: input.youtubeDisplayName,
+      youtubeHandle: input.youtubeHandle,
+    });
+    const quote = await getQuoteRecord({ quoteId: input.quoteId });
+    const overlay = await activateQuoteOverlay({
+      quote,
+      viewer,
+      source: input.source,
+      durationSeconds: input.displayDurationSeconds ?? undefined,
+    });
+
+    return {
+      action: "show" as const,
+      quote,
+      viewer,
+      overlay,
+    };
+  }
+
   const quote = await getQuoteRecord({ quoteId: input.quoteId });
   return {
     action: "get" as const,
     quote,
     viewer: null,
+  };
+}
+
+export async function showQuoteOverlayForViewer(input: {
+  viewerId: string;
+  quoteId: number;
+  source: string;
+  displayDurationSeconds?: number | null;
+}) {
+  const viewer = await withViewerById(input.viewerId);
+  if (!viewer) {
+    throw new Error("Viewer not found.");
+  }
+
+  const quote = await getQuoteRecord({ quoteId: input.quoteId });
+  const overlay = await activateQuoteOverlay({
+    quote,
+    viewer,
+    source: input.source,
+    durationSeconds: input.displayDurationSeconds ?? undefined,
+  });
+
+  return {
+    quote,
+    viewer,
+    overlay,
   };
 }
 
@@ -3943,12 +4625,12 @@ export async function ingestStreamerbotEvent(input: {
   }
 
   if (eventRequiresActiveLivestream(input.eventType)) {
-    const explicitLivestreamState = parseExplicitLivestreamState(input.payload);
-    const isLive =
-      explicitLivestreamState === null
-        ? await isStreamerbotLivestreamActive()
-        : explicitLivestreamState;
-    if (!isLive) {
+    try {
+      await requireActiveLivestream({
+        explicitState: parseExplicitLivestreamState(input.payload),
+        failureError: "livestream_not_live",
+      });
+    } catch {
       return {
         mode: "database" as const,
         deduped: false,

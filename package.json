@@ -17,7 +17,8 @@
     "backfill:youtube-names": "tsx scripts/backfill-youtube-display-names.ts",
     "fix:users-ranking-state": "tsx scripts/fix-users-ranking-state.ts",
     "merge:duplicate-youtube-users": "tsx scripts/merge-duplicate-youtube-users.ts",
-    "merge:viewers": "tsx scripts/merge-viewers.ts"
+    "merge:viewers": "tsx scripts/merge-viewers.ts",
+    "google:risc": "tsx scripts/google-risc.ts"
   },
   "dependencies": {
     "@auth/core": "^0.41.1",

@@ -37,6 +37,15 @@ export const googleAccounts = pgTable(
     displayName: varchar("display_name", { length: 255 }),
     avatarUrl: text("avatar_url"),
     activeViewerId: varchar("active_viewer_id", { length: 64 }).references(() => users.id),
+    crossAccountProtectionState: varchar("cross_account_protection_state", { length: 32 })
+      .default("ok")
+      .notNull(),
+    crossAccountProtectionEvent: varchar("cross_account_protection_event", { length: 255 }),
+    crossAccountProtectionReason: varchar("cross_account_protection_reason", { length: 255 }),
+    crossAccountProtectionUpdatedAt: timestamp("cross_account_protection_updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    sessionsRevokedAt: timestamp("sessions_revoked_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
@@ -299,6 +308,34 @@ export const quotes = pgTable(
     quoteNumberIdx: uniqueIndex("quotes_quote_number_idx").on(table.quoteNumber),
   }),
 );
+
+export const googleRiscDeliveries = pgTable("google_risc_deliveries", {
+  jti: varchar("jti", { length: 255 }).primaryKey(),
+  eventTypes: jsonb("event_types").default([]).notNull(),
+  receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
+  issuedAt: timestamp("issued_at", { withTimezone: true }),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+  matchedAccountCount: integer("matched_account_count").default(0).notNull(),
+  lastError: text("last_error"),
+});
+
+export const quoteOverlayState = pgTable("quote_overlay_state", {
+  slot: varchar("slot", { length: 32 }).primaryKey(),
+  overlayId: varchar("overlay_id", { length: 64 }).notNull(),
+  quoteNumber: integer("quote_number").notNull(),
+  quoteBody: text("quote_body").notNull(),
+  createdByDisplayName: varchar("created_by_display_name", { length: 255 }).notNull(),
+  createdByYoutubeHandle: varchar("created_by_youtube_handle", { length: 255 }),
+  requestedByViewerId: varchar("requested_by_viewer_id", { length: 64 })
+    .references(() => users.id)
+    .notNull(),
+  requestedByDisplayName: varchar("requested_by_display_name", { length: 255 }).notNull(),
+  requestedByYoutubeHandle: varchar("requested_by_youtube_handle", { length: 255 }),
+  source: varchar("source", { length: 64 }).default("streamerbot_chat").notNull(),
+  cost: integer("cost").notNull(),
+  activatedAt: timestamp("activated_at", { withTimezone: true }).defaultNow().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
 
 export const streamerbotCounters = pgTable("streamerbot_counters", {
   key: varchar("key", { length: 64 }).primaryKey(),

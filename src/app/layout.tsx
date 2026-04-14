@@ -7,6 +7,7 @@ import { AppChrome } from "@/components/app-chrome";
 import { Providers } from "@/components/providers";
 import "./globals.css";
 import { adminEmails } from "@/lib/env";
+import { isStreamerbotLivestreamActive } from "@/lib/streamerbot/live-status";
 import { cn } from "@/lib/utils";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
@@ -56,7 +57,10 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await auth();
+  const [session, isLive] = await Promise.all([
+    auth(),
+    isStreamerbotLivestreamActive(),
+  ]);
   const isAdmin = Boolean(session?.user?.email && adminEmails.has(session.user.email.toLowerCase()));
 
   return (
@@ -70,7 +74,7 @@ export default async function RootLayout({
           {themeScript}
         </Script>
         <Providers>
-          <AppChrome session={session} isAdmin={isAdmin}>
+          <AppChrome session={session} isAdmin={isAdmin} isLive={isLive}>
             {children}
           </AppChrome>
         </Providers>

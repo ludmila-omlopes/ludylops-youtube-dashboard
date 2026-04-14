@@ -23,6 +23,7 @@
 # misc
 .DS_Store
 *.pem
+youtube-ludylops-*.json
 
 # debug
 npm-debug.log*

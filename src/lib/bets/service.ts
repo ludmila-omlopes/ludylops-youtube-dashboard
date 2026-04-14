@@ -55,7 +55,7 @@ export function evaluateBetPlacement(input: PlacementInput): PlacementResult {
     return { canPlace: false, reason: "invalid_option" };
   }
 
-  if (input.existingEntry) {
+  if (input.existingEntry && input.existingEntry.optionId !== input.optionId) {
     return { canPlace: false, reason: "aposta_ja_registrada" };
   }
 
