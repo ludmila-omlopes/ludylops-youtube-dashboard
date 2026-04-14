@@ -2,6 +2,7 @@ import { AdminObsOverlaysPanel } from "@/components/admin-obs-overlays-panel";
 import { AdminBetsPanel } from "@/components/admin-bets-panel";
 import { AdminGameSuggestionsPanel } from "@/components/admin-game-suggestions-panel";
 import { AdminRecommendationsPanel } from "@/components/admin-recommendations-panel";
+import { AdminViewerLinksPanel } from "@/components/admin-viewer-links-panel";
 import { RedemptionGrid } from "@/components/redemption-grid";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { LiveStatusPanel } from "@/components/live-status-panel";
@@ -10,6 +11,7 @@ import {
   getBridgeStatus,
   getCatalog,
   getLeaderboard,
+  listAdminViewerDirectory,
   listAdminGameSuggestions,
   listAdminProductRecommendations,
   listAdminBets,
@@ -27,7 +29,7 @@ const statusColorMap: Record<string, string> = {
 
 export default async function AdminPage() {
   await requireAdminSession();
-  const [catalog, leaderboard, bridge, redemptions, bets, suggestions, recommendations] = await Promise.all([
+  const [catalog, leaderboard, bridge, redemptions, bets, suggestions, recommendations, viewers] = await Promise.all([
     getCatalog(),
     getLeaderboard(),
     getBridgeStatus(),
@@ -35,6 +37,7 @@ export default async function AdminPage() {
     listAdminBets(),
     listAdminGameSuggestions(),
     listAdminProductRecommendations(),
+    listAdminViewerDirectory(),
   ]);
 
   return (
@@ -102,6 +105,7 @@ export default async function AdminPage() {
       </section>
 
       <AdminBetsPanel bets={bets} />
+      <AdminViewerLinksPanel entries={viewers} />
       <AdminObsOverlaysPanel />
       <AdminGameSuggestionsPanel suggestions={suggestions} />
       <AdminRecommendationsPanel recommendations={recommendations} />

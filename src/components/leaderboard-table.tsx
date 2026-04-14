@@ -1,4 +1,4 @@
-import { getDistinctYoutubeHandle } from "@/lib/youtube/identity";
+import { getDistinctYoutubeHandle, normalizeYoutubeHandle } from "@/lib/youtube/identity";
 import { ViewerBalanceRecord, ViewerRecord } from "@/lib/types";
 import { formatDateTime, formatPipetz } from "@/lib/utils";
 
@@ -6,10 +6,12 @@ type LeaderboardEntry =
   | { viewer: ViewerRecord; balance: ViewerBalanceRecord }
   | {
       id: string;
+      googleUserId?: string | null;
       youtubeChannelId: string;
       youtubeDisplayName: string;
       youtubeHandle?: string | null;
       avatarUrl: string | null;
+      isLinked?: boolean;
       currentBalance: number;
       lifetimeEarned: number;
       lifetimeSpent: number;
@@ -42,10 +44,13 @@ export function LeaderboardTable({
         {entries.map((entry, index) => {
           const viewer = "viewer" in entry ? entry.viewer : entry;
           const balance = "balance" in entry ? entry.balance : entry;
-          const handle = getDistinctYoutubeHandle({
-            youtubeDisplayName: viewer.youtubeDisplayName,
-            youtubeHandle: viewer.youtubeHandle,
-          });
+          const isVerifiedViewer = Boolean(viewer.googleUserId && viewer.isLinked);
+          const handle = isVerifiedViewer
+            ? normalizeYoutubeHandle(viewer.youtubeHandle)
+            : getDistinctYoutubeHandle({
+                youtubeDisplayName: viewer.youtubeDisplayName,
+                youtubeHandle: viewer.youtubeHandle,
+              });
           const podium = podiumClass(index);
           return (
             <div
@@ -56,7 +61,7 @@ export function LeaderboardTable({
               <div>
                 <p className="font-black uppercase">{viewer.youtubeDisplayName}</p>
                 {handle ? (
-                  <p className="mt-0.5 text-xs uppercase tracking-[0.15em] text-[var(--color-ink-soft)]">
+                  <p className="mt-0.5 text-xs tracking-[0.15em] text-[var(--color-ink-soft)]">
                     {handle}
                   </p>
                 ) : null}

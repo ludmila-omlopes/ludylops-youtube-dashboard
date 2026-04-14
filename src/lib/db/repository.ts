@@ -57,6 +57,8 @@ import {
 import { normalizeYoutubeHandle } from "@/lib/youtube/identity";
 import { evaluateRedeemability } from "@/lib/redemptions/service";
 import {
+  AdminViewerDirectoryRecord,
+  AdminViewerLinkResult,
   BetEntryRecord,
   BetOptionRecord,
   BetRecord,
@@ -527,6 +529,60 @@ function isSyntheticViewer(viewer: ViewerRecord | null) {
   return Boolean(viewer && isSyntheticYoutubeChannelId(viewer.youtubeChannelId));
 }
 
+function buildAdminViewerDirectoryRecord(input: {
+  viewer: ViewerRecord;
+  balance?: ViewerBalanceRecord | null;
+  googleAccount?: GoogleAccountRecord | null;
+}) {
+  return {
+    id: input.viewer.id,
+    email: input.viewer.email,
+    googleUserId: input.viewer.googleUserId,
+    youtubeChannelId: input.viewer.youtubeChannelId,
+    youtubeDisplayName: input.viewer.youtubeDisplayName,
+    youtubeHandle: input.viewer.youtubeHandle ?? null,
+    avatarUrl: input.viewer.avatarUrl,
+    isLinked: input.viewer.isLinked,
+    excludeFromRanking: input.viewer.excludeFromRanking,
+    createdAt: input.viewer.createdAt,
+    currentBalance: input.balance?.currentBalance ?? null,
+    lifetimeEarned: input.balance?.lifetimeEarned ?? null,
+    lifetimeSpent: input.balance?.lifetimeSpent ?? null,
+    lastSyncedAt: input.balance?.lastSyncedAt ?? null,
+    googleAccountId: input.googleAccount?.id ?? null,
+    googleAccountEmail: input.googleAccount?.email ?? null,
+    googleAccountDisplayName: input.googleAccount?.displayName ?? null,
+    googleAccountActiveViewerId: input.googleAccount?.activeViewerId ?? null,
+    isSyntheticYoutubeChannel: isSyntheticYoutubeChannelId(input.viewer.youtubeChannelId),
+  } satisfies AdminViewerDirectoryRecord;
+}
+
+function sortAdminViewerDirectory(entries: AdminViewerDirectoryRecord[]) {
+  return [...entries].sort((left, right) => {
+    const linkedDelta = Number(right.isLinked) - Number(left.isLinked);
+    if (linkedDelta !== 0) {
+      return linkedDelta;
+    }
+
+    const googleDelta = Number(Boolean(right.googleAccountId)) - Number(Boolean(left.googleAccountId));
+    if (googleDelta !== 0) {
+      return googleDelta;
+    }
+
+    const syntheticDelta = Number(left.isSyntheticYoutubeChannel) - Number(right.isSyntheticYoutubeChannel);
+    if (syntheticDelta !== 0) {
+      return syntheticDelta;
+    }
+
+    const nameDelta = left.youtubeDisplayName.localeCompare(right.youtubeDisplayName);
+    if (nameDelta !== 0) {
+      return nameDelta;
+    }
+
+    return left.createdAt.localeCompare(right.createdAt);
+  });
+}
+
 function filterVisibleViewerChannels(channels: ViewerChannelOptionRecord[]) {
   const hasRealChannels = channels.some((channel) => !isSyntheticYoutubeChannelId(channel.youtubeChannelId));
   if (!hasRealChannels) {
@@ -612,6 +668,11 @@ function mergeDemoViewerIntoTarget(input: {
 
   const sourceBalance = getBalance(store, sourceViewerId);
   const targetBalance = getBalance(store, targetViewerId);
+  targetViewer.googleUserId ??= sourceViewer.googleUserId;
+  targetViewer.email ??= sourceViewer.email;
+  targetViewer.avatarUrl ??= sourceViewer.avatarUrl;
+  targetViewer.isLinked = targetViewer.isLinked || sourceViewer.isLinked || Boolean(sourceOwnerLink);
+  targetViewer.excludeFromRanking = targetViewer.excludeFromRanking || sourceViewer.excludeFromRanking;
   targetBalance.currentBalance += sourceBalance.currentBalance;
   targetBalance.lifetimeEarned += sourceBalance.lifetimeEarned;
   targetBalance.lifetimeSpent += sourceBalance.lifetimeSpent;
@@ -2493,6 +2554,109 @@ export async function listBets(viewerId?: string | null) {
 
 export async function listAdminBets() {
   return listBets();
+}
+
+export async function listAdminViewerDirectory() {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const balanceByViewerId = new Map(store.balances.map((entry) => [entry.viewerId, entry]));
+    const googleAccountById = new Map(store.googleAccounts.map((entry) => [entry.id, entry]));
+    const googleAccountLinkByViewerId = new Map(store.googleAccountViewers.map((entry) => [entry.viewerId, entry]));
+
+    return sortAdminViewerDirectory(
+      store.viewers.map((viewer) =>
+        buildAdminViewerDirectoryRecord({
+          viewer,
+          balance: balanceByViewerId.get(viewer.id),
+          googleAccount: googleAccountById.get(googleAccountLinkByViewerId.get(viewer.id)?.googleAccountId ?? ""),
+        }),
+      ),
+    );
+  }
+
+  const rows = await db
+    .select({
+      viewer: users,
+      balance: viewerBalances,
+      googleAccount: googleAccounts,
+    })
+    .from(users)
+    .leftJoin(viewerBalances, eq(users.id, viewerBalances.viewerId))
+    .leftJoin(googleAccountViewers, eq(users.id, googleAccountViewers.viewerId))
+    .leftJoin(googleAccounts, eq(googleAccountViewers.googleAccountId, googleAccounts.id))
+    .orderBy(desc(users.isLinked), users.youtubeDisplayName, users.createdAt);
+
+  return sortAdminViewerDirectory(
+    rows.map(({ viewer, balance, googleAccount }) =>
+      buildAdminViewerDirectoryRecord({
+        viewer: serializeViewer(viewer),
+        balance: balance ? serializeViewerBalance(balance) : null,
+        googleAccount: googleAccount ? serializeGoogleAccount(googleAccount) : null,
+      }),
+    ),
+  );
+}
+
+export async function adminLinkGoogleViewerToYoutubeViewer(input: {
+  sourceViewerId: string;
+  targetViewerId: string;
+}): Promise<AdminViewerLinkResult> {
+  if (input.sourceViewerId === input.targetViewerId) {
+    throw new Error("Escolha usuarios diferentes para fazer a vinculacao.");
+  }
+
+  const [sourceViewer, targetViewer, sourceOwnerLink, targetOwnerLink] = await Promise.all([
+    withViewerById(input.sourceViewerId),
+    withViewerById(input.targetViewerId),
+    withGoogleAccountViewerLinkByViewerId(input.sourceViewerId),
+    withGoogleAccountViewerLinkByViewerId(input.targetViewerId),
+  ]);
+
+  if (!sourceViewer) {
+    throw new Error("Usuario Google nao encontrado.");
+  }
+  if (!targetViewer) {
+    throw new Error("Usuario do YouTube nao encontrado.");
+  }
+  if (!sourceOwnerLink) {
+    throw new Error("O usuario Google selecionado ainda nao esta ligado a uma conta Google.");
+  }
+  if (!isSyntheticYoutubeChannelId(sourceViewer.youtubeChannelId)) {
+    throw new Error("Escolha no campo Google um usuario de sessao Google ainda nao vinculado ao canal final.");
+  }
+  if (isSyntheticYoutubeChannelId(targetViewer.youtubeChannelId)) {
+    throw new Error("Escolha no campo YouTube um canal real do YouTube.");
+  }
+  if (targetOwnerLink && targetOwnerLink.googleAccountId !== sourceOwnerLink.googleAccountId) {
+    throw new Error("Esse usuario do YouTube ja esta vinculado a outra conta Google.");
+  }
+
+  const mergeResult = await mergeViewerIntoTarget({
+    googleAccountId: sourceOwnerLink.googleAccountId,
+    sourceViewerId: input.sourceViewerId,
+    targetViewerId: input.targetViewerId,
+  });
+  if (!mergeResult.merged) {
+    throw new Error(
+      "Nao foi possivel vincular com seguranca. Verifique se existem conflitos de apostas ou outro vinculo ativo.",
+    );
+  }
+
+  const updatedDirectory = await listAdminViewerDirectory();
+  const updatedViewer = updatedDirectory.find((entry) => entry.id === input.targetViewerId);
+  if (!updatedViewer) {
+    throw new Error("O vinculo foi aplicado, mas nao consegui recarregar o usuario final.");
+  }
+
+  return {
+    googleAccountId: sourceOwnerLink.googleAccountId,
+    sourceViewerId: input.sourceViewerId,
+    targetViewerId: input.targetViewerId,
+    transferredOwnerLink: mergeResult.transferredOwnerLink,
+    viewer: updatedViewer,
+  };
 }
 
 export async function listGameSuggestions(viewerId?: string | null) {

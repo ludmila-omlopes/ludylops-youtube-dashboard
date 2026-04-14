@@ -19,10 +19,11 @@ export function GameSuggestionList({
 
     return +new Date(b.createdAt) - +new Date(a.createdAt);
   });
+  const visibleSuggestions = sorted.filter((suggestion) => suggestion.status !== "rejected");
 
   return (
     <div className="grid gap-4">
-      {sorted.map((suggestion, index) => (
+      {visibleSuggestions.map((suggestion, index) => (
         <GameSuggestionCard
           key={suggestion.id}
           suggestion={suggestion}

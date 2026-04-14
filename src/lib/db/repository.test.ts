@@ -54,6 +54,7 @@ import {
 } from "@/lib/db/schema";
 import { GAME_SUGGESTION_CREATION_COST } from "@/lib/game-suggestions/constants";
 import {
+  adminLinkGoogleViewerToYoutubeViewer,
   boostGameSuggestion,
   cancelBet,
   createBet,
@@ -67,6 +68,7 @@ import {
   getSessionViewerState,
   ingestStreamerbotEvent,
   listAdminProductRecommendations,
+  listAdminViewerDirectory,
   listBets,
   listGameSuggestions,
   listAdminGameSuggestions,
@@ -1933,6 +1935,73 @@ describe("ensureViewerFromSession", () => {
       currentBalance: 5,
       lifetimeEarned: 5,
     });
+  });
+});
+
+describe("adminLinkGoogleViewerToYoutubeViewer", () => {
+  beforeEach(() => {
+    getDbMock.mockReset();
+    delete (globalThis as typeof globalThis & { __lojaDemoStore?: unknown }).__lojaDemoStore;
+  });
+
+  it("lists admin viewers with Google account metadata", async () => {
+    getDbMock.mockReturnValue(null);
+
+    await ensureViewerFromSession({
+      googleUserId: "google_admin_link",
+      email: "link@example.com",
+      name: "Link",
+      image: null,
+    });
+
+    const directory = await listAdminViewerDirectory();
+    const googleEntry = directory.find((entry) => entry.googleAccountEmail === "link@example.com");
+
+    expect(googleEntry).toMatchObject({
+      googleAccountEmail: "link@example.com",
+      isSyntheticYoutubeChannel: true,
+      isLinked: false,
+    });
+  });
+
+  it("links a Google fallback viewer to a real YouTube viewer in demo mode", async () => {
+    getDbMock.mockReturnValue(null);
+
+    const fallbackViewer = await ensureViewerFromSession({
+      googleUserId: "google_link_demo",
+      email: "link-demo@example.com",
+      name: "Link Demo",
+      image: null,
+    });
+    if (!fallbackViewer) {
+      throw new Error("Expected a synthetic Google viewer for link-demo@example.com.");
+    }
+
+    const result = await adminLinkGoogleViewerToYoutubeViewer({
+      sourceViewerId: fallbackViewer.id,
+      targetViewerId: "viewer_lia",
+    });
+
+    expect(result.viewer).toMatchObject({
+      id: "viewer_lia",
+      email: "link-demo@example.com",
+      googleUserId: "google_link_demo",
+      youtubeDisplayName: "Lia Pixel",
+      googleAccountEmail: "link-demo@example.com",
+      isLinked: true,
+      isSyntheticYoutubeChannel: false,
+    });
+
+    const state = await getSessionViewerState({
+      googleUserId: "google_link_demo",
+      email: "link-demo@example.com",
+    });
+
+    expect(state?.activeViewer.id).toBe("viewer_lia");
+    expect(state?.activeViewer.youtubeDisplayName).toBe("Lia Pixel");
+
+    const directory = await listAdminViewerDirectory();
+    expect(directory.some((entry) => entry.id === fallbackViewer.id)).toBe(false);
   });
 });
 
