@@ -3,7 +3,7 @@ import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 
-import { GOOGLE_AUTHORIZATION_PARAMS } from "@/lib/auth/google";
+import { GOOGLE_AUTHORIZATION_PARAMS, GOOGLE_SECURE_OAUTH_CHECKS } from "@/lib/auth/google";
 import { ensureViewerFromSession, getGoogleAccountByIdentity, getSessionViewerState } from "@/lib/db/repository";
 import { authSecret, env, isDemoAuthEnabled } from "@/lib/env";
 import {
@@ -21,6 +21,7 @@ if (env.AUTH_GOOGLE_ID && env.AUTH_GOOGLE_SECRET) {
     GoogleProvider({
       clientId: env.AUTH_GOOGLE_ID,
       clientSecret: env.AUTH_GOOGLE_SECRET,
+      checks: [...GOOGLE_SECURE_OAUTH_CHECKS],
       authorization: {
         params: GOOGLE_AUTHORIZATION_PARAMS,
       },
