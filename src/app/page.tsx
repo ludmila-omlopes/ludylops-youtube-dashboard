@@ -9,6 +9,12 @@ import { QuickNavGrid } from "@/components/quick-nav-grid";
 import { StickerBadge } from "@/components/sticker-badge";
 import { YoutubePermissionRetryButton } from "@/components/youtube-permission-retry-button";
 import { GOOGLE_ACCOUNT_SWITCH_HINT } from "@/lib/auth/google";
+import {
+  getAccountProtectionStatusFromSearchParams,
+  getSessionAccountProtectionStatus,
+  hasUsableAppSession,
+  type AccountProtectionStatus,
+} from "@/lib/auth/session-state";
 import { env } from "@/lib/env";
 import type { YoutubeChannelLookupStatus } from "@/lib/google/youtube-channel";
 import {
@@ -136,6 +142,31 @@ function YoutubeLinkingNotice({
           Abrir issue no GitHub →
         </a>
       </div>
+    </div>
+  );
+}
+
+function AccountProtectionNotice({ status }: { status: AccountProtectionStatus }) {
+  const title =
+    status === "google_signin_blocked"
+      ? "Seu login Google foi pausado por seguranca."
+      : "Sua sessao foi encerrada por um alerta de seguranca.";
+  const body =
+    status === "google_signin_blocked"
+      ? "O Google enviou um sinal de risco para esta conta, entao eu bloqueei novas entradas com esse login ate a situacao ser normalizada."
+      : "Recebi um evento de protecao entre contas e encerrei sua sessao local. Para continuar, entre novamente depois de revisar a seguranca da sua conta Google.";
+  const nextStep =
+    status === "google_signin_blocked"
+      ? "Se voce quiser testar com outra conta Google, use o seletor de conta. Se esta for a sua conta principal, revise a seguranca dela primeiro."
+      : "Se estiver tudo certo na sua conta Google, voce pode entrar novamente agora.";
+
+  return (
+    <div className="card-poster mt-6 border-[3px] border-[var(--color-ink)] bg-[var(--color-blue)] p-4 text-[var(--color-ink)]">
+      <p className="mono text-[10px] uppercase tracking-[0.24em]">seguranca da conta</p>
+      <p className="mt-2 text-lg font-black uppercase leading-tight">{title}</p>
+      <p className="mt-3 text-sm font-bold leading-6">{body}</p>
+      <p className="mt-3 text-sm font-medium leading-6">{nextStep}</p>
+      <p className="mt-3 text-xs font-medium leading-5">{GOOGLE_ACCOUNT_SWITCH_HINT}</p>
     </div>
   );
 }
@@ -606,9 +637,17 @@ function LiveSpotlight({ activeBet, catalog, loggedIn = false }: SpotlightProps)
   );
 }
 
-export default async function Home() {
+type HomePageProps = {
+  searchParams: Promise<{ googleAccountProtection?: string | string[] | undefined }>;
+};
+
+export default async function Home({ searchParams }: HomePageProps) {
   const session = await auth();
-  const activeViewerId = session?.user?.activeViewerId ?? null;
+  const resolvedSearchParams = await searchParams;
+  const accountProtectionStatus =
+    getSessionAccountProtectionStatus(session) ?? getAccountProtectionStatusFromSearchParams(resolvedSearchParams);
+  const hasUsableSession = hasUsableAppSession(session) && !accountProtectionStatus;
+  const activeViewerId = hasUsableSession ? session?.user?.activeViewerId ?? null : null;
   const [catalog, leaderboard, bets, isLive] = await Promise.all([
     getCatalog(),
     getLeaderboard(),
@@ -707,7 +746,7 @@ export default async function Home() {
     },
   ];
 
-  const heroTitle: ReactNode = session?.user ? (
+  const heroTitle: ReactNode = hasUsableSession ? (
     <>
       Voce ja esta na minha live.{" "}
       <span className="inline-block border-[3px] border-[var(--color-ink)] bg-[var(--color-pink)] px-3 py-1 shadow-[4px_4px_0_#000]">
@@ -723,23 +762,26 @@ export default async function Home() {
     </>
   );
 
-  const heroDescription = session?.user
-    ? dashboard
-      ? "Seu saldo, seu ranking e o que esta rolando comigo ao vivo ficam aqui para voce entrar na brincadeira sem se perder."
-      : "Sua conta entrou, mas ainda falta sincronizar seus dados da live para eu te liberar tudo por aqui."
-    : "Aqui o chat ganha pipetz, entra nas apostas e ativa resgates que aparecem durante a minha live.";
+  const heroDescription = accountProtectionStatus
+    ? accountProtectionStatus === "google_signin_blocked"
+      ? "Seu acesso com Google foi colocado em espera por um evento de seguranca. Eu mantive o painel publico disponivel enquanto voce revisa a conta."
+      : "Sua sessao local foi encerrada por seguranca. Assim que voce entrar de novo, o painel volta a mostrar seus dados normalmente."
+    : hasUsableSession
+      ? dashboard
+        ? "Seu saldo, seu ranking e o que esta rolando comigo ao vivo ficam aqui para voce entrar na brincadeira sem se perder."
+        : "Sua conta entrou, mas ainda falta sincronizar seus dados da live para eu te liberar tudo por aqui."
+      : "Aqui o chat ganha pipetz, entra nas apostas e ativa resgates que aparecem durante a minha live.";
 
-  const heroPosterHeading = session?.user
-    ? dashboard?.viewer.youtubeDisplayName ?? "Conta conectada"
-    : "LUDYLOPS";
+  const heroPosterHeading = hasUsableSession ? dashboard?.viewer.youtubeDisplayName ?? "Conta conectada" : "LUDYLOPS";
 
-  const heroPosterDescription = session?.user
+  const heroPosterDescription = hasUsableSession
     ? "Esse e o seu cantinho para acompanhar saldo, ranking e o que esta rolando comigo ao vivo."
     : "Esse painel e o cantinho da minha live para o chat apostar, resgatar e acompanhar o ranking.";
 
-  const metrics = session?.user ? authedMetrics : publicMetrics;
+  const metrics = hasUsableSession ? authedMetrics : publicMetrics;
   const shouldShowYoutubeLinkingNotice = Boolean(
-    session?.user?.youtubeLinkingMessage &&
+    hasUsableSession &&
+      session?.user?.youtubeLinkingMessage &&
       session.user.youtubeLinkingStatus &&
       session.user.youtubeLinkingStatus !== "channels_found" &&
       !session.user.isLinked,
@@ -789,6 +831,8 @@ export default async function Home() {
               {heroDescription}
             </p>
 
+            {accountProtectionStatus ? <AccountProtectionNotice status={accountProtectionStatus} /> : null}
+
             {shouldShowYoutubeLinkingNotice ? (
               <YoutubeLinkingNotice
                 status={session!.user!.youtubeLinkingStatus!}
@@ -798,7 +842,7 @@ export default async function Home() {
             ) : null}
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              {session?.user ? (
+              {hasUsableSession ? (
                 <>
                   <Link href="/apostas" className="btn-brutal accent-button px-6 py-3 text-sm">
                     Ir para apostas ↗
@@ -830,13 +874,13 @@ export default async function Home() {
           <HeroPoster
             heading={heroPosterHeading}
             description={heroPosterDescription}
-            loggedIn={Boolean(session?.user)}
+            loggedIn={hasUsableSession}
             metrics={metrics}
           />
         </div>
       </section>
 
-      <FeatureShowcase features={features} metrics={metrics} loggedIn={Boolean(session?.user)} />
+      <FeatureShowcase features={features} metrics={metrics} loggedIn={hasUsableSession} />
 
       {false ? (
         <QuickNavGrid
@@ -885,7 +929,7 @@ export default async function Home() {
 
       <section className="landing-plane landing-divider bg-[var(--color-paper)] py-8 sm:py-10">
         <div className="mx-auto w-full max-w-[1520px] px-4 sm:px-6 lg:px-10">
-          <LiveSpotlight activeBet={activeBets[0]} catalog={catalog} loggedIn={Boolean(session?.user)} />
+          <LiveSpotlight activeBet={activeBets[0]} catalog={catalog} loggedIn={hasUsableSession} />
         </div>
       </section>
 

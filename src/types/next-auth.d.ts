@@ -10,6 +10,7 @@ declare module "next-auth" {
       activeViewerId?: string;
       activeYoutubeChannelId?: string;
       activeViewerDisplayName?: string;
+      accountProtectionStatus?: "google_signin_blocked" | "session_revoked";
       youtubeLinkingStatus?:
         | "channels_found"
         | "empty"
@@ -31,6 +32,7 @@ declare module "next-auth/jwt" {
     activeYoutubeChannelId?: string;
     activeViewerDisplayName?: string;
     isLinked?: boolean;
+    accountProtectionStatus?: "google_signin_blocked" | "session_revoked";
     youtubeLinkingStatus?:
       | "channels_found"
       | "empty"

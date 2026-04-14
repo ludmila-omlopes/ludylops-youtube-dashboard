@@ -56,6 +56,8 @@ copy bridge\\.env.example bridge\\.env
 - `DATABASE_URL`
 - `AUTH_GOOGLE_ID`
 - `AUTH_GOOGLE_SECRET`
+- `GOOGLE_RISC_ALLOWED_AUDIENCES` (opcional, se tiver mais de um OAuth client aceito pelo receiver)
+- `GOOGLE_RISC_RECEIVER_URL` (opcional, para fixar a URL HTTPS do receiver RISC)
 - `YOUTUBE_API_KEY`
 - `ADMIN_EMAILS`
 - `STREAM_YOUTUBE_CHANNEL_ID` (opcional, se quiser forcar o canal monitorado em vez de usar a conta admin vinculada)
@@ -83,7 +85,14 @@ npm run db:generate
 npm run db:push
 npm run bridge:dev
 npm run backfill:youtube-names -- --dry-run
+npm run google:risc -- status
 ```
+
+## Google Cross-Account Protection
+
+O passo a passo completo de producao para o alerta de `Protecao entre contas`, incluindo service account, registro do stream RISC, teste de verificacao e checklist final no painel do Google, estÃ¡ em:
+
+- [docs/google-cross-account-protection.md](/D:/Codigos_Diversos/lojinha-youtube/docs/google-cross-account-protection.md)
 
 ## Banco e Drizzle
 

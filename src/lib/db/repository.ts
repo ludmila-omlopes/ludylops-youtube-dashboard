@@ -19,6 +19,7 @@ import {
   gameSuggestions,
   googleAccounts,
   googleAccountViewers,
+  googleRiscDeliveries,
   pointLedger,
   quoteOverlayState,
   quotes,
@@ -40,6 +41,7 @@ import {
   demoGameSuggestions,
   demoGoogleAccounts,
   demoGoogleAccountViewers,
+  demoGoogleRiscDeliveries,
   demoLedger,
   demoQuotes,
   demoProductRecommendations,
@@ -67,6 +69,7 @@ import {
   GameSuggestionWithMeta,
   GoogleAccountRecord,
   GoogleAccountViewerRecord,
+  GoogleRiscDeliveryRecord,
   LedgerEntryRecord,
   QuoteOverlayStateRecord,
   QuoteRecord,
@@ -129,6 +132,7 @@ type DemoStore = {
   viewers: ViewerRecord[];
   googleAccounts: GoogleAccountRecord[];
   googleAccountViewers: GoogleAccountViewerRecord[];
+  googleRiscDeliveries: GoogleRiscDeliveryRecord[];
   balances: ViewerBalanceRecord[];
   catalog: CatalogItemRecord[];
   ledger: LedgerEntryRecord[];
@@ -155,6 +159,7 @@ function getDemoStore(): DemoStore {
       viewers: structuredClone(demoViewers),
       googleAccounts: structuredClone(demoGoogleAccounts),
       googleAccountViewers: structuredClone(demoGoogleAccountViewers),
+      googleRiscDeliveries: structuredClone(demoGoogleRiscDeliveries),
       balances: structuredClone(demoBalances),
       catalog: structuredClone(demoCatalog),
       ledger: structuredClone(demoLedger),
@@ -299,6 +304,26 @@ type GoogleAccountSessionState = {
   activeViewer: ViewerRecord;
 };
 
+type ApplyGoogleCrossAccountProtectionEventInput = {
+  eventId: string;
+  eventType: string;
+  googleUserId: string;
+  occurredAt?: string | null;
+  reason?: string | null;
+};
+
+type ApplyGoogleCrossAccountProtectionEventResult = {
+  matchedAccountId: string | null;
+  crossAccountProtectionState: GoogleAccountRecord["crossAccountProtectionState"] | null;
+  sessionsRevokedAt: string | null;
+};
+
+type RegisterGoogleRiscDeliveryInput = {
+  jti: string;
+  eventTypes: string[];
+  issuedAt?: string | null;
+};
+
 function serializeViewer(row: typeof users.$inferSelect): ViewerRecord {
   return {
     id: row.id,
@@ -332,6 +357,11 @@ function serializeGoogleAccount(row: typeof googleAccounts.$inferSelect): Google
     displayName: row.displayName,
     avatarUrl: row.avatarUrl,
     activeViewerId: row.activeViewerId,
+    crossAccountProtectionState: row.crossAccountProtectionState as GoogleAccountRecord["crossAccountProtectionState"],
+    crossAccountProtectionEvent: row.crossAccountProtectionEvent,
+    crossAccountProtectionReason: row.crossAccountProtectionReason,
+    crossAccountProtectionUpdatedAt: row.crossAccountProtectionUpdatedAt.toISOString(),
+    sessionsRevokedAt: row.sessionsRevokedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -342,6 +372,18 @@ function serializeGoogleAccountViewer(row: typeof googleAccountViewers.$inferSel
     googleAccountId: row.googleAccountId,
     viewerId: row.viewerId,
     createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function serializeGoogleRiscDelivery(row: typeof googleRiscDeliveries.$inferSelect): GoogleRiscDeliveryRecord {
+  return {
+    jti: row.jti,
+    eventTypes: Array.isArray(row.eventTypes) ? (row.eventTypes as string[]) : [],
+    receivedAt: row.receivedAt.toISOString(),
+    issuedAt: row.issuedAt?.toISOString() ?? null,
+    processedAt: row.processedAt?.toISOString() ?? null,
+    matchedAccountCount: row.matchedAccountCount,
+    lastError: row.lastError,
   };
 }
 
@@ -397,8 +439,57 @@ function buildGoogleAccountRecord(input: {
     displayName: input.name,
     avatarUrl: input.image,
     activeViewerId: null,
+    crossAccountProtectionState: "ok",
+    crossAccountProtectionEvent: null,
+    crossAccountProtectionReason: null,
+    crossAccountProtectionUpdatedAt: new Date().toISOString(),
+    sessionsRevokedAt: null,
     createdAt: new Date().toISOString(),
   } satisfies GoogleAccountRecord;
+}
+
+function resolveProtectionEventTimestamp(occurredAt?: string | null) {
+  if (!occurredAt) {
+    return new Date();
+  }
+
+  const parsed = new Date(occurredAt);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+function buildGoogleCrossAccountProtectionMutation(input: ApplyGoogleCrossAccountProtectionEventInput) {
+  const effectiveAt = resolveProtectionEventTimestamp(input.occurredAt);
+  const mutation = {
+    crossAccountProtectionState: "ok" as GoogleAccountRecord["crossAccountProtectionState"],
+    crossAccountProtectionEvent: input.eventType,
+    crossAccountProtectionReason: input.reason ?? null,
+    crossAccountProtectionUpdatedAt: effectiveAt,
+    sessionsRevokedAt: undefined as Date | undefined,
+  };
+
+  switch (input.eventType) {
+    case "https://schemas.openid.net/secevent/risc/event-type/sessions-revoked":
+    case "https://schemas.openid.net/secevent/oauth/event-type/tokens-revoked":
+      mutation.sessionsRevokedAt = effectiveAt;
+      break;
+    case "https://schemas.openid.net/secevent/oauth/event-type/token-revoked":
+      break;
+    case "https://schemas.openid.net/secevent/risc/event-type/account-disabled":
+      mutation.crossAccountProtectionState = "google_signin_blocked";
+      if (input.reason === "hijacking") {
+        mutation.sessionsRevokedAt = effectiveAt;
+      }
+      break;
+    case "https://schemas.openid.net/secevent/risc/event-type/account-enabled":
+      mutation.crossAccountProtectionReason = null;
+      break;
+    case "https://schemas.openid.net/secevent/risc/event-type/account-credential-change-required":
+    case "https://schemas.openid.net/secevent/risc/event-type/verification":
+    default:
+      break;
+  }
+
+  return mutation;
 }
 
 function buildGoogleAccountViewerLink(input: { googleAccountId: string; viewerId: string }) {
@@ -1515,6 +1606,10 @@ async function withGoogleAccountByIdentity(input: Pick<SessionBootstrapInput, "g
   return byEmail ? serializeGoogleAccount(byEmail) : null;
 }
 
+export async function getGoogleAccountByIdentity(input: Pick<SessionBootstrapInput, "googleUserId" | "email">) {
+  return withGoogleAccountByIdentity(input);
+}
+
 async function withViewerById(viewerId: string) {
   const db = getDb();
 
@@ -1720,6 +1815,160 @@ export async function getSessionViewerState(
   };
 }
 
+export async function registerGoogleRiscDelivery(input: RegisterGoogleRiscDeliveryInput) {
+  const db = getDb();
+  const issuedAt = resolveProtectionEventTimestamp(input.issuedAt);
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const existing = store.googleRiscDeliveries.find((entry) => entry.jti === input.jti);
+    if (existing) {
+      return {
+        accepted: false,
+        delivery: existing,
+      };
+    }
+
+    const created: GoogleRiscDeliveryRecord = {
+      jti: input.jti,
+      eventTypes: [...input.eventTypes],
+      receivedAt: new Date().toISOString(),
+      issuedAt: issuedAt.toISOString(),
+      processedAt: null,
+      matchedAccountCount: 0,
+      lastError: null,
+    };
+    store.googleRiscDeliveries.unshift(created);
+    return {
+      accepted: true,
+      delivery: created,
+    };
+  }
+
+  const inserted = await db
+    .insert(googleRiscDeliveries)
+    .values({
+      jti: input.jti,
+      eventTypes: input.eventTypes,
+      issuedAt,
+      processedAt: null,
+      matchedAccountCount: 0,
+      lastError: null,
+    })
+    .onConflictDoNothing({
+      target: [googleRiscDeliveries.jti],
+    })
+    .returning();
+
+  if (inserted.length > 0) {
+    return {
+      accepted: true,
+      delivery: serializeGoogleRiscDelivery(inserted[0]!),
+    };
+  }
+
+  const [existing] = await db.select().from(googleRiscDeliveries).where(eq(googleRiscDeliveries.jti, input.jti)).limit(1);
+  return {
+    accepted: false,
+    delivery: existing ? serializeGoogleRiscDelivery(existing) : null,
+  };
+}
+
+export async function finalizeGoogleRiscDelivery(input: {
+  jti: string;
+  matchedAccountCount: number;
+  lastError?: string | null;
+}) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const existing = store.googleRiscDeliveries.find((entry) => entry.jti === input.jti);
+    if (!existing) {
+      return null;
+    }
+
+    existing.processedAt = new Date().toISOString();
+    existing.matchedAccountCount = input.matchedAccountCount;
+    existing.lastError = input.lastError ?? null;
+    return existing;
+  }
+
+  const [updated] = await db
+    .update(googleRiscDeliveries)
+    .set({
+      processedAt: new Date(),
+      matchedAccountCount: input.matchedAccountCount,
+      lastError: input.lastError ?? null,
+    })
+    .where(eq(googleRiscDeliveries.jti, input.jti))
+    .returning();
+
+  return updated ? serializeGoogleRiscDelivery(updated) : null;
+}
+
+export async function applyGoogleCrossAccountProtectionEvent(
+  input: ApplyGoogleCrossAccountProtectionEventInput,
+): Promise<ApplyGoogleCrossAccountProtectionEventResult> {
+  const mutation = buildGoogleCrossAccountProtectionMutation(input);
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const account = getDemoStore().googleAccounts.find((entry) => entry.googleUserId === input.googleUserId) ?? null;
+    if (!account) {
+      return {
+        matchedAccountId: null,
+        crossAccountProtectionState: null,
+        sessionsRevokedAt: null,
+      };
+    }
+
+    account.crossAccountProtectionState = mutation.crossAccountProtectionState;
+    account.crossAccountProtectionEvent = mutation.crossAccountProtectionEvent;
+    account.crossAccountProtectionReason = mutation.crossAccountProtectionReason;
+    account.crossAccountProtectionUpdatedAt = mutation.crossAccountProtectionUpdatedAt.toISOString();
+    if (mutation.sessionsRevokedAt) {
+      account.sessionsRevokedAt = mutation.sessionsRevokedAt.toISOString();
+    }
+
+    return {
+      matchedAccountId: account.id,
+      crossAccountProtectionState: account.crossAccountProtectionState,
+      sessionsRevokedAt: account.sessionsRevokedAt,
+    };
+  }
+
+  const [existing] = await db
+    .select()
+    .from(googleAccounts)
+    .where(eq(googleAccounts.googleUserId, input.googleUserId))
+    .limit(1);
+  if (!existing) {
+    return {
+      matchedAccountId: null,
+      crossAccountProtectionState: null,
+      sessionsRevokedAt: null,
+    };
+  }
+
+  await db
+    .update(googleAccounts)
+    .set({
+      crossAccountProtectionState: mutation.crossAccountProtectionState,
+      crossAccountProtectionEvent: mutation.crossAccountProtectionEvent,
+      crossAccountProtectionReason: mutation.crossAccountProtectionReason,
+      crossAccountProtectionUpdatedAt: mutation.crossAccountProtectionUpdatedAt,
+      ...(mutation.sessionsRevokedAt ? { sessionsRevokedAt: mutation.sessionsRevokedAt } : {}),
+    })
+    .where(eq(googleAccounts.id, existing.id));
+
+  return {
+    matchedAccountId: existing.id,
+    crossAccountProtectionState: mutation.crossAccountProtectionState,
+    sessionsRevokedAt: mutation.sessionsRevokedAt?.toISOString() ?? existing.sessionsRevokedAt?.toISOString() ?? null,
+  };
+}
+
 export async function ensureViewerFromSession(input: SessionBootstrapInput) {
   if (!input.email) {
     return null;
@@ -1873,15 +2122,20 @@ export async function ensureViewerFromSession(input: SessionBootstrapInput) {
       image: input.image,
     });
 
-    await db.insert(googleAccounts).values({
-      id: googleAccount.id,
-      googleUserId: googleAccount.googleUserId,
-      email: googleAccount.email,
-      displayName: googleAccount.displayName,
-      avatarUrl: googleAccount.avatarUrl,
-      activeViewerId: null,
-      createdAt: new Date(googleAccount.createdAt),
-    });
+      await db.insert(googleAccounts).values({
+        id: googleAccount.id,
+        googleUserId: googleAccount.googleUserId,
+        email: googleAccount.email,
+        displayName: googleAccount.displayName,
+        avatarUrl: googleAccount.avatarUrl,
+        activeViewerId: null,
+        crossAccountProtectionState: googleAccount.crossAccountProtectionState,
+        crossAccountProtectionEvent: googleAccount.crossAccountProtectionEvent,
+        crossAccountProtectionReason: googleAccount.crossAccountProtectionReason,
+        crossAccountProtectionUpdatedAt: new Date(googleAccount.crossAccountProtectionUpdatedAt),
+        sessionsRevokedAt: null,
+        createdAt: new Date(googleAccount.createdAt),
+      });
   }
 
   const activeViewer = googleAccount.activeViewerId ? await withViewerById(googleAccount.activeViewerId) : null;

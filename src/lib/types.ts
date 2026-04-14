@@ -72,6 +72,11 @@ export interface GoogleAccountRecord {
   displayName: string | null;
   avatarUrl: string | null;
   activeViewerId: string | null;
+  crossAccountProtectionState: "ok" | "google_signin_blocked";
+  crossAccountProtectionEvent: string | null;
+  crossAccountProtectionReason: string | null;
+  crossAccountProtectionUpdatedAt: string;
+  sessionsRevokedAt: string | null;
   createdAt: string;
 }
 
@@ -80,6 +85,16 @@ export interface GoogleAccountViewerRecord {
   googleAccountId: string;
   viewerId: string;
   createdAt: string;
+}
+
+export interface GoogleRiscDeliveryRecord {
+  jti: string;
+  eventTypes: string[];
+  receivedAt: string;
+  issuedAt: string | null;
+  processedAt: string | null;
+  matchedAccountCount: number;
+  lastError: string | null;
 }
 
 export interface ViewerChannelOptionRecord {
