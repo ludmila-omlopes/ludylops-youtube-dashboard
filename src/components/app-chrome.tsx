@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 
 import { AuthButtons } from "@/components/auth-buttons";
 import { LivestreamIndicator } from "@/components/livestream-indicator";
+import { hasUsableAppSession } from "@/lib/auth/session-state";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 
@@ -60,8 +61,9 @@ export function AppChrome({
 
   const authedLinks = [{ href: "/me", label: "Meus Pipetz" }];
   const adminLinks = isAdmin ? [{ href: "/admin", label: "Admin" }] : [];
+  const hasUsableSession = hasUsableAppSession(session);
 
-  const allLinks = [...navLinks, ...(session?.user ? authedLinks : []), ...adminLinks];
+  const allLinks = [...navLinks, ...(hasUsableSession ? authedLinks : []), ...adminLinks];
   const showTicker = pathname === "/";
 
   if (isObsView) {

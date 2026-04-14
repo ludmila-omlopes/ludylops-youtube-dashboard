@@ -60,6 +60,7 @@ import {
   createGameSuggestion,
   createProductRecommendationFromInput,
   deleteProductRecommendation,
+  applyGoogleCrossAccountProtectionEvent,
   ensureViewerFromSession,
   getViewerDashboard,
   getActiveQuoteOverlay,
@@ -71,9 +72,11 @@ import {
   listAdminGameSuggestions,
   listViewerChannelsForGoogleAccount,
   lockBet,
+  finalizeGoogleRiscDelivery,
   placeBet,
   placeBetFromChatCommand,
   listQuotes,
+  registerGoogleRiscDelivery,
   runQuoteCommandFromChat,
   runStreamerbotCounterCommand,
   resolveBet,
@@ -81,6 +84,7 @@ import {
   showQuoteOverlayForViewer,
   updateGameSuggestionStatus,
 } from "@/lib/db/repository";
+import { GOOGLE_RISC_EVENT_TYPES } from "@/lib/google/risc";
 
 function createDb({
   usersRows = [],
@@ -1929,6 +1933,113 @@ describe("ensureViewerFromSession", () => {
       currentBalance: 5,
       lifetimeEarned: 5,
     });
+  });
+});
+
+describe("applyGoogleCrossAccountProtectionEvent", () => {
+  beforeEach(() => {
+    getDbMock.mockReset();
+    delete (globalThis as typeof globalThis & { __lojaDemoStore?: unknown }).__lojaDemoStore;
+  });
+
+  it("blocks new Google sign-ins and revokes local sessions on hijacking events", async () => {
+    getDbMock.mockReturnValue(null);
+
+    const before = await getSessionViewerState({
+      googleUserId: "google_ana",
+      email: "ana@example.com",
+    });
+    expect(before?.googleAccount.crossAccountProtectionState).toBe("ok");
+
+    const result = await applyGoogleCrossAccountProtectionEvent({
+      eventId: "evt-risc-hijack",
+      eventType: GOOGLE_RISC_EVENT_TYPES.accountDisabled,
+      googleUserId: "google_ana",
+      occurredAt: "2026-04-14T14:00:00.000Z",
+      reason: "hijacking",
+    });
+
+    expect(result).toMatchObject({
+      matchedAccountId: before?.googleAccount.id,
+      crossAccountProtectionState: "google_signin_blocked",
+      sessionsRevokedAt: "2026-04-14T14:00:00.000Z",
+    });
+
+    const after = await getSessionViewerState({
+      googleUserId: "google_ana",
+      email: "ana@example.com",
+    });
+    expect(after?.googleAccount.crossAccountProtectionState).toBe("google_signin_blocked");
+    expect(after?.googleAccount.crossAccountProtectionReason).toBe("hijacking");
+    expect(after?.googleAccount.sessionsRevokedAt).toBe("2026-04-14T14:00:00.000Z");
+  });
+
+  it("keeps Google login enabled when only sessions must be revoked", async () => {
+    getDbMock.mockReturnValue(null);
+
+    const result = await applyGoogleCrossAccountProtectionEvent({
+      eventId: "evt-risc-sessions",
+      eventType: GOOGLE_RISC_EVENT_TYPES.sessionsRevoked,
+      googleUserId: "google_caio",
+      occurredAt: "2026-04-14T15:00:00.000Z",
+    });
+
+    expect(result).toMatchObject({
+      crossAccountProtectionState: "ok",
+      sessionsRevokedAt: "2026-04-14T15:00:00.000Z",
+    });
+
+    const after = await getSessionViewerState({
+      googleUserId: "google_caio",
+      email: "caio@example.com",
+    });
+    expect(after?.googleAccount.crossAccountProtectionState).toBe("ok");
+    expect(after?.googleAccount.sessionsRevokedAt).toBe("2026-04-14T15:00:00.000Z");
+  });
+});
+
+describe("google RISC delivery receipts", () => {
+  beforeEach(() => {
+    getDbMock.mockReset();
+    delete (globalThis as typeof globalThis & { __lojaDemoStore?: unknown }).__lojaDemoStore;
+  });
+
+  it("deduplicates deliveries by jti", async () => {
+    getDbMock.mockReturnValue(null);
+
+    const first = await registerGoogleRiscDelivery({
+      jti: "evt-risc-1",
+      eventTypes: [GOOGLE_RISC_EVENT_TYPES.sessionsRevoked],
+      issuedAt: "2026-04-14T12:00:00.000Z",
+    });
+    const second = await registerGoogleRiscDelivery({
+      jti: "evt-risc-1",
+      eventTypes: [GOOGLE_RISC_EVENT_TYPES.sessionsRevoked],
+      issuedAt: "2026-04-14T12:00:00.000Z",
+    });
+
+    expect(first.accepted).toBe(true);
+    expect(second.accepted).toBe(false);
+    expect(second.delivery?.jti).toBe("evt-risc-1");
+  });
+
+  it("marks a reserved delivery as processed", async () => {
+    getDbMock.mockReturnValue(null);
+
+    await registerGoogleRiscDelivery({
+      jti: "evt-risc-2",
+      eventTypes: [GOOGLE_RISC_EVENT_TYPES.accountDisabled],
+      issuedAt: "2026-04-14T13:00:00.000Z",
+    });
+
+    const finalized = await finalizeGoogleRiscDelivery({
+      jti: "evt-risc-2",
+      matchedAccountCount: 1,
+    });
+
+    expect(finalized?.processedAt).toBeTruthy();
+    expect(finalized?.matchedAccountCount).toBe(1);
+    expect(finalized?.lastError).toBeNull();
   });
 });
 

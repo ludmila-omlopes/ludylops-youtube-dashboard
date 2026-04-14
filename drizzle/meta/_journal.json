@@ -29,6 +29,20 @@
       "when": 1776114962107,
       "tag": "0003_yielding_fat_cobra",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1776177646398,
+      "tag": "0004_hard_silver_samurai",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1776180764409,
+      "tag": "0005_massive_yellow_claw",
+      "breakpoints": true
     }
   ]
 }

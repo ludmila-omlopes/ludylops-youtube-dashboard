@@ -8,6 +8,7 @@ import {
   GameSuggestionRecord,
   GoogleAccountRecord,
   GoogleAccountViewerRecord,
+  GoogleRiscDeliveryRecord,
   LedgerEntryRecord,
   QuoteRecord,
   ProductRecommendationRecord,
@@ -69,6 +70,11 @@ export const demoGoogleAccounts: GoogleAccountRecord[] = [
     avatarUrl:
       "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80",
     activeViewerId: "viewer_ana",
+    crossAccountProtectionState: "ok",
+    crossAccountProtectionEvent: null,
+    crossAccountProtectionReason: null,
+    crossAccountProtectionUpdatedAt: new Date(now.getTime() - 1000 * 60 * 60 * 24 * 4).toISOString(),
+    sessionsRevokedAt: null,
     createdAt: new Date(now.getTime() - 1000 * 60 * 60 * 24 * 4).toISOString(),
   },
   {
@@ -79,6 +85,11 @@ export const demoGoogleAccounts: GoogleAccountRecord[] = [
     avatarUrl:
       "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80",
     activeViewerId: "viewer_caio",
+    crossAccountProtectionState: "ok",
+    crossAccountProtectionEvent: null,
+    crossAccountProtectionReason: null,
+    crossAccountProtectionUpdatedAt: new Date(now.getTime() - 1000 * 60 * 60 * 24 * 2).toISOString(),
+    sessionsRevokedAt: null,
     createdAt: new Date(now.getTime() - 1000 * 60 * 60 * 24 * 2).toISOString(),
   },
 ];
@@ -97,6 +108,8 @@ export const demoGoogleAccountViewers: GoogleAccountViewerRecord[] = [
     createdAt: new Date(now.getTime() - 1000 * 60 * 60 * 24 * 2).toISOString(),
   },
 ];
+
+export const demoGoogleRiscDeliveries: GoogleRiscDeliveryRecord[] = [];
 
 export const demoBalances: ViewerBalanceRecord[] = [
   {

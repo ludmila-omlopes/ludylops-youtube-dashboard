@@ -4,7 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 
 import { GOOGLE_AUTHORIZATION_PARAMS } from "@/lib/auth/google";
-import { ensureViewerFromSession, getSessionViewerState } from "@/lib/db/repository";
+import { ensureViewerFromSession, getGoogleAccountByIdentity, getSessionViewerState } from "@/lib/db/repository";
 import { authSecret, env, isDemoAuthEnabled } from "@/lib/env";
 import {
   canBootstrapViewerFromYoutubeLookup,
@@ -12,6 +12,7 @@ import {
   getYoutubeChannelLookupMessage,
   isYoutubeChannelLookupStatusKind,
 } from "@/lib/google/youtube-channel";
+import type { GoogleAccountRecord } from "@/lib/types";
 
 const providers = [];
 
@@ -50,6 +51,46 @@ if (isDemoAuthEnabled) {
   );
 }
 
+function getGoogleAccountProtectionStatus(input: {
+  googleAccount: GoogleAccountRecord | null;
+  tokenIssuedAt?: number;
+}) {
+  if (!input.googleAccount) {
+    return null;
+  }
+
+  if (input.googleAccount.crossAccountProtectionState === "google_signin_blocked") {
+    return "google_signin_blocked" as const;
+  }
+
+  if (
+    typeof input.tokenIssuedAt === "number" &&
+    input.googleAccount.sessionsRevokedAt &&
+    Date.parse(input.googleAccount.sessionsRevokedAt) > input.tokenIssuedAt * 1000
+  ) {
+    return "session_revoked" as const;
+  }
+
+  return null;
+}
+
+function clearGoogleSessionToken(token: Record<string, unknown>, protectionStatus: "google_signin_blocked" | "session_revoked") {
+  token.accountProtectionStatus = protectionStatus;
+  delete token.email;
+  delete token.name;
+  delete token.picture;
+  delete token.sub;
+  delete token.googleUserId;
+  delete token.googleAccountId;
+  delete token.activeViewerId;
+  delete token.activeYoutubeChannelId;
+  delete token.activeViewerDisplayName;
+  delete token.isLinked;
+  delete token.youtubeLinkingStatus;
+  delete token.youtubeLinkingMessage;
+  return token;
+}
+
 export const authOptions = {
   secret: authSecret,
   providers,
@@ -60,6 +101,22 @@ export const authOptions = {
     signIn: "/",
   },
   callbacks: {
+    async signIn({ account, user }) {
+      if (account?.provider !== "google") {
+        return true;
+      }
+
+      const existingAccount = await getGoogleAccountByIdentity({
+        googleUserId: account.providerAccountId ?? null,
+        email: user.email ?? null,
+      });
+
+      if (existingAccount?.crossAccountProtectionState === "google_signin_blocked") {
+        return "/?googleAccountProtection=blocked";
+      }
+
+      return true;
+    },
     async jwt({ token, account, profile, user }) {
       if (user?.email) {
         token.email = user.email;
@@ -155,6 +212,15 @@ export const authOptions = {
           });
         }
 
+        const protectionStatus = getGoogleAccountProtectionStatus({
+          googleAccount: sessionState?.googleAccount ?? null,
+          tokenIssuedAt: typeof token.iat === "number" ? token.iat : undefined,
+        });
+        if (protectionStatus) {
+          return clearGoogleSessionToken(token as Record<string, unknown>, protectionStatus);
+        }
+
+        token.accountProtectionStatus = undefined;
         token.googleAccountId = sessionState?.googleAccount.id;
         token.activeViewerId = sessionState?.activeViewer.id;
         token.activeYoutubeChannelId = sessionState?.activeViewer.youtubeChannelId;
@@ -181,6 +247,9 @@ export const authOptions = {
         }
         if (typeof token.isLinked === "boolean") {
           session.user.isLinked = token.isLinked;
+        }
+        if (token.accountProtectionStatus === "google_signin_blocked" || token.accountProtectionStatus === "session_revoked") {
+          session.user.accountProtectionStatus = token.accountProtectionStatus;
         }
         if (typeof token.youtubeLinkingStatus === "string" && isYoutubeChannelLookupStatusKind(token.youtubeLinkingStatus)) {
           session.user.youtubeLinkingStatus = token.youtubeLinkingStatus;
