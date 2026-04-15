@@ -90,7 +90,7 @@ npm run google:risc -- status
 
 ## Google Cross-Account Protection
 
-O passo a passo completo de producao para o alerta de `Protecao entre contas`, incluindo service account, registro do stream RISC, teste de verificacao e checklist final no painel do Google, estÃ¡ em:
+O passo a passo completo de producao para o alerta de `Protecao entre contas`, incluindo service account, registro do stream RISC, teste de verificacao e checklist final no painel do Google, está em:
 
 - [docs/google-cross-account-protection.md](/D:/Codigos_Diversos/lojinha-youtube/docs/google-cross-account-protection.md)
 
