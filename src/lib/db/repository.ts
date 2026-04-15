@@ -29,6 +29,7 @@ import {
   streamerbotEventLog,
   users,
   viewerBalances,
+  viewerLinks,
 } from "@/lib/db/schema";
 import {
   demoBalances,
@@ -81,9 +82,10 @@ import {
   StreamerbotCounterSummaryRecord,
   ViewerChannelOptionRecord,
   ViewerBalanceRecord,
+  ViewerLinkRecord,
   ViewerRecord,
 } from "@/lib/types";
-import { slugify } from "@/lib/utils";
+import { shortCode, slugify } from "@/lib/utils";
 
 function buildSyntheticYoutubeChannelId(input: { googleUserId: string | null; email: string }) {
   const base = input.googleUserId ?? input.email.toLowerCase();
@@ -229,6 +231,7 @@ type DemoStore = {
   viewers: ViewerRecord[];
   googleAccounts: GoogleAccountRecord[];
   googleAccountViewers: GoogleAccountViewerRecord[];
+  viewerLinks: ViewerLinkRecord[];
   googleRiscDeliveries: GoogleRiscDeliveryRecord[];
   balances: ViewerBalanceRecord[];
   catalog: CatalogItemRecord[];
@@ -256,6 +259,7 @@ function getDemoStore(): DemoStore {
       viewers: structuredClone(demoViewers),
       googleAccounts: structuredClone(demoGoogleAccounts),
       googleAccountViewers: structuredClone(demoGoogleAccountViewers),
+      viewerLinks: [],
       googleRiscDeliveries: structuredClone(demoGoogleRiscDeliveries),
       balances: structuredClone(demoBalances),
       catalog: structuredClone(demoCatalog),
@@ -542,6 +546,13 @@ type GoogleAccountSessionState = {
   activeViewer: ViewerRecord;
 };
 
+type ViewerLinkClaimResult = {
+  googleAccountId: string;
+  viewer: ViewerRecord;
+  mergedSyntheticViewer: boolean;
+  link: ViewerLinkRecord;
+};
+
 type ApplyGoogleCrossAccountProtectionEventInput = {
   eventId: string;
   eventType: string;
@@ -737,6 +748,29 @@ function buildGoogleAccountViewerLink(input: { googleAccountId: string; viewerId
     viewerId: input.viewerId,
     createdAt: new Date().toISOString(),
   } satisfies GoogleAccountViewerRecord;
+}
+
+function serializeViewerLink(row: typeof viewerLinks.$inferSelect): ViewerLinkRecord {
+  return {
+    id: row.id,
+    googleAccountId: row.googleAccountId,
+    linkCode: row.linkCode,
+    expiresAt: row.expiresAt.toISOString(),
+    claimedAt: row.claimedAt?.toISOString() ?? null,
+  };
+}
+
+function buildViewerLinkRecord(input: { googleAccountId: string; codeSize?: number; expiresInMinutes?: number }) {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + (input.expiresInMinutes ?? 15) * 60 * 1000);
+
+  return {
+    id: randomUUID(),
+    googleAccountId: input.googleAccountId,
+    linkCode: shortCode(input.codeSize ?? 6),
+    expiresAt: expiresAt.toISOString(),
+    claimedAt: null,
+  } satisfies ViewerLinkRecord;
 }
 
 function normalizeSessionYoutubeChannels(channels: SessionBootstrapInput["youtubeChannels"]) {
@@ -1946,6 +1980,41 @@ export async function getGoogleAccountByIdentity(input: Pick<SessionBootstrapInp
   return withGoogleAccountByIdentity(input);
 }
 
+async function withViewerLinkByGoogleAccountId(googleAccountId: string) {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore() as DemoStore & { viewerLinks?: ViewerLinkRecord[] };
+    return store.viewerLinks?.find((entry) => entry.googleAccountId === googleAccountId) ?? null;
+  }
+
+  const [link] = await db
+    .select()
+    .from(viewerLinks)
+    .where(eq(viewerLinks.googleAccountId, googleAccountId))
+    .limit(1);
+
+  return link ? serializeViewerLink(link) : null;
+}
+
+async function withViewerLinkByCode(linkCode: string) {
+  const db = getDb();
+  const normalizedCode = linkCode.trim().toUpperCase();
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore() as DemoStore & { viewerLinks?: ViewerLinkRecord[] };
+    return store.viewerLinks?.find((entry) => entry.linkCode === normalizedCode) ?? null;
+  }
+
+  const [link] = await db
+    .select()
+    .from(viewerLinks)
+    .where(eq(viewerLinks.linkCode, normalizedCode))
+    .limit(1);
+
+  return link ? serializeViewerLink(link) : null;
+}
+
 async function withViewerById(viewerId: string) {
   const db = getDb();
 
@@ -2148,6 +2217,219 @@ export async function getSessionViewerState(
   return {
     googleAccount,
     activeViewer,
+  };
+}
+
+function isViewerLinkUsable(link: ViewerLinkRecord | null, now = Date.now()) {
+  return Boolean(
+    link &&
+      !link.claimedAt &&
+      new Date(link.expiresAt).getTime() > now,
+  );
+}
+
+async function generateUniqueViewerLinkRecord(googleAccountId: string) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const candidate = buildViewerLinkRecord({ googleAccountId });
+    const existing = await withViewerLinkByCode(candidate.linkCode);
+    if (!existing) {
+      return candidate;
+    }
+  }
+
+  throw new Error("viewer_link_code_generation_failed");
+}
+
+export async function issueViewerLinkCode(googleAccountId: string) {
+  const googleAccount = await withGoogleAccountById(googleAccountId);
+  if (!googleAccount) {
+    throw new Error("google_account_not_found");
+  }
+
+  const existing = await withViewerLinkByGoogleAccountId(googleAccountId);
+  const nextLink = await generateUniqueViewerLinkRecord(googleAccountId);
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const existingIndex = store.viewerLinks.findIndex((entry) => entry.googleAccountId === googleAccountId);
+    if (existingIndex >= 0) {
+      store.viewerLinks[existingIndex] = nextLink;
+    } else {
+      store.viewerLinks.push(nextLink);
+    }
+
+    return nextLink;
+  }
+
+  if (existing) {
+    await db
+      .update(viewerLinks)
+      .set({
+        linkCode: nextLink.linkCode,
+        expiresAt: new Date(nextLink.expiresAt),
+        claimedAt: null,
+      })
+      .where(eq(viewerLinks.googleAccountId, googleAccountId));
+  } else {
+    await db.insert(viewerLinks).values({
+      id: nextLink.id,
+      googleAccountId: nextLink.googleAccountId,
+      linkCode: nextLink.linkCode,
+      expiresAt: new Date(nextLink.expiresAt),
+      claimedAt: null,
+    });
+  }
+
+  return (await withViewerLinkByGoogleAccountId(googleAccountId)) ?? nextLink;
+}
+
+export async function getViewerLinkCodeState(googleAccountId: string) {
+  const link = await withViewerLinkByGoogleAccountId(googleAccountId);
+  if (!link) {
+    return null;
+  }
+
+  if (isViewerLinkUsable(link)) {
+    return link;
+  }
+
+  return null;
+}
+
+export async function claimViewerLinkCodeFromStreamerbot(input: {
+  linkCode: string;
+  viewerExternalId: string;
+  youtubeDisplayName?: string | null;
+  youtubeHandle?: string | null;
+}): Promise<ViewerLinkClaimResult> {
+  const link = await withViewerLinkByCode(input.linkCode);
+  if (!link || !isViewerLinkUsable(link)) {
+    throw new Error("viewer_link_code_invalid");
+  }
+
+  const googleAccount = await withGoogleAccountById(link.googleAccountId);
+  if (!googleAccount) {
+    throw new Error("google_account_not_found");
+  }
+
+  const viewer = await ensureViewerFromStreamerbotIdentity({
+    viewerExternalId: input.viewerExternalId,
+    youtubeDisplayName: input.youtubeDisplayName,
+    youtubeHandle: input.youtubeHandle,
+  });
+  const ownerLink = await withGoogleAccountViewerLinkByViewerId(viewer.id);
+
+  if (ownerLink && ownerLink.googleAccountId !== googleAccount.id) {
+    throw new Error("viewer_owned_by_other_account");
+  }
+
+  const currentState = await getSessionViewerState({
+    googleUserId: googleAccount.googleUserId,
+    email: googleAccount.email,
+  });
+  const activeViewer = currentState?.activeViewer ?? null;
+  const shouldMergeSyntheticViewer = Boolean(
+    activeViewer &&
+      activeViewer.id !== viewer.id &&
+      isSyntheticViewer(activeViewer),
+  );
+
+  if (shouldMergeSyntheticViewer) {
+    const mergeResult = await mergeViewerIntoTarget({
+      googleAccountId: googleAccount.id,
+      sourceViewerId: activeViewer!.id,
+      targetViewerId: viewer.id,
+    });
+
+    if (!mergeResult.merged) {
+      throw new Error("viewer_link_merge_failed");
+    }
+  }
+
+  const db = getDb();
+  const refreshedOwnerLink = await withGoogleAccountViewerLinkByViewerId(viewer.id);
+
+  if (isDemoMode || !db) {
+    const store = getDemoStore();
+    const demoViewer = getDemoViewerById(store, viewer.id);
+    const demoAccount = store.googleAccounts.find((entry) => entry.id === googleAccount.id);
+    const demoLink = store.viewerLinks.find((entry) => entry.googleAccountId === googleAccount.id);
+
+    if (!demoViewer || !demoAccount || !demoLink) {
+      throw new Error("viewer_link_claim_failed");
+    }
+
+    demoViewer.googleUserId = demoAccount.googleUserId;
+    demoViewer.email = demoAccount.email;
+    demoViewer.avatarUrl = demoAccount.avatarUrl ?? demoViewer.avatarUrl;
+    demoViewer.isLinked = true;
+    demoViewer.excludeFromRanking = shouldExcludeFromRanking(demoAccount.email);
+
+    if (!refreshedOwnerLink) {
+      store.googleAccountViewers.push(
+        buildGoogleAccountViewerLink({
+          googleAccountId: googleAccount.id,
+          viewerId: demoViewer.id,
+        }),
+      );
+    }
+
+    demoAccount.activeViewerId = demoViewer.id;
+    demoLink.claimedAt = new Date().toISOString();
+
+    return {
+      googleAccountId: googleAccount.id,
+      viewer: demoViewer,
+      mergedSyntheticViewer: shouldMergeSyntheticViewer,
+      link: demoLink,
+    };
+  }
+
+  await db
+    .update(users)
+    .set({
+      googleUserId: googleAccount.googleUserId,
+      email: googleAccount.email,
+      avatarUrl: googleAccount.avatarUrl ?? viewer.avatarUrl,
+      isLinked: true,
+      excludeFromRanking: shouldExcludeFromRanking(googleAccount.email),
+    })
+    .where(eq(users.id, viewer.id));
+
+  if (!refreshedOwnerLink) {
+    const owner = buildGoogleAccountViewerLink({
+      googleAccountId: googleAccount.id,
+      viewerId: viewer.id,
+    });
+
+    await db.insert(googleAccountViewers).values({
+      id: owner.id,
+      googleAccountId: owner.googleAccountId,
+      viewerId: owner.viewerId,
+      createdAt: new Date(owner.createdAt),
+    });
+  }
+
+  await db
+    .update(googleAccounts)
+    .set({
+      activeViewerId: viewer.id,
+    })
+    .where(eq(googleAccounts.id, googleAccount.id));
+
+  await db
+    .update(viewerLinks)
+    .set({
+      claimedAt: new Date(),
+    })
+    .where(eq(viewerLinks.id, link.id));
+
+  return {
+    googleAccountId: googleAccount.id,
+    viewer: (await withViewerById(viewer.id)) ?? viewer,
+    mergedSyntheticViewer: shouldMergeSyntheticViewer,
+    link: (await withViewerLinkByGoogleAccountId(googleAccount.id)) ?? link,
   };
 }
 

@@ -7,7 +7,6 @@ import { AuthButtons } from "@/components/auth-buttons";
 import { LivestreamIndicator } from "@/components/livestream-indicator";
 import { QuickNavGrid } from "@/components/quick-nav-grid";
 import { StickerBadge } from "@/components/sticker-badge";
-import { YoutubePermissionRetryButton } from "@/components/youtube-permission-retry-button";
 import { GOOGLE_ACCOUNT_SWITCH_HINT } from "@/lib/auth/google";
 import {
   getAccountProtectionStatusFromSearchParams,
@@ -16,7 +15,6 @@ import {
   type AccountProtectionStatus,
 } from "@/lib/auth/session-state";
 import { env } from "@/lib/env";
-import type { YoutubeChannelLookupStatus } from "@/lib/google/youtube-channel";
 import {
   Card,
   CardContent,
@@ -55,28 +53,22 @@ const DEFAULT_GITHUB_ISSUES_URL =
 const LUDYLOPS_PROFILE_IMAGE =
   "/selfie2.png";
 
-type YoutubeLinkingStatusKind = YoutubeChannelLookupStatus["kind"];
-
-function buildYoutubeLinkingIssueUrl(input: {
-  status: YoutubeLinkingStatusKind;
-  message: string;
+function buildViewerLinkingIssueUrl(input: {
   isLinked: boolean;
   hasActiveViewer: boolean;
 }) {
-  const title = "[Linking] Google login sem canal do YouTube confirmado";
+  const title = "[Linking] Conta logada sem viewer confirmado no chat";
   const body = [
     "## O que aconteceu",
-    "O login Google entrou, mas o app nao conseguiu confirmar o canal do YouTube automaticamente.",
+    "O login entrou no site, mas a conta ainda nao foi vinculada ao viewer do chat via codigo.",
     "",
     "## Diagnostico tecnico",
-    `- youtubeLinkingStatus: \`${input.status}\``,
-    `- mensagem exibida: ${input.message}`,
     `- hasActiveViewer: ${input.hasActiveViewer ? "yes" : "no"}`,
     `- isLinked: ${input.isLinked ? "yes" : "no"}`,
     `- horario (UTC): ${new Date().toISOString()}`,
     "",
     "## O que eu esperava",
-    "- Descreva qual canal do YouTube deveria ter sido vinculado.",
+    "- Descreva qual canal deveria ser vinculado e o que apareceu no chat ao usar !link.",
     "",
     "## Observacoes",
     "- Nao inclua token, email privado, cookie nem segredo nesta issue.",
@@ -88,57 +80,36 @@ function buildYoutubeLinkingIssueUrl(input: {
   return url.toString();
 }
 
-function YoutubeLinkingNotice({
-  status,
-  message,
-  issueUrl,
-}: {
-  status: YoutubeLinkingStatusKind;
-  message: string;
-  issueUrl: string;
-}) {
-  const title =
-    status === "empty"
-      ? "Nao encontrei nenhum canal do YouTube nesta conta."
-      : status === "scope_missing"
-        ? "Faltou a permissão do YouTube para conectar sua conta."
-        : status === "authorization_required" || status === "insufficient_permissions"
-          ? "Preciso que você reautorize o acesso ao YouTube."
-        : "Não consegui confirmar seu canal do YouTube nesta tentativa.";
-  const ctaLabel =
-    status === "scope_missing" || status === "authorization_required" || status === "insufficient_permissions"
-      ? "Conceder acesso ao YouTube"
-      : "Tentar novamente com Google";
-  const whyItMatters =
-    status === "scope_missing" || status === "authorization_required" || status === "insufficient_permissions"
-      ? "Preciso da leitura do YouTube para descobrir qual canal deve receber seu saldo, ranking e recursos da live."
-      : "Sem confirmar o canal do YouTube, eu não consigo liberar com segurança a sessão vinculada da live.";
-
+function ViewerLinkingNotice({ issueUrl }: { issueUrl: string }) {
   return (
     <div className="card-poster mt-6 border-[3px] border-[var(--color-ink)] bg-[var(--color-pink)] p-4 text-[var(--color-accent-ink)]">
-      <p className="mono text-[10px] uppercase tracking-[0.24em]">linking google/youtube</p>
-      <p className="mt-2 text-lg font-black uppercase leading-tight">{title}</p>
-      <p className="mt-3 text-sm font-bold leading-6">{message}</p>
-      <p className="mt-3 text-sm font-medium leading-6">{whyItMatters}</p>
-      <p className="mt-3 text-xs font-medium leading-5">
-        Por segurança, eu não criei nem troquei automaticamente o viewer desta sessão enquanto esse
-        diagnostico nao for resolvido.
+      <p className="mono text-[10px] uppercase tracking-[0.24em]">linking da live</p>
+      <p className="mt-2 text-lg font-black uppercase leading-tight">
+        Falta confirmar seu canal pelo chat.
       </p>
-      <p className="mt-3 text-xs font-medium leading-5">{GOOGLE_ACCOUNT_SWITCH_HINT}</p>
+      <p className="mt-3 text-sm font-bold leading-6">
+        O login do site entrou, mas o viewer da live agora e vinculado por codigo no chat do
+        YouTube.
+      </p>
+      <p className="mt-3 text-sm font-medium leading-6">
+        Abra sua area, gere um codigo curto e envie <span className="font-black">!link CODIGO</span>{" "}
+        no chat. Assim eu consigo unir sua conta do site ao viewer que chega pelo Streamer.bot sem
+        depender da API do YouTube.
+      </p>
       <div className="mt-4 flex flex-wrap gap-3">
-        <YoutubePermissionRetryButton
-          label={ctaLabel}
-          pendingLabel="Abrindo Google..."
-          variant="neutral"
-          size="sm"
-        />
+        <Link
+          href="/me"
+          className="btn-brutal bg-[var(--color-paper)] px-4 py-2 text-xs text-[var(--color-ink)]"
+        >
+          Abrir minha area
+        </Link>
         <a
           href={issueUrl}
           target="_blank"
           rel="noreferrer"
           className="btn-brutal bg-[var(--color-paper)] px-4 py-2 text-xs text-[var(--color-ink)]"
         >
-          Abrir issue no GitHub →
+          Abrir issue no GitHub ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢
         </a>
       </div>
     </div>
@@ -444,7 +415,7 @@ function FeatureShowcase({
               href={loggedIn ? "/apostas" : "/jogos"}
               className="btn-brutal accent-button px-5 py-3 text-xs"
             >
-              {loggedIn ? "Entrar em apostas ↗" : "Explorar a comunidade ↗"}
+              {loggedIn ? "Entrar em apostas â†—" : "Explorar a comunidade â†—"}
             </Link>
           </div>
         </div>
@@ -493,7 +464,7 @@ function RankingHeroCard({
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <Link href="/ranking" className="btn-brutal ink-button px-5 py-3 text-xs">
-          Ver ranking completo →
+          Ver ranking completo â†’
         </Link>
         {typeof viewerRank === "number" && viewerRank > 0 ? (
           <span className="mono text-[11px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
@@ -536,7 +507,7 @@ function LiveSpotlight({ activeBet, loggedIn = false }: SpotlightProps) {
 
             <div className="mt-6">
               <Link href="/apostas" className="btn-brutal accent-button px-5 py-3 text-xs">
-                {loggedIn ? "Ir para apostas ↗" : "Ver apostas da live ↗"}
+                {loggedIn ? "Ir para apostas â†—" : "Ver apostas da live â†—"}
               </Link>
             </div>
           </div>
@@ -643,21 +614,21 @@ export default async function Home({ searchParams }: HomePageProps) {
 
   const features: FeatureCard[] = [
     {
-      symbol: "⚡",
+      symbol: "âš¡",
       eyebrow: "assistindo a live",
       title: "Ganhe assistindo",
       body: "Enquanto voce assiste a minha live, seus pipetz vao acumulando para apostar, resgatar e entrar no ranking.",
       bg: "bg-[var(--color-blue)]",
     },
     {
-      symbol: "▣",
+      symbol: "â–£",
       eyebrow: "palpite do chat",
       title: "Aposte ao vivo",
       body: "Quando eu abrir uma aposta, escolhe seu lado e vem ver se o chat me conhece mesmo.",
       bg: "bg-[var(--color-purple)]",
     },
     {
-      symbol: "↗",
+      symbol: "â†—",
       eyebrow: "bagunca organizada",
       title: "Acione resgates",
       body: "Se quiser me trollar com carinho, os resgates viram efeitos e caos ao vivo na stream.",
@@ -676,7 +647,7 @@ export default async function Home({ searchParams }: HomePageProps) {
     <>
       Oi, eu sou a ludylops.{" "}
       <span className="inline-block border-[3px] border-[var(--color-ink)] bg-[var(--color-pink)] px-3 py-1 shadow-[4px_4px_0_#000]">
-        Bem-vindos à minha live.
+        Bem-vindos Ã  minha live.
       </span>
     </>
   );
@@ -698,22 +669,13 @@ export default async function Home({ searchParams }: HomePageProps) {
     : "Esse painel e o cantinho da minha live para o chat apostar, resgatar e acompanhar o ranking.";
 
   const metrics = hasUsableSession ? authedMetrics : publicMetrics;
-  const shouldShowYoutubeLinkingNotice = Boolean(
-    hasUsableSession &&
-      session?.user?.youtubeLinkingMessage &&
-      session.user.youtubeLinkingStatus &&
-      session.user.youtubeLinkingStatus !== "channels_found" &&
-      !session.user.isLinked,
-  );
-  const youtubeLinkingIssueUrl =
-    shouldShowYoutubeLinkingNotice && session?.user?.youtubeLinkingStatus && session.user.youtubeLinkingMessage
-      ? buildYoutubeLinkingIssueUrl({
-          status: session.user.youtubeLinkingStatus,
-          message: session.user.youtubeLinkingMessage,
-          isLinked: Boolean(session.user.isLinked),
-          hasActiveViewer: Boolean(session.user.activeViewerId),
-        })
-      : null;
+  const shouldShowViewerLinkingNotice = Boolean(hasUsableSession && !session?.user?.isLinked);
+  const viewerLinkingIssueUrl = shouldShowViewerLinkingNotice
+    ? buildViewerLinkingIssueUrl({
+        isLinked: Boolean(session?.user?.isLinked),
+        hasActiveViewer: Boolean(session?.user?.activeViewerId),
+      })
+    : null;
 
   return (
     <div className="flex w-full flex-col pb-20">
@@ -752,29 +714,25 @@ export default async function Home({ searchParams }: HomePageProps) {
 
             {accountProtectionStatus ? <AccountProtectionNotice status={accountProtectionStatus} /> : null}
 
-            {shouldShowYoutubeLinkingNotice ? (
-              <YoutubeLinkingNotice
-                status={session!.user!.youtubeLinkingStatus!}
-                message={session!.user!.youtubeLinkingMessage!}
-                issueUrl={youtubeLinkingIssueUrl!}
-              />
+            {shouldShowViewerLinkingNotice ? (
+              <ViewerLinkingNotice issueUrl={viewerLinkingIssueUrl!} />
             ) : null}
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
               {hasUsableSession ? (
                 <>
                   <Link href="/apostas" className="btn-brutal accent-button px-6 py-3 text-sm">
-                    Ir para apostas ↗
+                    Ir para apostas â†—
                   </Link>
                   <Link href="/ranking" className="btn-brutal ink-button px-6 py-3 text-sm">
-                    Ver ranking →
+                    Ver ranking â†’
                   </Link>
                 </>
               ) : (
                 <>
                   <AuthButtons />
                   <Link href="/ranking" className="btn-brutal accent-button px-6 py-3 text-sm">
-                    Ver ranking →
+                    Ver ranking â†’
                   </Link>
                 </>
               )}

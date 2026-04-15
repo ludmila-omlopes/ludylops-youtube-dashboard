@@ -2,7 +2,6 @@ export const GOOGLE_REQUIRED_SCOPES = [
   "openid",
   "email",
   "profile",
-  "https://www.googleapis.com/auth/youtube.readonly",
 ] as const;
 
 export const GOOGLE_SECURE_OAUTH_CHECKS = ["pkce", "state"] as const;

@@ -87,6 +87,14 @@ export interface GoogleAccountViewerRecord {
   createdAt: string;
 }
 
+export interface ViewerLinkRecord {
+  id: string;
+  googleAccountId: string;
+  linkCode: string;
+  expiresAt: string;
+  claimedAt: string | null;
+}
+
 export interface GoogleRiscDeliveryRecord {
   jti: string;
   eventTypes: string[];
