@@ -4107,6 +4107,34 @@ export async function placeBetFromChatCommand(input: {
   };
 }
 
+export async function getViewerBalanceFromChatCommand(input: {
+  viewerExternalId: string;
+  youtubeDisplayName?: string | null;
+  youtubeHandle?: string | null;
+  source: string;
+}) {
+  const viewerExternalId = input.viewerExternalId.trim();
+  if (!viewerExternalId) {
+    throw new Error("viewer_external_id_required");
+  }
+
+  const viewer = await withViewerByYoutubeChannelId(viewerExternalId);
+  if (!viewer) {
+    throw new Error("viewer_not_ready");
+  }
+
+  const dashboard = await getViewerDashboard(viewer.id);
+  if (!dashboard) {
+    throw new Error("viewer_not_ready");
+  }
+
+  return {
+    viewer: dashboard.viewer,
+    balance: dashboard.balance,
+    source: input.source,
+  };
+}
+
 export async function runQuoteCommandFromChat(input: {
   action: "create" | "get" | "show";
   viewerExternalId?: string;
