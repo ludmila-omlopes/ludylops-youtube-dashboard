@@ -133,6 +133,19 @@ const streamerbotCounterScopeSchema = z
     }
   });
 
+export const streamerbotViewerLinkSchema = z.object({
+  linkCode: z
+    .string()
+    .trim()
+    .min(4)
+    .max(32)
+    .transform((value) => value.toUpperCase()),
+  viewerExternalId: z.string().min(1),
+  youtubeDisplayName: z.string().min(1).optional(),
+  youtubeHandle: z.string().min(1).optional(),
+  source: z.string().default("streamerbot_chat"),
+});
+
 export const streamerbotCounterCommandSchema = streamerbotCounterScopeSchema.extend({
   counterKey: streamerbotCounterKeySchema,
   counterLabel: z.string().trim().min(1).max(64).optional(),

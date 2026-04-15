@@ -20,12 +20,11 @@ describe("GOOGLE_AUTHORIZATION_PARAMS", () => {
     expect(GOOGLE_REAUTHORIZATION_PARAMS.scope).toBe(GOOGLE_REQUIRED_SCOPES.join(" "));
   });
 
-  it("keeps the scopes needed for profile and YouTube linking", () => {
+  it("keeps the scopes limited to site identity data", () => {
     expect(GOOGLE_REQUIRED_SCOPES).toEqual([
       "openid",
       "email",
       "profile",
-      "https://www.googleapis.com/auth/youtube.readonly",
     ]);
     expect(GOOGLE_AUTHORIZATION_PARAMS.scope).toBe(GOOGLE_REQUIRED_SCOPES.join(" "));
   });

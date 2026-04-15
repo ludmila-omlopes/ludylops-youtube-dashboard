@@ -62,12 +62,15 @@ import {
   createProductRecommendationFromInput,
   deleteProductRecommendation,
   applyGoogleCrossAccountProtectionEvent,
+  claimViewerLinkCodeFromStreamerbot,
   ensureViewerFromSession,
   getViewerDashboard,
   getActiveQuoteOverlay,
   getSessionViewerState,
+  getViewerLinkCodeState,
   getViewerBalanceFromChatCommand,
   ingestStreamerbotEvent,
+  issueViewerLinkCode,
   listAdminProductRecommendations,
   listAdminViewerDirectory,
   listBets,
@@ -2278,6 +2281,115 @@ describe("adminLinkGoogleViewerToYoutubeViewer", () => {
 
     const directory = await listAdminViewerDirectory();
     expect(directory.some((entry) => entry.id === fallbackViewer.id)).toBe(false);
+  });
+});
+
+describe("viewer link codes", () => {
+  beforeEach(() => {
+    getDbMock.mockReset();
+    delete (globalThis as typeof globalThis & { __lojaDemoStore?: unknown }).__lojaDemoStore;
+  });
+
+  it("issues a short-lived link code for the current signed-in account", async () => {
+    getDbMock.mockReturnValue(null);
+
+    const fallbackViewer = await ensureViewerFromSession({
+      googleUserId: "google_link_code",
+      email: "link-code@example.com",
+      name: "Link Code",
+      image: null,
+    });
+    const state = await getSessionViewerState({
+      googleUserId: "google_link_code",
+      email: "link-code@example.com",
+    });
+
+    expect(fallbackViewer?.isLinked).toBe(false);
+
+    const issued = await issueViewerLinkCode(state!.googleAccount.id);
+    const stored = await getViewerLinkCodeState(state!.googleAccount.id);
+
+    expect(issued.linkCode).toHaveLength(6);
+    expect(stored).toMatchObject({
+      googleAccountId: state!.googleAccount.id,
+      linkCode: issued.linkCode,
+      claimedAt: null,
+    });
+  });
+
+  it("claims a chat code and merges the synthetic viewer into the real chat viewer", async () => {
+    getDbMock.mockReturnValue(null);
+
+    const fallbackViewer = await ensureViewerFromSession({
+      googleUserId: "google_claim_link",
+      email: "claim-link@example.com",
+      name: "Claim Link",
+      image: null,
+    });
+    if (!fallbackViewer) {
+      throw new Error("Expected a fallback viewer before claiming the chat link.");
+    }
+
+    const store = (globalThis as typeof globalThis & {
+      __lojaDemoStore?: {
+        balances: Array<{
+          viewerId: string;
+          currentBalance: number;
+          lifetimeEarned: number;
+          lifetimeSpent: number;
+          lastSyncedAt: string;
+        }>;
+      };
+    }).__lojaDemoStore;
+    const fallbackBalance = store?.balances.find((entry) => entry.viewerId === fallbackViewer.id);
+    if (!fallbackBalance) {
+      throw new Error("Expected balance row for fallback viewer.");
+    }
+    fallbackBalance.currentBalance = 25;
+    fallbackBalance.lifetimeEarned = 25;
+
+    const stateBefore = await getSessionViewerState({
+      googleUserId: "google_claim_link",
+      email: "claim-link@example.com",
+    });
+    const link = await issueViewerLinkCode(stateBefore!.googleAccount.id);
+
+    const result = await claimViewerLinkCodeFromStreamerbot({
+      linkCode: link.linkCode,
+      viewerExternalId: "yt_lia",
+      youtubeDisplayName: "Lia Pixel",
+      youtubeHandle: "@liapixel",
+    });
+
+    expect(result).toMatchObject({
+      googleAccountId: stateBefore!.googleAccount.id,
+      mergedSyntheticViewer: true,
+    });
+    expect(result.viewer).toMatchObject({
+      id: "viewer_lia",
+      email: "claim-link@example.com",
+      googleUserId: "google_claim_link",
+      isLinked: true,
+      youtubeDisplayName: "Lia Pixel",
+      youtubeHandle: "@liapixel",
+    });
+
+    const stateAfter = await getSessionViewerState({
+      googleUserId: "google_claim_link",
+      email: "claim-link@example.com",
+    });
+    expect(stateAfter?.activeViewer.id).toBe("viewer_lia");
+
+    const channels = await listViewerChannelsForGoogleAccount(stateAfter!.googleAccount.id);
+    expect(channels.map((entry) => entry.youtubeChannelId)).toEqual(["yt_lia"]);
+
+    const linkedBalance = store?.balances.find((entry) => entry.viewerId === "viewer_lia");
+    expect(linkedBalance?.currentBalance).toBe(545);
+    expect(linkedBalance?.lifetimeEarned).toBe(645);
+    expect(store?.balances.some((entry) => entry.viewerId === fallbackViewer.id)).toBe(false);
+
+    const consumed = await getViewerLinkCodeState(stateAfter!.googleAccount.id);
+    expect(consumed).toBeNull();
   });
 });
 

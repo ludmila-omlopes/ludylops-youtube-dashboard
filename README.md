@@ -58,7 +58,7 @@ copy bridge\\.env.example bridge\\.env
 - `AUTH_GOOGLE_SECRET`
 - `GOOGLE_RISC_ALLOWED_AUDIENCES` (opcional, se tiver mais de um OAuth client aceito pelo receiver)
 - `GOOGLE_RISC_RECEIVER_URL` (opcional, para fixar a URL HTTPS do receiver RISC)
-- `YOUTUBE_API_KEY`
+- `YOUTUBE_API_KEY` (usada apenas para fallback de status da live, nao para vincular login ao canal)
 - `ADMIN_EMAILS`
 - `STREAM_YOUTUBE_CHANNEL_ID` (opcional, se quiser forcar o canal monitorado em vez de usar a conta admin vinculada)
 
@@ -151,6 +151,77 @@ Notas:
 - Pode ser enviado com ou sem `@`; o backend normaliza antes de salvar.
 - Se a live for `Unlisted`, inclua `payload.isLive = true` no request do Streamer.bot para evitar depender apenas da busca publica da API do YouTube.
 - A rota responde `200` mesmo quando ignora um evento live-gated; nesses casos o body inclui `ignoredReason`, entao o script do Streamer.bot deve logar o body mesmo em sucesso.
+
+### Vinculo da conta pelo chat
+
+O login do site nao consulta mais a API do YouTube para descobrir automaticamente o canal do usuario. Em vez disso, o vinculo entre a conta autenticada e o viewer do chat acontece com um codigo curto:
+
+1. O viewer entra no site e abre `/me`.
+2. O app gera um codigo em `GET/POST /api/me/link-code`.
+3. O viewer envia `!link CODIGO` no chat do YouTube.
+4. O Streamer.bot chama `POST /api/internal/streamerbot/link` com o `viewerExternalId` do autor da mensagem.
+5. O backend marca o viewer como vinculado e, se existir um viewer sintetico criado no login, faz o merge do saldo e historico.
+
+Endpoint interno:
+
+- `POST /api/internal/streamerbot/link`
+
+Payload recomendado:
+
+```json
+{
+  "linkCode": "ABC123",
+  "viewerExternalId": "UCxxxxxxxx",
+  "youtubeDisplayName": "Nome do canal",
+  "youtubeHandle": "@meucanal",
+  "source": "streamerbot_chat"
+}
+```
+
+Notas:
+
+- `viewerExternalId` deve ser o identificador estavel do canal que o Streamer.bot expoe no evento ou comando do YouTube.
+- O backend invalida o codigo depois do primeiro uso e rejeita codigo expirado.
+- Se o login ja tiver acumulado saldo em um viewer sintetico, o backend faz merge automatico para o viewer real do chat.
+- O login Google agora pede apenas `openid email profile`; o vinculo com a live depende do chat, nao de `youtube.readonly`.
+
+#### Setup rapido do Streamer.bot
+
+O script pronto para colar no `Execute C# Code` esta em:
+
+- [link-account-from-chat.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/link-account-from-chat.cs)
+
+Passo a passo operacional:
+
+1. Crie estas Global Variables no Streamer.bot:
+
+- `lojaneon.appBaseUrl`
+  Valor: `https://seu-app.vercel.app`
+- `lojaneon.streamerbotSharedSecret`
+  Valor: o mesmo `STREAMERBOT_SHARED_SECRET` do app
+- `lojaneon.useBotAccount`
+  Valor: `true`
+
+2. Crie um comando do YouTube com regex:
+
+```regex
+^!link\s+(?<linkCode>[A-Z0-9]{4,32})$
+```
+
+3. Na action desse comando, adicione `Core > C# > Execute C# Code`.
+
+4. Cole o conteudo de [link-account-from-chat.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/link-account-from-chat.cs).
+
+5. O proprio script responde no chat com `CPH.SendYouTubeMessageToLatestMonitored(...)`.
+
+Troubleshooting rapido:
+
+- `viewer_link_code_invalid`
+  Gere um novo codigo em `/me` e tente de novo no chat.
+- `viewer_owned_by_other_account`
+  Esse canal ja esta vinculado a outra conta do app e precisa de ajuste manual.
+- `Nao consegui identificar seu canal do YouTube para vincular a conta.`
+  Verifique se o evento/comando do Streamer.bot expoe um dos argumentos aceitos pelo script: `id`, `userId`, `fromId`, `authorId`, `channelId`, `youtubeUserId` ou `targetUserId`.
 
 ### Apostas por comando de chat
 

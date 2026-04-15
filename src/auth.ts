@@ -6,12 +6,6 @@ import GoogleProvider from "next-auth/providers/google";
 import { GOOGLE_AUTHORIZATION_PARAMS, GOOGLE_SECURE_OAUTH_CHECKS } from "@/lib/auth/google";
 import { ensureViewerFromSession, getGoogleAccountByIdentity, getSessionViewerState } from "@/lib/db/repository";
 import { authSecret, env, isDemoAuthEnabled } from "@/lib/env";
-import {
-  canBootstrapViewerFromYoutubeLookup,
-  getYoutubeChannelFromGoogleAccessToken,
-  getYoutubeChannelLookupMessage,
-  isYoutubeChannelLookupStatusKind,
-} from "@/lib/google/youtube-channel";
 import type { GoogleAccountRecord } from "@/lib/types";
 
 const providers = [];
@@ -87,8 +81,6 @@ function clearGoogleSessionToken(token: Record<string, unknown>, protectionStatu
   delete token.activeYoutubeChannelId;
   delete token.activeViewerDisplayName;
   delete token.isLinked;
-  delete token.youtubeLinkingStatus;
-  delete token.youtubeLinkingMessage;
   return token;
 }
 
@@ -130,12 +122,6 @@ export const authOptions = {
       if (profile && "picture" in profile && typeof profile.picture === "string") {
         token.picture = profile.picture;
       }
-
-      if (account && account.provider !== "google") {
-        token.youtubeLinkingStatus = undefined;
-        token.youtubeLinkingMessage = undefined;
-      }
-
       const email = typeof token.email === "string" ? token.email : null;
       const googleUserId = typeof token.googleUserId === "string" ? token.googleUserId : null;
       const name =
@@ -150,62 +136,28 @@ export const authOptions = {
           : typeof user?.image === "string"
             ? user.image
             : null;
-      const isGoogleSignIn = account?.provider === "google";
-      const youtubeLookup =
-        isGoogleSignIn && typeof account.access_token === "string"
-          ? await getYoutubeChannelFromGoogleAccessToken(account.access_token, {
-              grantedScope: typeof account.scope === "string" ? account.scope : null,
-            })
-          : null;
-      const bootstrappableYoutubeLookup = canBootstrapViewerFromYoutubeLookup(youtubeLookup)
-        ? youtubeLookup
-        : null;
-
-      if (youtubeLookup) {
-        token.youtubeLinkingStatus = youtubeLookup.status.kind;
-        token.youtubeLinkingMessage = getYoutubeChannelLookupMessage(youtubeLookup.status) ?? undefined;
-      }
 
       if (email) {
         const shouldBootstrapSession = Boolean(account || user);
         if (shouldBootstrapSession) {
-          if (isGoogleSignIn) {
-            if (bootstrappableYoutubeLookup) {
-              await ensureViewerFromSession({
-                googleUserId,
-                email,
-                name,
-                image,
-                youtubeChannels: bootstrappableYoutubeLookup.channels,
-              });
-            } else {
-              console.warn("[auth] Skipping synthetic viewer bootstrap for Google login.", {
-                email,
-                googleUserId,
-                youtubeLookupStatus: youtubeLookup?.status.kind ?? "missing_lookup",
-              });
-            }
-          } else {
-            await ensureViewerFromSession({
-              googleUserId,
-              email,
-              name,
-              image,
-            });
-          }
+          await ensureViewerFromSession({
+            googleUserId,
+            email,
+            name,
+            image,
+          });
         }
 
         let sessionState = await getSessionViewerState({
           googleUserId,
           email,
         });
-        if (!sessionState && (!isGoogleSignIn || bootstrappableYoutubeLookup)) {
+        if (!sessionState) {
           await ensureViewerFromSession({
             googleUserId,
             email,
             name,
             image,
-            youtubeChannels: bootstrappableYoutubeLookup?.channels,
           });
           sessionState = await getSessionViewerState({
             googleUserId,
@@ -251,12 +203,6 @@ export const authOptions = {
         }
         if (token.accountProtectionStatus === "google_signin_blocked" || token.accountProtectionStatus === "session_revoked") {
           session.user.accountProtectionStatus = token.accountProtectionStatus;
-        }
-        if (typeof token.youtubeLinkingStatus === "string" && isYoutubeChannelLookupStatusKind(token.youtubeLinkingStatus)) {
-          session.user.youtubeLinkingStatus = token.youtubeLinkingStatus;
-        }
-        if (typeof token.youtubeLinkingMessage === "string") {
-          session.user.youtubeLinkingMessage = token.youtubeLinkingMessage;
         }
       }
 

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { PipetzBalanceCard } from "@/components/pipetz-balance-card";
 import { RedemptionGrid } from "@/components/redemption-grid";
+import { ViewerLinkCard } from "@/components/viewer-link-card";
 import { getCatalog, getViewerDashboard } from "@/lib/db/repository";
 import { requireSession } from "@/lib/auth/session";
 import { formatDateTime, formatPipetz } from "@/lib/utils";
@@ -34,6 +35,8 @@ export default async function MePage() {
         lifetimeEarned={dashboard.balance.lifetimeEarned}
         lifetimeSpent={dashboard.balance.lifetimeSpent}
       />
+
+      <ViewerLinkCard isLinked={dashboard.viewer.isLinked} />
 
       {/* Stats + Redemption timeline */}
       <section className="landing-plane landing-divider bg-[var(--color-sky)] py-8 sm:py-10">

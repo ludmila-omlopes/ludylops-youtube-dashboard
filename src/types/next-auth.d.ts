@@ -11,15 +11,6 @@ declare module "next-auth" {
       activeYoutubeChannelId?: string;
       activeViewerDisplayName?: string;
       accountProtectionStatus?: "google_signin_blocked" | "session_revoked";
-      youtubeLinkingStatus?:
-        | "channels_found"
-        | "empty"
-        | "scope_missing"
-        | "authorization_required"
-        | "insufficient_permissions"
-        | "http_error"
-        | "network_error";
-      youtubeLinkingMessage?: string;
     } & DefaultSession["user"];
   }
 }
@@ -33,14 +24,5 @@ declare module "next-auth/jwt" {
     activeViewerDisplayName?: string;
     isLinked?: boolean;
     accountProtectionStatus?: "google_signin_blocked" | "session_revoked";
-    youtubeLinkingStatus?:
-      | "channels_found"
-      | "empty"
-      | "scope_missing"
-      | "authorization_required"
-      | "insufficient_permissions"
-      | "http_error"
-      | "network_error";
-    youtubeLinkingMessage?: string;
   }
 }
