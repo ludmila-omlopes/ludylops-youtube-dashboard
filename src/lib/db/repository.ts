@@ -78,6 +78,7 @@ import {
   ProductRecommendationRecord,
   RedemptionRecord,
   StreamerbotCounterRecord,
+  StreamerbotCounterSummaryRecord,
   ViewerChannelOptionRecord,
   ViewerBalanceRecord,
   ViewerRecord,
@@ -95,20 +96,114 @@ function shouldExcludeFromRanking(email: string | null) {
 
 const DEFAULT_DEATH_COUNTER_KEY = "death_count";
 const DEFAULT_DEATH_COUNTER_LABEL = "mortes";
+const GLOBAL_COUNTER_SCOPE_TYPE = "global";
+const GLOBAL_COUNTER_SCOPE_KEY = "global";
+const STREAMERBOT_COUNTER_STORAGE_SEPARATOR = "::";
 const QUOTE_OVERLAY_SLOT = "obs_main";
 const QUOTE_OVERLAY_COST = 50;
 const QUOTE_OVERLAY_DURATION_SECONDS = 12;
 const QUOTE_OVERLAY_LOCK_KEY = 42_001;
 
-type StreamerbotCounterCommandAction = "increment" | "get" | "reset";
+type StreamerbotCounterCommandAction = "increment" | "decrement" | "get" | "reset";
+type StreamerbotCounterScopeType = "global" | "game";
 
-function buildDefaultStreamerbotCounter(counterKey: string, now = new Date()): StreamerbotCounterRecord {
+type NormalizedStreamerbotCounterScope = {
+  scopeType: StreamerbotCounterScopeType;
+  scopeKey: string;
+  scopeLabel: string | null;
+};
+
+function humanizeCounterToken(value: string) {
+  return value.replace(/[_-]+/g, " ").trim();
+}
+
+function normalizeStreamerbotCounterScope(input: {
+  scopeType?: StreamerbotCounterScopeType | null;
+  scopeKey?: string | null;
+  scopeLabel?: string | null;
+  metadata?: Record<string, unknown>;
+}): NormalizedStreamerbotCounterScope {
+  const metadataScopeType = input.metadata?.scopeType;
+  const scopeType =
+    input.scopeType ??
+    (metadataScopeType === "game" ? "game" : GLOBAL_COUNTER_SCOPE_TYPE);
+
+  if (scopeType === GLOBAL_COUNTER_SCOPE_TYPE) {
+    return {
+      scopeType,
+      scopeKey: GLOBAL_COUNTER_SCOPE_KEY,
+      scopeLabel: null,
+    };
+  }
+
+  const rawScopeKey =
+    input.scopeKey?.trim() ||
+    (typeof input.metadata?.scopeKey === "string" ? input.metadata.scopeKey.trim() : "");
+  const scopeKey = rawScopeKey.toLowerCase();
+
+  if (!scopeKey) {
+    throw new Error("scope_key_required");
+  }
+
+  const providedScopeLabel = input.scopeLabel?.trim();
+  const metadataScopeLabel =
+    typeof input.metadata?.scopeLabel === "string" && input.metadata.scopeLabel.trim()
+      ? input.metadata.scopeLabel.trim()
+      : null;
+
+  return {
+    scopeType,
+    scopeKey,
+    scopeLabel: providedScopeLabel ?? metadataScopeLabel ?? humanizeCounterToken(scopeKey),
+  };
+}
+
+function buildDefaultStreamerbotCounter(
+  counterKey: string,
+  scope: NormalizedStreamerbotCounterScope,
+  now = new Date(),
+): StreamerbotCounterRecord {
   return {
     key: counterKey,
+    scopeType: scope.scopeType,
+    scopeKey: scope.scopeKey,
     value: 0,
     lastResetAt: null,
     updatedAt: now.toISOString(),
     metadata: {},
+  };
+}
+
+function buildStreamerbotCounterStorageKey(
+  counterKey: string,
+  scope: NormalizedStreamerbotCounterScope,
+) {
+  if (scope.scopeType === GLOBAL_COUNTER_SCOPE_TYPE) {
+    return counterKey;
+  }
+
+  return `${scope.scopeType}${STREAMERBOT_COUNTER_STORAGE_SEPARATOR}${scope.scopeKey}${STREAMERBOT_COUNTER_STORAGE_SEPARATOR}${counterKey}`;
+}
+
+function parseStreamerbotCounterStorageKey(storageKey: string) {
+  const parts = storageKey.split(STREAMERBOT_COUNTER_STORAGE_SEPARATOR);
+  if (parts.length !== 3) {
+    return null;
+  }
+
+  const [scopeType, scopeKey, counterKey] = parts;
+  if (scopeType !== "game" || !scopeKey || !counterKey) {
+    return null;
+  }
+
+  return {
+    counterKey,
+    scopeType,
+    scopeKey,
+  } satisfies {
+    counterKey: string;
+    scopeType: StreamerbotCounterScopeType;
+    scopeKey: string;
   };
 }
 
@@ -127,7 +222,7 @@ function normalizeStreamerbotCounterLabel(input: {
     return metadataLabel.trim();
   }
 
-  return input.counterKey.replace(/[_-]+/g, " ").trim();
+  return humanizeCounterToken(input.counterKey);
 }
 
 type DemoStore = {
@@ -212,13 +307,22 @@ function createLedgerEntry(
   return created;
 }
 
-function getDemoStreamerbotCounter(store: DemoStore, counterKey: string) {
-  const found = store.streamerbotCounters.find((entry) => entry.key === counterKey);
+function getDemoStreamerbotCounter(
+  store: DemoStore,
+  counterKey: string,
+  scope: NormalizedStreamerbotCounterScope,
+) {
+  const found = store.streamerbotCounters.find(
+    (entry) =>
+      entry.key === counterKey &&
+      entry.scopeType === scope.scopeType &&
+      entry.scopeKey === scope.scopeKey,
+  );
   if (found) {
     return found;
   }
 
-  const created = buildDefaultStreamerbotCounter(counterKey);
+  const created = buildDefaultStreamerbotCounter(counterKey, scope);
   store.streamerbotCounters.unshift(created);
   return created;
 }
@@ -226,12 +330,33 @@ function getDemoStreamerbotCounter(store: DemoStore, counterKey: string) {
 function serializeStreamerbotCounter(
   row: typeof streamerbotCounters.$inferSelect,
 ): StreamerbotCounterRecord {
+  const metadata = row.metadata as Record<string, unknown>;
+  const parsedStorageKey = parseStreamerbotCounterStorageKey(row.key);
+  const counterKey =
+    typeof metadata.counterKey === "string" && metadata.counterKey.trim()
+      ? metadata.counterKey.trim().toLowerCase()
+      : parsedStorageKey?.counterKey ?? row.key;
+  const scope = normalizeStreamerbotCounterScope({
+    scopeType:
+      typeof metadata.scopeType === "string"
+        ? (metadata.scopeType as StreamerbotCounterScopeType)
+        : parsedStorageKey?.scopeType ?? null,
+    scopeKey:
+      typeof metadata.scopeKey === "string"
+        ? metadata.scopeKey
+        : parsedStorageKey?.scopeKey ?? null,
+    scopeLabel: typeof metadata.scopeLabel === "string" ? metadata.scopeLabel : null,
+    metadata,
+  });
+
   return {
-    key: row.key,
+    key: counterKey,
+    scopeType: scope.scopeType,
+    scopeKey: scope.scopeKey,
     value: row.value,
     lastResetAt: row.lastResetAt?.toISOString() ?? null,
     updatedAt: row.updatedAt.toISOString(),
-    metadata: row.metadata as Record<string, unknown>,
+    metadata,
   };
 }
 
@@ -245,25 +370,126 @@ type StreamerbotCounterCommandResult = {
   replyMessage: string;
 };
 
-async function ensureStreamerbotCounterRow(db: CounterDbLike, counterKey: string) {
+function buildStreamerbotCounterSummary(counter: StreamerbotCounterRecord): StreamerbotCounterSummaryRecord {
+  const scope = normalizeStreamerbotCounterScope({
+    scopeType: counter.scopeType as StreamerbotCounterScopeType,
+    scopeKey: counter.scopeKey,
+    metadata: counter.metadata,
+  });
+
+  return {
+    key: counter.key,
+    label: normalizeStreamerbotCounterLabel({
+      counterKey: counter.key,
+      metadata: counter.metadata,
+    }),
+    scopeType: scope.scopeType,
+    scopeKey: scope.scopeKey,
+    scopeLabel: scope.scopeLabel,
+    value: counter.value,
+    lastResetAt: counter.lastResetAt,
+    updatedAt: counter.updatedAt,
+    lastAction: typeof counter.metadata.lastAction === "string" ? counter.metadata.lastAction : null,
+    lastAmount: typeof counter.metadata.lastAmount === "number" ? counter.metadata.lastAmount : null,
+    source: typeof counter.metadata.source === "string" ? counter.metadata.source : null,
+  };
+}
+
+function ensureDefaultCounterSummaries(
+  counters: StreamerbotCounterSummaryRecord[],
+): StreamerbotCounterSummaryRecord[] {
+  const hasDefaultDeaths = counters.some(
+    (counter) =>
+      counter.key === DEFAULT_DEATH_COUNTER_KEY &&
+      counter.scopeType === GLOBAL_COUNTER_SCOPE_TYPE &&
+      counter.scopeKey === GLOBAL_COUNTER_SCOPE_KEY,
+  );
+
+  const source = hasDefaultDeaths
+    ? counters
+    : [
+        {
+          key: DEFAULT_DEATH_COUNTER_KEY,
+          label: DEFAULT_DEATH_COUNTER_LABEL,
+          scopeType: GLOBAL_COUNTER_SCOPE_TYPE as StreamerbotCounterSummaryRecord["scopeType"],
+          scopeKey: GLOBAL_COUNTER_SCOPE_KEY,
+          scopeLabel: null,
+          value: 0,
+          lastResetAt: null,
+          updatedAt: new Date(0).toISOString(),
+          lastAction: null,
+          lastAmount: null,
+          source: null,
+        },
+        ...counters,
+      ];
+
+  return [...source].sort((left, right) => {
+    if (left.scopeType !== right.scopeType) {
+      return left.scopeType === GLOBAL_COUNTER_SCOPE_TYPE ? -1 : 1;
+    }
+
+    const scopeLabelCompare = (left.scopeLabel ?? left.scopeKey).localeCompare(
+      right.scopeLabel ?? right.scopeKey,
+      "pt-BR",
+    );
+    if (scopeLabelCompare !== 0) {
+      return scopeLabelCompare;
+    }
+
+    const labelCompare = left.label.localeCompare(right.label, "pt-BR");
+    if (labelCompare !== 0) {
+      return labelCompare;
+    }
+
+    return left.key.localeCompare(right.key, "pt-BR");
+  });
+}
+
+async function ensureStreamerbotCounterRow(
+  db: CounterDbLike,
+  counterKey: string,
+  scope: NormalizedStreamerbotCounterScope,
+) {
+  const storageKey = buildStreamerbotCounterStorageKey(counterKey, scope);
+
   await db
     .insert(streamerbotCounters)
     .values({
-      key: counterKey,
+      key: storageKey,
       value: 0,
       lastResetAt: null,
       updatedAt: new Date(),
-      metadata: {},
+      metadata: {
+        counterKey,
+        scopeType: scope.scopeType,
+        scopeKey: scope.scopeKey,
+        scopeLabel: scope.scopeLabel,
+      },
     })
     .onConflictDoNothing();
 
   const [row] = await db
     .select()
     .from(streamerbotCounters)
-    .where(eq(streamerbotCounters.key, counterKey))
+    .where(eq(streamerbotCounters.key, storageKey))
     .limit(1);
 
   return row ?? null;
+}
+
+function buildStreamerbotCounterSubject(input: {
+  counterLabel: string;
+  scopeType: StreamerbotCounterScopeType;
+  scopeKey: string;
+  scopeLabel?: string | null;
+}) {
+  const subject = `contador de ${input.counterLabel}`;
+  if (input.scopeType === GLOBAL_COUNTER_SCOPE_TYPE) {
+    return subject;
+  }
+
+  return `${subject} em ${input.scopeLabel ?? humanizeCounterToken(input.scopeKey)}`;
 }
 
 function buildStreamerbotCounterReply(input: {
@@ -272,13 +498,23 @@ function buildStreamerbotCounterReply(input: {
   amount?: number;
   requestedBy?: string | null;
   counterLabel: string;
+  scopeType: StreamerbotCounterScopeType;
+  scopeKey: string;
+  scopeLabel?: string | null;
 }) {
   const prefix = input.requestedBy ? `${input.requestedBy}, ` : "";
-  const subject = `contador de ${input.counterLabel}`;
+  const subject = buildStreamerbotCounterSubject({
+    counterLabel: input.counterLabel,
+    scopeType: input.scopeType,
+    scopeKey: input.scopeKey,
+    scopeLabel: input.scopeLabel,
+  });
 
   switch (input.action) {
     case "increment":
       return `${prefix}${subject}: ${input.count}${input.amount && input.amount > 1 ? ` (+${input.amount})` : ""}.`;
+    case "decrement":
+      return `${prefix}${subject}: ${input.count}${input.amount && input.amount > 1 ? ` (-${input.amount})` : ""}.`;
     case "reset":
       return `${prefix}${subject} resetado. Total atual: ${input.count}.`;
     case "get":
@@ -1630,6 +1866,45 @@ function isMissingProductRecommendationSchemaError(error: unknown) {
   return false;
 }
 
+function isMissingCounterSchemaError(error: unknown) {
+  const tableNames = ['"streamerbot_counters"', "streamerbot_counters"];
+  const queue: unknown[] = [error];
+  const visited = new Set<unknown>();
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+
+    const message =
+      current instanceof Error ? current.message : typeof current === "string" ? current : "";
+    const normalized = message.toLowerCase();
+    const mentionsTables = tableNames.some((tableName) => normalized.includes(tableName));
+    if (
+      mentionsTables &&
+      (normalized.includes("does not exist") ||
+        normalized.includes("relation") ||
+        normalized.includes("table") ||
+        normalized.includes("failed query"))
+    ) {
+      return true;
+    }
+
+    if (typeof current === "object" && current && "cause" in current) {
+      queue.push((current as { cause?: unknown }).cause);
+    }
+  }
+
+  return false;
+}
+
+function listDemoStreamerbotCounters() {
+  const store = getDemoStore();
+  return ensureDefaultCounterSummaries(store.streamerbotCounters.map(buildStreamerbotCounterSummary));
+}
+
 async function withGoogleAccountById(googleAccountId: string) {
   const db = getDb();
 
@@ -2704,6 +2979,27 @@ export async function listAdminGameSuggestions() {
   return listGameSuggestions();
 }
 
+export async function listStreamerbotCounters() {
+  const db = getDb();
+
+  if (isDemoMode || !db) {
+    return listDemoStreamerbotCounters();
+  }
+
+  let rows: Array<typeof streamerbotCounters.$inferSelect>;
+
+  try {
+    rows = await db.select().from(streamerbotCounters);
+  } catch (error) {
+    if (isMissingCounterSchemaError(error)) {
+      return ensureDefaultCounterSummaries([]);
+    }
+    throw error;
+  }
+
+  return ensureDefaultCounterSummaries(rows.map(serializeStreamerbotCounter).map(buildStreamerbotCounterSummary));
+}
+
 export async function listProductRecommendations(options?: {
   includeInactive?: boolean;
 }) {
@@ -3637,6 +3933,9 @@ export async function runStreamerbotCounterCommand(input: {
   counterKey: string;
   counterLabel?: string | null;
   action: StreamerbotCounterCommandAction;
+  scopeType?: StreamerbotCounterScopeType | null;
+  scopeKey?: string | null;
+  scopeLabel?: string | null;
   amount?: number;
   requestedBy?: string | null;
   source?: string | null;
@@ -3649,6 +3948,11 @@ export async function runStreamerbotCounterCommand(input: {
   const occurredAt = input.occurredAt ? new Date(input.occurredAt) : new Date();
   const requestedBy = input.requestedBy?.trim() || null;
   const source = input.source?.trim() || "streamerbot_chat";
+  const scope = normalizeStreamerbotCounterScope({
+    scopeType: input.scopeType,
+    scopeKey: input.scopeKey,
+    scopeLabel: input.scopeLabel,
+  });
 
   if (Number.isNaN(occurredAt.getTime())) {
     throw new Error("invalid_occurred_at");
@@ -3661,22 +3965,41 @@ export async function runStreamerbotCounterCommand(input: {
   const db = getDb();
   if (isDemoMode || !db) {
     const store = getDemoStore();
-    const counter = getDemoStreamerbotCounter(store, counterKey);
+    const counter = getDemoStreamerbotCounter(store, counterKey, scope);
     const counterLabel = normalizeStreamerbotCounterLabel({
       counterKey,
       counterLabel: input.counterLabel,
       metadata: counter.metadata,
     });
+    let appliedAmount: number | undefined;
 
     if (input.action === "increment") {
       counter.value += amount;
       counter.updatedAt = occurredAt.toISOString();
+      appliedAmount = amount;
       counter.metadata = {
         lastAction: "increment",
-        lastAmount: amount,
+        lastAmount: appliedAmount,
         requestedBy,
         source,
         counterLabel,
+        scopeType: scope.scopeType,
+        scopeKey: scope.scopeKey,
+        scopeLabel: scope.scopeLabel,
+      };
+    } else if (input.action === "decrement") {
+      appliedAmount = Math.min(amount, counter.value);
+      counter.value = Math.max(0, counter.value - amount);
+      counter.updatedAt = occurredAt.toISOString();
+      counter.metadata = {
+        lastAction: "decrement",
+        lastAmount: appliedAmount,
+        requestedBy,
+        source,
+        counterLabel,
+        scopeType: scope.scopeType,
+        scopeKey: scope.scopeKey,
+        scopeLabel: scope.scopeLabel,
       };
     } else if (input.action === "reset") {
       const previousValue = counter.value;
@@ -3689,6 +4012,9 @@ export async function runStreamerbotCounterCommand(input: {
         requestedBy,
         source,
         counterLabel,
+        scopeType: scope.scopeType,
+        scopeKey: scope.scopeKey,
+        scopeLabel: scope.scopeLabel,
         resetReason: input.resetReason ?? null,
       };
     }
@@ -3702,16 +4028,19 @@ export async function runStreamerbotCounterCommand(input: {
       replyMessage: buildStreamerbotCounterReply({
         action: input.action,
         count: nextCounter.value,
-        amount: input.action === "increment" ? amount : undefined,
+        amount: appliedAmount,
         requestedBy,
         counterLabel,
+        scopeType: scope.scopeType,
+        scopeKey: scope.scopeKey,
+        scopeLabel: scope.scopeLabel,
       }),
     };
   }
 
   if (input.action === "get") {
-    const row = await ensureStreamerbotCounterRow(db, counterKey);
-    const counter = row ? serializeStreamerbotCounter(row) : buildDefaultStreamerbotCounter(counterKey);
+    const row = await ensureStreamerbotCounterRow(db, counterKey, scope);
+    const counter = row ? serializeStreamerbotCounter(row) : buildDefaultStreamerbotCounter(counterKey, scope);
     const counterLabel = normalizeStreamerbotCounterLabel({
       counterKey,
       counterLabel: input.counterLabel,
@@ -3727,6 +4056,9 @@ export async function runStreamerbotCounterCommand(input: {
         metadata: {
           ...counter.metadata,
           counterLabel,
+          scopeType: scope.scopeType,
+          scopeKey: scope.scopeKey,
+          scopeLabel: scope.scopeLabel,
         },
       },
       replyMessage: buildStreamerbotCounterReply({
@@ -3734,44 +4066,83 @@ export async function runStreamerbotCounterCommand(input: {
         count: counter.value,
         requestedBy,
         counterLabel,
+        scopeType: scope.scopeType,
+        scopeKey: scope.scopeKey,
+        scopeLabel: scope.scopeLabel,
       }),
     };
   }
 
   const counter = await db.transaction(async (tx) => {
-    const current = (await ensureStreamerbotCounterRow(tx, counterKey)) ?? {
-      key: counterKey,
-      value: 0,
-      lastResetAt: null,
-      updatedAt: occurredAt,
-      metadata: {},
-    };
+    const storageKey = buildStreamerbotCounterStorageKey(counterKey, scope);
+    const current =
+      (await ensureStreamerbotCounterRow(tx, counterKey, scope)) ?? {
+        key: storageKey,
+        value: 0,
+        lastResetAt: null,
+        updatedAt: occurredAt,
+        metadata: {
+          counterKey,
+          scopeType: scope.scopeType,
+          scopeKey: scope.scopeKey,
+          scopeLabel: scope.scopeLabel,
+        },
+      };
     const counterLabel = normalizeStreamerbotCounterLabel({
       counterKey,
       counterLabel: input.counterLabel,
       metadata: current.metadata as Record<string, unknown>,
     });
-
-    const nextValue = input.action === "increment" ? current.value + amount : 0;
-    const nextLastResetAt =
-      input.action === "reset" ? occurredAt : current.lastResetAt;
+    const appliedAmount =
+      input.action === "increment"
+        ? amount
+        : input.action === "decrement"
+          ? Math.min(amount, current.value)
+          : undefined;
+    const nextValue =
+      input.action === "increment"
+        ? current.value + amount
+        : input.action === "decrement"
+          ? Math.max(0, current.value - amount)
+          : 0;
+    const nextLastResetAt = input.action === "reset" ? occurredAt : current.lastResetAt;
     const nextMetadata =
       input.action === "increment"
         ? {
             lastAction: "increment",
-            lastAmount: amount,
+            lastAmount: appliedAmount,
             requestedBy,
             source,
+            counterKey,
             counterLabel,
+            scopeType: scope.scopeType,
+            scopeKey: scope.scopeKey,
+            scopeLabel: scope.scopeLabel,
           }
-        : {
-            lastAction: "reset",
-            previousValue: current.value,
-            requestedBy,
-            source,
-            counterLabel,
-            resetReason: input.resetReason ?? null,
-          };
+        : input.action === "decrement"
+          ? {
+              lastAction: "decrement",
+              lastAmount: appliedAmount,
+              requestedBy,
+              source,
+              counterKey,
+              counterLabel,
+              scopeType: scope.scopeType,
+              scopeKey: scope.scopeKey,
+              scopeLabel: scope.scopeLabel,
+            }
+          : {
+              lastAction: "reset",
+              previousValue: current.value,
+              requestedBy,
+              source,
+              counterKey,
+              counterLabel,
+              scopeType: scope.scopeType,
+              scopeKey: scope.scopeKey,
+              scopeLabel: scope.scopeLabel,
+              resetReason: input.resetReason ?? null,
+            };
 
     await tx
       .update(streamerbotCounters)
@@ -3781,12 +4152,12 @@ export async function runStreamerbotCounterCommand(input: {
         updatedAt: occurredAt,
         metadata: nextMetadata,
       })
-      .where(eq(streamerbotCounters.key, counterKey));
+      .where(eq(streamerbotCounters.key, storageKey));
 
     const [updated] = await tx
       .select()
       .from(streamerbotCounters)
-      .where(eq(streamerbotCounters.key, counterKey))
+      .where(eq(streamerbotCounters.key, storageKey))
       .limit(1);
 
     return updated ?? {
@@ -3799,6 +4170,19 @@ export async function runStreamerbotCounterCommand(input: {
   });
 
   const serializedCounter = serializeStreamerbotCounter(counter);
+  const appliedAmount =
+    input.action === "increment"
+      ? amount
+      : input.action === "decrement"
+        ? Math.min(
+            amount,
+            serializedCounter.value +
+              (typeof serializedCounter.metadata.lastAmount === "number"
+                ? serializedCounter.metadata.lastAmount
+                : amount),
+          )
+        : undefined;
+
   return {
     mode: "database",
     action: input.action,
@@ -3807,19 +4191,25 @@ export async function runStreamerbotCounterCommand(input: {
     replyMessage: buildStreamerbotCounterReply({
       action: input.action,
       count: serializedCounter.value,
-      amount: input.action === "increment" ? amount : undefined,
+      amount: appliedAmount,
       requestedBy,
       counterLabel: normalizeStreamerbotCounterLabel({
         counterKey,
         counterLabel: input.counterLabel,
         metadata: serializedCounter.metadata,
       }),
+      scopeType: scope.scopeType,
+      scopeKey: scope.scopeKey,
+      scopeLabel: scope.scopeLabel,
     }),
   };
 }
 
 export async function runDeathCounterCommand(input: {
   action: StreamerbotCounterCommandAction;
+  scopeType?: StreamerbotCounterScopeType | null;
+  scopeKey?: string | null;
+  scopeLabel?: string | null;
   amount?: number;
   requestedBy?: string | null;
   source?: string | null;

@@ -228,10 +228,38 @@ export interface QuoteOverlayStateRecord {
 
 export interface StreamerbotCounterRecord {
   key: string;
+  scopeType: string;
+  scopeKey: string;
   value: number;
   lastResetAt: string | null;
   updatedAt: string;
   metadata: Record<string, unknown>;
+}
+
+export interface StreamerbotCounterSummaryRecord {
+  key: string;
+  label: string;
+  scopeType: "global" | "game";
+  scopeKey: string;
+  scopeLabel: string | null;
+  value: number;
+  lastResetAt: string | null;
+  updatedAt: string;
+  lastAction: string | null;
+  lastAmount: number | null;
+  source: string | null;
+}
+
+export interface LivestreamManualOverrideRecord {
+  isLive: boolean;
+  updatedAt: string;
+  updatedBy: string | null;
+}
+
+export interface LivestreamStatusRecord {
+  isLive: boolean;
+  source: "automatic" | "manual";
+  manualOverride: LivestreamManualOverrideRecord | null;
 }
 
 export interface BetRecord {

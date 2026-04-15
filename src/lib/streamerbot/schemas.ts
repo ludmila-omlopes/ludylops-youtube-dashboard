@@ -95,15 +95,38 @@ export const streamerbotQuoteCommandSchema = z
     }
   });
 
-const streamerbotCounterActionSchema = z.enum(["increment", "get", "reset"]);
+const streamerbotCounterActionSchema = z.enum(["increment", "decrement", "get", "reset"]);
 const streamerbotCounterKeySchema = z
   .string()
   .trim()
   .min(2)
   .max(64)
   .regex(/^[a-z0-9]+(?:[_-][a-z0-9]+)*$/);
+const streamerbotCounterScopeTypeSchema = z.enum(["global", "game"]);
+const streamerbotCounterScopeKeySchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(160)
+  .regex(/^[a-z0-9]+(?:[_-][a-z0-9]+)*$/);
 
-export const streamerbotCounterCommandSchema = z.object({
+const streamerbotCounterScopeSchema = z
+  .object({
+    scopeType: streamerbotCounterScopeTypeSchema.default("global"),
+    scopeKey: streamerbotCounterScopeKeySchema.optional(),
+    scopeLabel: z.string().trim().min(1).max(120).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.scopeType === "game" && !value.scopeKey) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["scopeKey"],
+        message: "scopeKey is required when scopeType is game.",
+      });
+    }
+  });
+
+export const streamerbotCounterCommandSchema = streamerbotCounterScopeSchema.extend({
   counterKey: streamerbotCounterKeySchema,
   counterLabel: z.string().trim().min(1).max(64).optional(),
   action: streamerbotCounterActionSchema,
@@ -115,7 +138,7 @@ export const streamerbotCounterCommandSchema = z.object({
   resetReason: z.string().min(3).max(255).optional(),
 });
 
-export const streamerbotDeathCounterCommandSchema = z.object({
+export const streamerbotDeathCounterCommandSchema = streamerbotCounterScopeSchema.extend({
   action: streamerbotCounterActionSchema,
   amount: z.number().int().min(1).max(100).default(1),
   requestedBy: z.string().min(1).max(255).optional(),

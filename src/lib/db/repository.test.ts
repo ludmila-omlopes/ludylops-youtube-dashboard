@@ -72,6 +72,7 @@ import {
   listBets,
   listGameSuggestions,
   listAdminGameSuggestions,
+  listStreamerbotCounters,
   listViewerChannelsForGoogleAccount,
   lockBet,
   finalizeGoogleRiscDelivery,
@@ -605,17 +606,17 @@ function createStreamerbotEventDb({
 }
 
 function createStreamerbotCounterDb({
-  counterRow,
+  counterRows,
 }: {
-  counterRow?: {
+  counterRows?: Array<{
     key: string;
     value: number;
     lastResetAt: Date | null;
     updatedAt: Date;
     metadata: Record<string, unknown>;
-  };
+  }>;
 } = {}) {
-  const rows = counterRow ? [counterRow] : [];
+  const rows = counterRows ? [...counterRows] : [];
 
   const tx = {
     select() {
@@ -1352,6 +1353,135 @@ describe("runStreamerbotCounterCommand", () => {
     expect(wins.replyMessage).toBe("contador de vitorias atual: 3.");
   });
 
+  it("keeps game-scoped counters independent in demo mode", async () => {
+    getDbMock.mockReturnValue(null);
+
+    await runStreamerbotCounterCommand({
+      counterKey: "death_count",
+      counterLabel: "mortes",
+      action: "increment",
+      scopeType: "game",
+      scopeKey: "balatro",
+      scopeLabel: "Balatro",
+      amount: 2,
+    });
+    await runStreamerbotCounterCommand({
+      counterKey: "death_count",
+      counterLabel: "mortes",
+      action: "increment",
+      scopeType: "game",
+      scopeKey: "hades_2",
+      scopeLabel: "Hades 2",
+      amount: 1,
+    });
+
+    const balatro = await runStreamerbotCounterCommand({
+      counterKey: "death_count",
+      counterLabel: "mortes",
+      action: "get",
+      scopeType: "game",
+      scopeKey: "balatro",
+      scopeLabel: "Balatro",
+    });
+    const hades = await runStreamerbotCounterCommand({
+      counterKey: "death_count",
+      counterLabel: "mortes",
+      action: "get",
+      scopeType: "game",
+      scopeKey: "hades_2",
+      scopeLabel: "Hades 2",
+    });
+
+    expect(balatro.count).toBe(2);
+    expect(balatro.replyMessage).toBe("contador de mortes em Balatro atual: 2.");
+    expect(hades.count).toBe(1);
+    expect(hades.replyMessage).toBe("contador de mortes em Hades 2 atual: 1.");
+  });
+
+  it("lists public counters with global and game scopes in demo mode", async () => {
+    getDbMock.mockReturnValue(null);
+
+    await runStreamerbotCounterCommand({
+      counterKey: "win_count",
+      counterLabel: "vitorias",
+      action: "increment",
+      amount: 4,
+    });
+    await runStreamerbotCounterCommand({
+      counterKey: "death_count",
+      counterLabel: "mortes",
+      action: "increment",
+      scopeType: "game",
+      scopeKey: "balatro",
+      scopeLabel: "Balatro",
+      amount: 2,
+    });
+
+    const counters = await listStreamerbotCounters();
+
+    expect(counters.map((counter) => ({
+      key: counter.key,
+      label: counter.label,
+      scopeType: counter.scopeType,
+      scopeKey: counter.scopeKey,
+      value: counter.value,
+    }))).toEqual([
+      {
+        key: "death_count",
+        label: "mortes",
+        scopeType: "global",
+        scopeKey: "global",
+        value: 0,
+      },
+      {
+        key: "win_count",
+        label: "vitorias",
+        scopeType: "global",
+        scopeKey: "global",
+        value: 4,
+      },
+      {
+        key: "death_count",
+        label: "mortes",
+        scopeType: "game",
+        scopeKey: "balatro",
+        value: 2,
+      },
+    ]);
+  });
+
+  it("decrements the counter without going below zero in demo mode", async () => {
+    getDbMock.mockReturnValue(null);
+
+    await runStreamerbotCounterCommand({
+      counterKey: "death_count",
+      counterLabel: "mortes",
+      action: "increment",
+      scopeType: "game",
+      scopeKey: "balatro",
+      scopeLabel: "Balatro",
+      amount: 3,
+    });
+
+    const decremented = await runStreamerbotCounterCommand({
+      counterKey: "death_count",
+      counterLabel: "mortes",
+      action: "decrement",
+      scopeType: "game",
+      scopeKey: "balatro",
+      scopeLabel: "Balatro",
+      amount: 5,
+      requestedBy: "Ludy",
+    });
+
+    expect(decremented).toMatchObject({
+      mode: "demo",
+      action: "decrement",
+      count: 0,
+      replyMessage: "Ludy, contador de mortes em Balatro: 0 (-3).",
+    });
+  });
+
   it("requires explicit confirmation before resetting in demo mode", async () => {
     getDbMock.mockReturnValue(null);
 
@@ -1372,6 +1502,9 @@ describe("runStreamerbotCounterCommand", () => {
       counterKey: "win_count",
       counterLabel: "vitorias",
       action: "increment",
+      scopeType: "game",
+      scopeKey: "mario_kart_world",
+      scopeLabel: "Mario Kart World",
       amount: 2,
       requestedBy: "Mod",
       occurredAt: "2026-04-07T12:00:00.000Z",
@@ -1381,26 +1514,92 @@ describe("runStreamerbotCounterCommand", () => {
       mode: "database",
       action: "increment",
       count: 2,
-      replyMessage: "Mod, contador de vitorias: 2 (+2).",
+      replyMessage: "Mod, contador de vitorias em Mario Kart World: 2 (+2).",
     });
     expect(rows[0]).toMatchObject({
-      key: "win_count",
+      key: "game::mario_kart_world::win_count",
       value: 2,
       metadata: {
+        counterKey: "win_count",
+        scopeType: "game",
+        scopeKey: "mario_kart_world",
         counterLabel: "vitorias",
+        scopeLabel: "Mario Kart World",
       },
     });
+    expect(result.counter).toMatchObject({
+      key: "win_count",
+      scopeType: "game",
+      scopeKey: "mario_kart_world",
+    });
+  });
+
+  it("reads game-scoped counters from the database using the physical storage key", async () => {
+    const { db } = createStreamerbotCounterDb({
+      counterRows: [
+        {
+          key: "game::mario_kart_world::win_count",
+          value: 7,
+          lastResetAt: null,
+          updatedAt: new Date("2026-04-07T11:00:00.000Z"),
+          metadata: {
+            counterKey: "win_count",
+            counterLabel: "vitorias",
+            scopeType: "game",
+            scopeKey: "mario_kart_world",
+            scopeLabel: "Mario Kart World",
+            lastAction: "increment",
+            lastAmount: 2,
+            source: "streamerbot_chat",
+          },
+        },
+      ],
+    });
+    getDbMock.mockReturnValue(db);
+
+    const counters = await listStreamerbotCounters();
+
+    expect(counters).toEqual([
+      {
+        key: "death_count",
+        label: "mortes",
+        scopeType: "global",
+        scopeKey: "global",
+        scopeLabel: null,
+        value: 0,
+        lastResetAt: null,
+        updatedAt: new Date(0).toISOString(),
+        lastAction: null,
+        lastAmount: null,
+        source: null,
+      },
+      {
+        key: "win_count",
+        label: "vitorias",
+        scopeType: "game",
+        scopeKey: "mario_kart_world",
+        scopeLabel: "Mario Kart World",
+        value: 7,
+        lastResetAt: null,
+        updatedAt: "2026-04-07T11:00:00.000Z",
+        lastAction: "increment",
+        lastAmount: 2,
+        source: "streamerbot_chat",
+      },
+    ]);
   });
 
   it("resets the counter in database mode when confirmed", async () => {
     const { db, rows } = createStreamerbotCounterDb({
-      counterRow: {
-        key: "death_count",
-        value: 5,
-        lastResetAt: null,
-        updatedAt: new Date("2026-04-07T11:00:00.000Z"),
-        metadata: {},
-      },
+      counterRows: [
+        {
+          key: "death_count",
+          value: 5,
+          lastResetAt: null,
+          updatedAt: new Date("2026-04-07T11:00:00.000Z"),
+          metadata: {},
+        },
+      ],
     });
     getDbMock.mockReturnValue(db);
 
@@ -1424,6 +1623,9 @@ describe("runStreamerbotCounterCommand", () => {
       key: "death_count",
       value: 0,
       metadata: {
+        counterKey: "death_count",
+        scopeType: "global",
+        scopeKey: "global",
         lastAction: "reset",
         previousValue: 5,
         requestedBy: "Admin",

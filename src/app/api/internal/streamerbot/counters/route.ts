@@ -51,6 +51,8 @@ export async function POST(request: Request) {
     console.info("[streamerbot/counters] Processed command.", {
       action: payload.action,
       counterKey: payload.counterKey,
+      scopeType: payload.scopeType,
+      scopeKey: payload.scopeKey ?? "global",
       amount: payload.amount,
       requestedBy: payload.requestedBy,
       count: result.count,
@@ -61,6 +63,8 @@ export async function POST(request: Request) {
       action: result.action,
       count: result.count,
       counterKey: result.counter.key,
+      scopeType: result.counter.scopeType,
+      scopeKey: result.counter.scopeKey,
       lastResetAt: result.counter.lastResetAt,
       updatedAt: result.counter.updatedAt,
       replyMessage: result.replyMessage,

@@ -17,6 +17,7 @@ import {
   listAdminBets,
   listAdminRedemptions,
 } from "@/lib/db/repository";
+import { getStreamerbotLivestreamStatus } from "@/lib/streamerbot/live-status";
 import { formatDateTime, formatPipetz } from "@/lib/utils";
 
 const statusColorMap: Record<string, string> = {
@@ -29,10 +30,11 @@ const statusColorMap: Record<string, string> = {
 
 export default async function AdminPage() {
   await requireAdminSession();
-  const [catalog, leaderboard, bridge, redemptions, bets, suggestions, recommendations, viewers] = await Promise.all([
+  const [catalog, leaderboard, bridge, liveStatus, redemptions, bets, suggestions, recommendations, viewers] = await Promise.all([
     getCatalog(),
     getLeaderboard(),
     getBridgeStatus(),
+    getStreamerbotLivestreamStatus(),
     listAdminRedemptions(),
     listAdminBets(),
     listAdminGameSuggestions(),
@@ -58,7 +60,7 @@ export default async function AdminPage() {
 
       <section className="landing-plane landing-divider bg-[var(--color-paper-pink)] py-8 sm:py-10">
         <div className="mx-auto grid w-full max-w-[1500px] gap-6 px-4 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-10">
-          <LiveStatusPanel bridge={bridge} />
+          <LiveStatusPanel bridge={bridge} initialStatus={liveStatus} />
           <div className="panel surface-section p-6">
             <p className="mono text-xs uppercase tracking-[0.3em] text-[var(--color-ink-soft)]">
               Fila recente
