@@ -245,6 +245,34 @@ Referencias oficiais:
 - Variaveis em C#: [docs.streamer.bot/faq/variables-in-csharp](https://docs.streamer.bot/faq/variables-in-csharp)
 - Resposta no chat do YouTube: [docs.streamer.bot/api/csharp/methods/youtube/chat/send-youtube-message-to-latest-monitored](https://docs.streamer.bot/api/csharp/methods/youtube/chat/send-youtube-message-to-latest-monitored)
 
+### Contadores por comando de chat
+
+Para operar contadores pelo chat do YouTube via Streamer.bot, use:
+
+- `POST /api/internal/streamerbot/counters`
+- `POST /api/internal/streamerbot/deaths`
+
+Payload generico recomendado para incrementar um contador global:
+
+```json
+{
+  "counterKey": "win_count",
+  "counterLabel": "vitorias",
+  "action": "increment",
+  "amount": 1,
+  "requestedBy": "Mod",
+  "source": "streamerbot_chat"
+}
+```
+
+Payload recomendado para consultar o contador de mortes do jogo atual:
+
+```json
+{
+  "action": "get",
+  "scopeType": "game",
+  "scopeKey": "balatro",
+  "scopeLabel": "Balatro",
 ### Saldo por comando de chat
 
 Para permitir que cada viewer consulte os proprios pipetz no chat do YouTube via Streamer.bot, use:
@@ -274,12 +302,24 @@ Payload recomendado para `!pontos`, `!saldo` ou `!pipetz`:
 
 Notas:
 
+- `action` aceita `increment`, `decrement`, `get` e `reset`.
+- `scopeType` e opcional e assume `global`; para contadores por jogo, envie `scopeType = "game"` com um `scopeKey` estavel.
+- `scopeLabel` e opcional e so existe para deixar a resposta do chat mais humana, por exemplo `contador de mortes em Balatro`.
+- `decrement` nunca deixa o contador negativo; se o valor atual for menor que o ajuste, ele para em `0`.
+- `reset` exige `confirmReset = true` para evitar zerar contador por acidente.
 - A consulta e read-only: ela nao cria viewer, nao ajusta saldo e nao altera nomes/handles salvos.
 - Se o viewer ainda nao existir no backend, a rota responde com mensagem clara para indicar que a conta ainda nao esta pronta para consulta.
 - O response inclui `replyMessage`, pensado para o Streamer.bot reutilizar direto no chat.
 
 #### Setup rapido do Streamer.bot
 
+O script pronto para o fluxo inicial do issue esta em:
+
+- [death-counter-from-chat.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/death-counter-from-chat.cs)
+
+Passo a passo operacional:
+
+1. Reaproveite estas Global Variables no Streamer.bot:
 O setup pronto para colar no `Execute C# Code` esta em:
 
 - [get-points-from-chat.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/get-points-from-chat.cs)
@@ -294,6 +334,31 @@ Passo a passo operacional:
   Valor: o mesmo `STREAMERBOT_SHARED_SECRET` do app
 - `lojaneon.useBotAccount`
   Valor: `true`
+- `lojaneon.counterGameKey`
+  Valor: opcional. Quando preenchido, o script manda o contador como `scopeType = "game"` para esse jogo.
+- `lojaneon.counterGameLabel`
+  Valor: opcional. Nome legivel que volta no `replyMessage`, por exemplo `Balatro`.
+
+2. Crie tres comandos do YouTube:
+
+```regex
+^!morte\+(?:\s+(?<amount>\d+))?$
+^!morte-(?:\s+(?<amount>\d+))?$
+^!mortes$
+```
+
+3. Em cada action, adicione `Core > C# > Execute C# Code`.
+
+4. Cole o conteudo de [death-counter-from-chat.cs](/D:/Codigos_Diversos/lojinha-youtube/streamerbot/death-counter-from-chat.cs).
+
+5. O proprio script responde no chat com `CPH.SendYouTubeMessageToLatestMonitored(...)`, entao nao precisa de um segundo sub-action.
+
+Notas:
+
+- `!morte+` incrementa, `!morte-` decrementa e `!mortes` consulta.
+- Os comandos de soma e subtracao aceitam quantidade opcional, por exemplo `!morte+ 3`.
+- Quando `lojaneon.counterGameKey` estiver vazio, o contador funciona como global.
+- Para outros tipos de contador, reaproveite `POST /api/internal/streamerbot/counters` com outro `counterKey` e `counterLabel`.
 
 2. Crie um comando do YouTube com regex:
 
@@ -319,6 +384,8 @@ Troubleshooting rapido:
 Referencias oficiais:
 
 - Variaveis e argumentos: [docs.streamer.bot/guide/variables](https://docs.streamer.bot/guide/variables)
+- Variaveis em C#: [docs.streamer.bot/faq/variables-in-csharp](https://docs.streamer.bot/faq/variables-in-csharp)
+- Resposta no chat do YouTube: [docs.streamer.bot/api/csharp/methods/youtube/chat/send-youtube-message-to-latest-monitored](https://docs.streamer.bot/api/csharp/methods/youtube/chat/send-youtube-message-to-latest-monitored)
 - Variaveis em C#: [docs.streamer.bot/api/csharp/guide/variables](https://docs.streamer.bot/api/csharp/guide/variables)
 - Resposta no chat do YouTube: [docs.streamer.bot/api/sub-actions/youtube/send-message-to-channel](https://docs.streamer.bot/api/sub-actions/youtube/send-message-to-channel/)
 

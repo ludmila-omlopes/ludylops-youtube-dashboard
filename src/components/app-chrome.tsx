@@ -53,6 +53,7 @@ export function AppChrome({
   const navLinks = [
     { href: "/indicacoes", label: "Indicacoes" },
     { href: "/apostas", label: "Apostas" },
+    { href: "/contadores", label: "Contadores" },
     { href: "/jogos", label: "Jogos" },
     { href: "/quotes", label: "Quotes" },
     { href: "/ranking", label: "Ranking" },

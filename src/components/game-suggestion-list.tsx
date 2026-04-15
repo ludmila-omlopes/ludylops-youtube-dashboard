@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
 import { GameSuggestionCard } from "@/components/game-suggestion-card";
 import type { GameSuggestionWithMeta } from "@/lib/types";
 
@@ -12,7 +16,30 @@ export function GameSuggestionList({
   canInteract?: boolean;
   viewerBalance?: number | null;
 }) {
-  const sorted = [...suggestions].sort((a, b) => {
+  const [localSuggestions, setLocalSuggestions] = useState(suggestions);
+  const [localBalance, setLocalBalance] = useState<number | null>(viewerBalance ?? null);
+
+  useEffect(() => {
+    setLocalSuggestions(suggestions);
+  }, [suggestions]);
+
+  useEffect(() => {
+    setLocalBalance(viewerBalance ?? null);
+  }, [viewerBalance]);
+
+  function handleBoostSuccess(updatedSuggestion: GameSuggestionWithMeta, spentAmount: number) {
+    setLocalSuggestions((current) =>
+      current.map((suggestion) =>
+        suggestion.id === updatedSuggestion.id ? updatedSuggestion : suggestion,
+      ),
+    );
+
+    setLocalBalance((current) =>
+      typeof current === "number" ? Math.max(current - spentAmount, 0) : current,
+    );
+  }
+
+  const sorted = [...localSuggestions].sort((a, b) => {
     if (b.totalVotes !== a.totalVotes) {
       return b.totalVotes - a.totalVotes;
     }
@@ -30,7 +57,8 @@ export function GameSuggestionList({
           index={index}
           loggedIn={loggedIn}
           canBoost={canInteract}
-          viewerBalance={viewerBalance}
+          viewerBalance={localBalance}
+          onBoostSuccess={handleBoostSuccess}
         />
       ))}
     </div>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,14 +51,15 @@ export function GameSuggestionCard({
   loggedIn = false,
   canBoost = false,
   viewerBalance,
+  onBoostSuccess,
 }: {
   suggestion: GameSuggestionWithMeta;
   index?: number;
   loggedIn?: boolean;
   canBoost?: boolean;
   viewerBalance?: number | null;
+  onBoostSuccess?: (suggestion: GameSuggestionWithMeta, spentAmount: number) => void;
 }) {
-  const router = useRouter();
   const [boostAmount, setBoostAmount] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -78,23 +78,32 @@ export function GameSuggestionCard({
 
     setFeedback(null);
     startTransition(async () => {
-      const response = await fetch(`/api/me/game-suggestions/${suggestion.id}/boost`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ amount: parsed }),
-      });
+      try {
+        const response = await fetch(`/api/me/game-suggestions/${suggestion.id}/boost`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ amount: parsed }),
+        });
 
-      const payload = (await response.json()) as { ok: boolean; error?: string };
-      if (!response.ok || !payload.ok) {
-        setFeedback(mapSuggestionError(payload.error ?? "Falha ao dar boost."));
-        return;
+        const payload = (await response.json()) as {
+          ok: boolean;
+          error?: string;
+          data?: GameSuggestionWithMeta;
+        };
+
+        if (!response.ok || !payload.ok || !payload.data) {
+          setFeedback(mapSuggestionError(payload.error ?? "Falha ao dar boost."));
+          return;
+        }
+
+        onBoostSuccess?.(payload.data, parsed);
+        setBoostAmount("");
+        setFeedback("Boost enviado.");
+      } catch {
+        setFeedback("Falha ao dar boost.");
       }
-
-      setBoostAmount("");
-      setFeedback("Boost enviado.");
-      router.refresh();
     });
   }
 
