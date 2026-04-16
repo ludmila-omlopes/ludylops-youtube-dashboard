@@ -109,7 +109,7 @@ function ViewerLinkingNotice({ issueUrl }: { issueUrl: string }) {
           rel="noreferrer"
           className="btn-brutal bg-[var(--color-paper)] px-4 py-2 text-xs text-[var(--color-ink)]"
         >
-          Abrir issue no GitHub ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢
+          Abrir issue no GitHub →
         </a>
       </div>
     </div>
@@ -415,7 +415,7 @@ function FeatureShowcase({
               href={loggedIn ? "/apostas" : "/jogos"}
               className="btn-brutal accent-button px-5 py-3 text-xs"
             >
-              {loggedIn ? "Entrar em apostas â†—" : "Explorar a comunidade â†—"}
+              {loggedIn ? "Entrar em apostas ↗" : "Explorar a comunidade ↗"}
             </Link>
           </div>
         </div>
@@ -464,7 +464,7 @@ function RankingHeroCard({
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <Link href="/ranking" className="btn-brutal ink-button px-5 py-3 text-xs">
-          Ver ranking completo â†’
+          Ver ranking completo →
         </Link>
         {typeof viewerRank === "number" && viewerRank > 0 ? (
           <span className="mono text-[11px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
@@ -507,7 +507,7 @@ function LiveSpotlight({ activeBet, loggedIn = false }: SpotlightProps) {
 
             <div className="mt-6">
               <Link href="/apostas" className="btn-brutal accent-button px-5 py-3 text-xs">
-                {loggedIn ? "Ir para apostas â†—" : "Ver apostas da live â†—"}
+                {loggedIn ? "Ir para apostas ↗" : "Ver apostas da live ↗"}
               </Link>
             </div>
           </div>
@@ -614,21 +614,21 @@ export default async function Home({ searchParams }: HomePageProps) {
 
   const features: FeatureCard[] = [
     {
-      symbol: "âš¡",
+      symbol: "⚡",
       eyebrow: "assistindo a live",
       title: "Ganhe assistindo",
       body: "Enquanto voce assiste a minha live, seus pipetz vao acumulando para apostar, resgatar e entrar no ranking.",
       bg: "bg-[var(--color-blue)]",
     },
     {
-      symbol: "â–£",
+      symbol: "▣",
       eyebrow: "palpite do chat",
       title: "Aposte ao vivo",
       body: "Quando eu abrir uma aposta, escolhe seu lado e vem ver se o chat me conhece mesmo.",
       bg: "bg-[var(--color-purple)]",
     },
     {
-      symbol: "â†—",
+      symbol: "↗",
       eyebrow: "bagunca organizada",
       title: "Acione resgates",
       body: "Se quiser me trollar com carinho, os resgates viram efeitos e caos ao vivo na stream.",
@@ -647,7 +647,7 @@ export default async function Home({ searchParams }: HomePageProps) {
     <>
       Oi, eu sou a ludylops.{" "}
       <span className="inline-block border-[3px] border-[var(--color-ink)] bg-[var(--color-pink)] px-3 py-1 shadow-[4px_4px_0_#000]">
-        Bem-vindos Ã  minha live.
+        Bem-vindos à minha live.
       </span>
     </>
   );
@@ -722,17 +722,17 @@ export default async function Home({ searchParams }: HomePageProps) {
               {hasUsableSession ? (
                 <>
                   <Link href="/apostas" className="btn-brutal accent-button px-6 py-3 text-sm">
-                    Ir para apostas â†—
+                    Ir para apostas ↗
                   </Link>
                   <Link href="/ranking" className="btn-brutal ink-button px-6 py-3 text-sm">
-                    Ver ranking â†’
+                    Ver ranking →
                   </Link>
                 </>
               ) : (
                 <>
                   <AuthButtons />
                   <Link href="/ranking" className="btn-brutal accent-button px-6 py-3 text-sm">
-                    Ver ranking â†’
+                    Ver ranking →
                   </Link>
                 </>
               )}
