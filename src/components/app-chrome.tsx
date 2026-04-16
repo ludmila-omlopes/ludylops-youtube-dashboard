@@ -51,7 +51,7 @@ export function AppChrome({
   }, [isObsView]);
 
   const navLinks = [
-    { href: "/indicacoes", label: "Indicacoes" },
+    { href: "/indicacoes", label: "Indicações" },
     { href: "/apostas", label: "Apostas" },
     { href: "/contadores", label: "Contadores" },
     { href: "/jogos", label: "Jogos" },
@@ -140,7 +140,7 @@ export function AppChrome({
             <div className="mb-4">
               <LivestreamIndicator isLive={isLive} />
             </div>
-            <nav className="flex flex-col gap-1.5" aria-label="Navegacao principal">
+            <nav className="flex flex-col gap-1.5" aria-label="Navegação principal">
               {allLinks.map((link) => (
                 <Link
                   key={link.href}
@@ -185,7 +185,7 @@ export function AppChrome({
             href="/privacy"
             className="w-fit font-black uppercase tracking-[0.08em] text-[var(--color-ink)] underline decoration-[3px] underline-offset-4"
           >
-            Politica de Privacidade
+            Política de Privacidade
           </Link>
           <p className="flex items-center gap-2 text-[var(--color-ink)]">
             <span>Feito com carinho por ludylops</span>

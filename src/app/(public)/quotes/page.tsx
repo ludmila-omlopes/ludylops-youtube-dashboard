@@ -44,7 +44,7 @@ export default async function QuotesPage() {
             </h1>
             <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--color-ink-soft)] sm:text-base">
               Aqui ficam as melhores perolas salvas pelo chat. Tudo em ordem de cadastro, com o
-              numero da quote e quem registrou.
+              número da quote e quem registrou.
             </p>
             <p className="mt-3 inline-flex items-center gap-2 border-[3px] border-[var(--color-ink)] bg-[var(--color-paper)] px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-[var(--color-ink)] shadow-[4px_4px_0_#000]">
               Mostrar no OBS custa {formatPipetz(50)} pipetz

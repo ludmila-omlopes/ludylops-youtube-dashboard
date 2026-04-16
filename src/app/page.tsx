@@ -60,18 +60,18 @@ function buildViewerLinkingIssueUrl(input: {
   const title = "[Linking] Conta logada sem viewer confirmado no chat";
   const body = [
     "## O que aconteceu",
-    "O login entrou no site, mas a conta ainda nao foi vinculada ao viewer do chat via codigo.",
+    "O login entrou no site, mas a conta ainda não foi vinculada ao viewer do chat via código.",
     "",
-    "## Diagnostico tecnico",
+    "## Diagnóstico técnico",
     `- hasActiveViewer: ${input.hasActiveViewer ? "yes" : "no"}`,
     `- isLinked: ${input.isLinked ? "yes" : "no"}`,
-    `- horario (UTC): ${new Date().toISOString()}`,
+    `- horário (UTC): ${new Date().toISOString()}`,
     "",
     "## O que eu esperava",
     "- Descreva qual canal deveria ser vinculado e o que apareceu no chat ao usar !link.",
     "",
-    "## Observacoes",
-    "- Nao inclua token, email privado, cookie nem segredo nesta issue.",
+    "## Observações",
+    "- Não inclua token, email privado, cookie nem segredo nesta issue.",
   ].join("\n");
 
   const url = new URL(env.NEXT_PUBLIC_GITHUB_ISSUES_URL ?? DEFAULT_GITHUB_ISSUES_URL);
@@ -88,11 +88,11 @@ function ViewerLinkingNotice({ issueUrl }: { issueUrl: string }) {
         Falta confirmar seu canal pelo chat.
       </p>
       <p className="mt-3 text-sm font-bold leading-6">
-        O login do site entrou, mas o viewer da live agora e vinculado por codigo no chat do
+        O login do site entrou, mas o viewer da live agora é vinculado por código no chat do
         YouTube.
       </p>
       <p className="mt-3 text-sm font-medium leading-6">
-        Abra sua area, gere um codigo curto e envie <span className="font-black">!link CODIGO</span>{" "}
+        Abra sua área, gere um código curto e envie <span className="font-black">!link CÓDIGO</span>{" "}
         no chat. Assim eu consigo unir sua conta do site ao viewer que chega pelo Streamer.bot sem
         depender da API do YouTube.
       </p>
@@ -101,7 +101,7 @@ function ViewerLinkingNotice({ issueUrl }: { issueUrl: string }) {
           href="/me"
           className="btn-brutal bg-[var(--color-paper)] px-4 py-2 text-xs text-[var(--color-ink)]"
         >
-          Abrir minha area
+          Abrir minha área
         </Link>
         <a
           href={issueUrl}
@@ -119,20 +119,20 @@ function ViewerLinkingNotice({ issueUrl }: { issueUrl: string }) {
 function AccountProtectionNotice({ status }: { status: AccountProtectionStatus }) {
   const title =
     status === "google_signin_blocked"
-      ? "Seu login Google foi pausado por seguranca."
-      : "Sua sessao foi encerrada por um alerta de seguranca.";
+      ? "Seu login Google foi pausado por segurança."
+      : "Sua sessão foi encerrada por um alerta de segurança.";
   const body =
     status === "google_signin_blocked"
-      ? "O Google enviou um sinal de risco para esta conta, entao eu bloqueei novas entradas com esse login ate a situacao ser normalizada."
-      : "Recebi um evento de protecao entre contas e encerrei sua sessao local. Para continuar, entre novamente depois de revisar a seguranca da sua conta Google.";
+      ? "O Google enviou um sinal de risco para esta conta, então eu bloqueei novas entradas com esse login até a situação ser normalizada."
+      : "Recebi um evento de proteção entre contas e encerrei sua sessão local. Para continuar, entre novamente depois de revisar a segurança da sua conta Google.";
   const nextStep =
     status === "google_signin_blocked"
-      ? "Se voce quiser testar com outra conta Google, use o seletor de conta. Se esta for a sua conta principal, revise a seguranca dela primeiro."
-      : "Se estiver tudo certo na sua conta Google, voce pode entrar novamente agora.";
+      ? "Se você quiser testar com outra conta Google, use o seletor de conta. Se esta for a sua conta principal, revise a segurança dela primeiro."
+      : "Se estiver tudo certo na sua conta Google, você pode entrar novamente agora.";
 
   return (
     <div className="card-poster mt-6 border-[3px] border-[var(--color-ink)] bg-[var(--color-blue)] p-4 text-[var(--color-ink)]">
-      <p className="mono text-[10px] uppercase tracking-[0.24em]">seguranca da conta</p>
+      <p className="mono text-[10px] uppercase tracking-[0.24em]">segurança da conta</p>
       <p className="mt-2 text-lg font-black uppercase leading-tight">{title}</p>
       <p className="mt-3 text-sm font-bold leading-6">{body}</p>
       <p className="mt-3 text-sm font-medium leading-6">{nextStep}</p>
@@ -246,7 +246,7 @@ function SpotlightOptionCard({
     >
       <CardHeader className="min-w-0 gap-0">
         <CardDescription className="mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
-          opcao 0{index + 1}
+          opção 0{index + 1}
         </CardDescription>
         <CardTitle className="mt-1 text-lg font-black uppercase leading-tight">{optionLabel}</CardTitle>
       </CardHeader>
@@ -324,7 +324,7 @@ function HeroPoster({
             <StickerBadge
               variant="heart"
               className="absolute right-4 top-6 h-[4.5rem] w-[4.5rem] rotate-[14deg] sm:right-6 sm:top-8 sm:h-20 sm:w-20"
-              label="coracao decorativo"
+              label="coração decorativo"
             />
             <div className="relative min-h-[340px] overflow-visible sm:min-h-[400px]">
               <div className="mx-auto w-[72%] max-w-[420px] pt-[4.75rem] sm:pt-[5.5rem]">
@@ -374,10 +374,10 @@ function FeatureShowcase({
             className="max-w-xl text-4xl uppercase leading-[0.9] sm:text-5xl"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            Voce participa da minha live de verdade.
+            Você participa da minha live de verdade.
           </h2>
           <p className="mt-4 max-w-xl text-base leading-7 text-[var(--color-ink-soft)]">
-            Eu abro a live, voce junta pipetz, entra nas apostas e ainda solta resgates
+            Eu abro a live, você junta pipetz, entra nas apostas e ainda solta resgates
             que aparecem comigo ao vivo.
           </p>
 
@@ -390,14 +390,14 @@ function FeatureShowcase({
 
         <div className="landing-plane bg-[var(--color-sky)] p-6 sm:p-8">
           <p className="mono text-[11px] uppercase tracking-[0.28em] text-[var(--color-ink-soft)]">
-            termometro da live . comunidade agora
+            termômetro da live . comunidade agora
           </p>
 
           <h3
             className="mt-4 max-w-md text-3xl uppercase leading-[0.92] sm:text-4xl"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            O que voces estao aprontando comigo agora.
+            O que vocês estão aprontando comigo agora.
           </h3>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -468,7 +468,7 @@ function RankingHeroCard({
         </Link>
         {typeof viewerRank === "number" && viewerRank > 0 ? (
           <span className="mono text-[11px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
-            voce esta em #{viewerRank}
+            você está em #{viewerRank}
           </span>
         ) : null}
       </div>
@@ -486,7 +486,7 @@ function LiveSpotlight({ activeBet, loggedIn = false }: SpotlightProps) {
         <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
           <div>
             <p className="mono text-[11px] uppercase tracking-[0.28em] text-[var(--color-ink-soft)]">
-              ao vivo . {activeBet.options.length} opcoes abertas
+              ao vivo . {activeBet.options.length} opções abertas
             </p>
 
             <h2
@@ -497,12 +497,12 @@ function LiveSpotlight({ activeBet, loggedIn = false }: SpotlightProps) {
             </h2>
 
             <p className="mt-4 max-w-xl text-base leading-7 text-[var(--color-ink-soft)]">
-              Quando eu abro uma aposta, voces escolhem um lado, entram no pool e tentam
+              Quando eu abro uma aposta, vocês escolhem um lado, entram no pool e tentam
               adivinhar o que vai acontecer comigo ao vivo.
             </p>
 
             <p className="mono mt-6 text-[11px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
-              pool {formatPipetz(activeBet.totalPool)} . voces palpitando ao vivo
+              pool {formatPipetz(activeBet.totalPool)} . vocês palpitando ao vivo
             </p>
 
             <div className="mt-6">
@@ -617,7 +617,7 @@ export default async function Home({ searchParams }: HomePageProps) {
       symbol: "⚡",
       eyebrow: "assistindo a live",
       title: "Ganhe assistindo",
-      body: "Enquanto voce assiste a minha live, seus pipetz vao acumulando para apostar, resgatar e entrar no ranking.",
+      body: "Enquanto você assiste à minha live, seus pipetz vão acumulando para apostar, resgatar e entrar no ranking.",
       bg: "bg-[var(--color-blue)]",
     },
     {
@@ -629,7 +629,7 @@ export default async function Home({ searchParams }: HomePageProps) {
     },
     {
       symbol: "↗",
-      eyebrow: "bagunca organizada",
+      eyebrow: "bagunça organizada",
       title: "Acione resgates",
       body: "Se quiser me trollar com carinho, os resgates viram efeitos e caos ao vivo na stream.",
       bg: "bg-[var(--color-pink)]",
@@ -638,7 +638,7 @@ export default async function Home({ searchParams }: HomePageProps) {
 
   const heroTitle: ReactNode = hasUsableSession ? (
     <>
-      Voce ja esta na minha live.{" "}
+      Você já está na minha live.{" "}
       <span className="inline-block border-[3px] border-[var(--color-ink)] bg-[var(--color-pink)] px-3 py-1 shadow-[4px_4px_0_#000]">
         Agora vem jogar comigo.
       </span>
@@ -654,11 +654,11 @@ export default async function Home({ searchParams }: HomePageProps) {
 
   const heroDescription = accountProtectionStatus
     ? accountProtectionStatus === "google_signin_blocked"
-      ? "Seu acesso com Google foi colocado em espera por um evento de seguranca. Eu mantive o painel publico disponivel enquanto voce revisa a conta."
-      : "Sua sessao local foi encerrada por seguranca. Assim que voce entrar de novo, o painel volta a mostrar seus dados normalmente."
+      ? "Seu acesso com Google foi colocado em espera por um evento de segurança. Eu mantive o painel público disponível enquanto você revisa a conta."
+      : "Sua sessão local foi encerrada por segurança. Assim que você entrar de novo, o painel volta a mostrar seus dados normalmente."
     : hasUsableSession
       ? dashboard
-        ? "Seu saldo, seu ranking e o que esta rolando comigo ao vivo ficam aqui para voce entrar na brincadeira sem se perder."
+        ? "Seu saldo, seu ranking e o que está rolando comigo ao vivo ficam aqui para você entrar na brincadeira sem se perder."
         : "Sua conta entrou, mas ainda falta sincronizar seus dados da live para eu te liberar tudo por aqui."
       : "Aqui o chat ganha pipetz, entra nas apostas e ativa resgates que aparecem durante a minha live.";
 
@@ -739,9 +739,9 @@ export default async function Home({ searchParams }: HomePageProps) {
             </div>
 
             <p className="mt-4 text-sm font-medium leading-6 text-[var(--color-ink-soft)]">
-              Ao usar o login Google, voce pode revisar nossa{" "}
+              Ao usar o login Google, você pode revisar nossa{" "}
               <Link href="/privacy" className="font-black underline decoration-[3px] underline-offset-4">
-                Politica de Privacidade
+                Política de Privacidade
               </Link>
               .
             </p>
@@ -782,7 +782,7 @@ export default async function Home({ searchParams }: HomePageProps) {
               href: "/ranking",
               label: "Ranking",
               value: viewerRank ? `#${viewerRank}` : "--",
-              sublabel: "Veja onde voce esta",
+              sublabel: "Veja onde você está",
               emoji: "TOP",
               bg: "bg-[var(--color-mint)]",
             },

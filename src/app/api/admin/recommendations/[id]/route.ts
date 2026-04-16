@@ -29,10 +29,10 @@ export async function PATCH(
     return ok(updated);
   } catch (error) {
     if (error instanceof SyntaxError) {
-      return fail("Payload invalido.", 400);
+      return fail("Payload inválido.", 400);
     }
 
-    const message = error instanceof Error ? error.message : "Falha ao atualizar recomendacao.";
+    const message = error instanceof Error ? error.message : "Falha ao atualizar recomendação.";
     return fail(message, message === "recommendation_not_found" ? 404 : 400);
   }
 }
@@ -55,7 +55,7 @@ export async function DELETE(
     const deleted = await deleteProductRecommendation(id);
     return ok(deleted);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Falha ao excluir recomendacao.";
+    const message = error instanceof Error ? error.message : "Falha ao excluir recomendação.";
     return fail(message, message === "recommendation_not_found" ? 404 : 400);
   }
 }

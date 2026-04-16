@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   try {
     const payload = adminViewerLinkSchema.parse(await request.json());
     if (payload.confirmationText.toUpperCase() !== "VINCULAR") {
-      return fail('Digite "VINCULAR" para confirmar a operacao.', 400);
+      return fail('Digite "VINCULAR" para confirmar a operação.', 400);
     }
 
     const result = await adminLinkGoogleViewerToYoutubeViewer({
@@ -33,13 +33,13 @@ export async function POST(request: Request) {
     return ok(result);
   } catch (error) {
     if (error instanceof ZodError) {
-      return fail("Payload invalido.", 400);
+      return fail("Payload inválido.", 400);
     }
     if (error instanceof SyntaxError) {
-      return fail("Payload invalido.", 400);
+      return fail("Payload inválido.", 400);
     }
 
-    const message = error instanceof Error ? error.message : "Falha ao vincular usuarios.";
+    const message = error instanceof Error ? error.message : "Falha ao vincular usuários.";
     return fail(message, 400);
   }
 }

@@ -7,8 +7,8 @@ import { recommendationCategories } from "@/lib/recommendations";
 import type { ProductRecommendationRecord } from "@/lib/types";
 
 export const metadata: Metadata = {
-  title: "Indicacoes | Pipetz",
-  description: "Minha pagina publica com consoles, perifericos e acessorios que eu recomendo para a comunidade.",
+  title: "Indicações | Pipetz",
+  description: "Minha página pública com consoles, periféricos e acessórios que eu recomendo para a comunidade.",
 };
 
 function recommendationRel(linkKind: ProductRecommendationRecord["linkKind"]) {
@@ -60,8 +60,8 @@ function RecommendationCard({
           <div className="flex flex-wrap items-center justify-between gap-3 border-t-[2px] border-[var(--color-ink)] pt-4">
             <p className="max-w-xl text-sm font-bold leading-6 text-[var(--color-ink-soft)]">
               {item.linkKind === "affiliate"
-                ? "Link afiliado marcado de forma explicita antes do clique."
-                : "Link externo comum para abrir a pagina do produto."}
+                ? "Link afiliado marcado de forma explícita antes do clique."
+                : "Link externo comum para abrir a página do produto."}
             </p>
 
             <a
@@ -92,18 +92,18 @@ export default async function IndicacoesPage() {
           className="text-4xl uppercase leading-none sm:text-5xl"
           style={{ fontFamily: "var(--font-display)" }}
         >
-          Indicacoes
+          Indicações
         </h1>
         <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--color-ink-soft)] sm:text-base">
           Produtos que eu recomendo para setup, jogo e live. Se algum link virar afiliado,
-          isso aparece marcado no proprio item antes do clique.
+          isso aparece marcado no próprio item antes do clique.
         </p>
       </header>
 
       <section className="space-y-4">
         {productRecommendations.length === 0 ? (
           <div className="panel surface-section p-6 text-sm font-bold text-[var(--color-ink-soft)]">
-            Nenhuma recomendacao publicada ainda.
+            Nenhuma recomendação publicada ainda.
           </div>
         ) : null}
 

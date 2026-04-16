@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     }
 
     if (error instanceof SyntaxError) {
-      return fail("Payload invalido.", 400);
+      return fail("Payload inválido.", 400);
     }
 
     const message = error instanceof Error ? error.message : "Falha ao criar aposta.";

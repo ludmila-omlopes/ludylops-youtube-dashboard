@@ -8,7 +8,7 @@ import {
 
 const liveStatusActionSchema = z.object({
   action: z.enum(["force_online", "force_offline", "clear_override"]),
-  confirmationText: z.string().trim().min(1, 'Digite a confirmacao.'),
+  confirmationText: z.string().trim().min(1, 'Digite a confirmação.'),
 });
 
 const confirmationKeywords = {
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     const json = await request.json();
     const parsed = liveStatusActionSchema.safeParse(json);
     if (!parsed.success) {
-      return fail(parsed.error.issues[0]?.message ?? "Payload invalido.", 400);
+      return fail(parsed.error.issues[0]?.message ?? "Payload inválido.", 400);
     }
 
     const expectedKeyword = confirmationKeywords[parsed.data.action];
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     return ok(status);
   } catch (error) {
     if (error instanceof SyntaxError) {
-      return fail("Payload invalido.", 400);
+      return fail("Payload inválido.", 400);
     }
 
     return fail(error instanceof Error ? error.message : "Falha ao atualizar o status da live.", 400);
