@@ -109,7 +109,7 @@ function ViewerLinkingNotice({ issueUrl }: { issueUrl: string }) {
           rel="noreferrer"
           className="btn-brutal bg-[var(--color-paper)] px-4 py-2 text-xs text-[var(--color-ink)]"
         >
-          Abrir issue no GitHub ->
+          Abrir issue no GitHub {"->"}
         </a>
       </div>
     </div>
@@ -464,7 +464,7 @@ function RankingHeroCard({
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <Link href="/ranking" className="btn-brutal ink-button px-5 py-3 text-xs">
-          Ver ranking ->
+          Ver ranking {"->"}
         </Link>
         {typeof viewerRank === "number" && viewerRank > 0 ? (
           <span className="mono text-[11px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
@@ -722,17 +722,17 @@ export default async function Home({ searchParams }: HomePageProps) {
               {hasUsableSession ? (
                 <>
                   <Link href="/apostas" className="btn-brutal accent-button px-6 py-3 text-sm">
-                    Ir para apostas ->
+                    Ir para apostas {"->"}
                   </Link>
                   <Link href="/ranking" className="btn-brutal ink-button px-6 py-3 text-sm">
-                    Ver ranking ->
+                    Ver ranking {"->"}
                   </Link>
                 </>
               ) : (
                 <>
                   <AuthButtons />
                   <Link href="/ranking" className="btn-brutal accent-button px-6 py-3 text-sm">
-                    Ver ranking ->
+                    Ver ranking {"->"}
                   </Link>
                 </>
               )}
