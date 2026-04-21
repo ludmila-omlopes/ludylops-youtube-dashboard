@@ -403,8 +403,10 @@ function buildStreamerbotCounterSummary(counter: StreamerbotCounterRecord): Stre
 function sanitizePublicCounterSummaries(
   counters: StreamerbotCounterSummaryRecord[],
 ): StreamerbotCounterSummaryRecord[] {
+  const hiddenCounterKeys = new Set(["livestream_override", "death_counter_active_game"]);
+
   return counters
-    .filter((counter) => counter.key !== "livestream_override")
+    .filter((counter) => !hiddenCounterKeys.has(counter.key))
     .sort((left, right) => {
     if (left.scopeType !== right.scopeType) {
       return left.scopeType === GLOBAL_COUNTER_SCOPE_TYPE ? -1 : 1;

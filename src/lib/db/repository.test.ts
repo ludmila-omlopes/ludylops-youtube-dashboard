@@ -1669,6 +1669,18 @@ describe("runStreamerbotCounterCommand", () => {
           },
         },
         {
+          key: "death_counter_active_game",
+          value: 1,
+          lastResetAt: null,
+          updatedAt: new Date("2026-04-07T11:02:00.000Z"),
+          metadata: {
+            scopeType: "game",
+            scopeKey: "silksong",
+            scopeLabel: "Silksong",
+            updatedBy: "admin@example.com",
+          },
+        },
+        {
           key: "death_count",
           value: 154,
           lastResetAt: null,
