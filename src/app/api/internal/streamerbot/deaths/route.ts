@@ -13,7 +13,7 @@ function mapDeathCounterReply(message: string, requestedBy?: string) {
     case "reset_confirmation_required":
       return `${prefix}reset bloqueado. Reenvie o comando com confirmReset=true para zerar o contador.`;
     default:
-      return `${prefix}nao consegui processar o contador de mortes agora.`;
+      return `${prefix}não consegui processar o contador de mortes agora.`;
   }
 }
 
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: "Invalid signature.",
-        replyMessage: "Assinatura invalida no comando de mortes.",
+        replyMessage: "Assinatura inválida no comando de mortes.",
       },
       { status: 401 },
     );

@@ -9,13 +9,13 @@ function scopeHeading(scopeKey: string, scopeLabel: string | null) {
 function actionLabel(action: string | null) {
   switch (action) {
     case "increment":
-      return "ultima acao: incremento";
+      return "última ação: incremento";
     case "decrement":
-      return "ultima acao: decremento";
+      return "última ação: decremento";
     case "reset":
-      return "ultima acao: reset";
+      return "última ação: reset";
     default:
-      return "sem historico recente";
+      return "sem histórico recente";
   }
 }
 
@@ -58,15 +58,15 @@ function CounterCard({ counter }: { counter: StreamerbotCounterSummaryRecord }) 
           <p>
             {counter.lastAction
               ? `atualizado em ${formatDateTime(counter.updatedAt)}`
-              : "ainda sem atualizacao vinda do chat"}
+              : "ainda sem atualização vinda do chat"}
           </p>
           <p>
             {counter.lastResetAt
               ? `ultimo reset em ${formatDateTime(counter.lastResetAt)}`
-              : "ainda nao foi resetado"}
+              : "ainda não foi resetado"}
           </p>
           <p>chave tecnica: {counter.key}</p>
-          <p>origem: {counter.source ?? "manual / nao informado"}</p>
+          <p>origem: {counter.source ?? "manual / não informado"}</p>
         </div>
       </CardContent>
     </Card>

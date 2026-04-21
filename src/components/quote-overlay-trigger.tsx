@@ -15,15 +15,15 @@ function mapError(message: string) {
     case "saldo_insuficiente":
       return "Saldo insuficiente.";
     case "livestream_not_live":
-      return "Esse overlay so pode ser usado durante a live.";
+      return "Esse overlay só pode ser usado durante a live.";
     case "quote_overlay_busy":
-      return "Ja tem uma quote ocupando o overlay.";
+      return "Já tem uma quote ocupando o overlay.";
     case "quote_not_found":
-      return "Quote nao encontrada.";
+      return "Quote não encontrada.";
     case "quote_id_required":
-      return "Escolha uma quote valida.";
+      return "Escolha uma quote válida.";
     default:
-      return "Nao consegui mostrar a quote no OBS agora.";
+      return "Não consegui mostrar a quote no OBS agora.";
   }
 }
 
@@ -76,7 +76,7 @@ export function QuoteOverlayTrigger({
   if (!loggedIn) {
     return (
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--color-ink-soft)]">
-        faca login para chamar no OBS
+        faça login para chamar no OBS
       </p>
     );
   }

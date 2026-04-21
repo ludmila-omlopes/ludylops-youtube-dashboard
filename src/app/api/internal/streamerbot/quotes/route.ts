@@ -20,32 +20,32 @@ function mapChatQuoteReply(input: {
   switch (input.message) {
     case "quote_not_found":
       return input.quoteId
-        ? `Quote #${input.quoteId} nao encontrada.`
-        : "Quote nao encontrada.";
+        ? `Quote #${input.quoteId} não encontrada.`
+        : "Quote não encontrada.";
     case "quote_list_empty":
       return "Nenhuma quote cadastrada ainda.";
     case "quote_text_required":
       return "Envie o texto da quote junto do comando.";
     case "quote_id_required":
-      return "Use !quoteobs <numero> para escolher uma quote ja existente.";
+      return "Use !quoteobs <número> para escolher uma quote já existente.";
     case "viewer_external_id_required":
-      return "Nao consegui identificar quem executou o comando.";
+      return "Não consegui identificar quem executou o comando.";
     case "livestream_not_live":
       return "Essa quote so pode ir para o OBS enquanto a live estiver acontecendo.";
     case "saldo_insuficiente":
-      return `${prefix}voce precisa de 50 pipetz para colocar a quote no OBS.`;
+      return `${prefix}você precisa de 50 pipetz para colocar a quote no OBS.`;
     case "quote_overlay_busy":
       return "Ja tem uma quote ocupando o overlay. Tenta de novo em alguns segundos.";
     default:
       if (input.action === "create") {
-        return "Nao consegui salvar a quote agora.";
+        return "Não consegui salvar a quote agora.";
       }
 
       if (input.action === "show") {
-        return "Nao consegui colocar a quote na tela agora.";
+        return "Não consegui colocar a quote na tela agora.";
       }
 
-      return "Nao consegui buscar a quote agora.";
+      return "Não consegui buscar a quote agora.";
   }
 }
 
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: "Invalid signature.",
-        replyMessage: "Assinatura invalida no comando de quotes.",
+        replyMessage: "Assinatura inválida no comando de quotes.",
       },
       { status: 401 },
     );

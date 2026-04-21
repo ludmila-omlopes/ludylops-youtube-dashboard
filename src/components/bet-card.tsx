@@ -29,15 +29,15 @@ function mapError(message: string) {
     case "saldo_insuficiente":
       return "Saldo insuficiente.";
     case "aposta_ja_registrada":
-      return "Voce ja apostou nesta rodada.";
+      return "Você já apostou nesta rodada.";
     case "bet_not_open":
-      return "A aposta nao esta aberta.";
+      return "A aposta não está aberta.";
     case "bet_closed":
       return "A janela de aposta ja fechou.";
     case "invalid_option":
-      return "Opcao invalida.";
+      return "Opção inválida.";
     case "invalid_amount":
-      return "Valor invalido.";
+      return "Valor inválido.";
     default:
       return message;
   }
@@ -109,7 +109,7 @@ export function BetCard({
   const hasViewerBet = Boolean(bet.viewerPosition);
   const selectedOption = bet.viewerPosition?.optionId ?? draftSelectedOption;
   const selectedOptionLabel =
-    bet.options.find((option) => option.id === selectedOption)?.label ?? "opcao selecionada";
+    bet.options.find((option) => option.id === selectedOption)?.label ?? "opção selecionada";
   const accent = accentColors[index % accentColors.length];
 
   function handlePlace() {
@@ -274,7 +274,7 @@ export function BetCard({
 
       {isOpen ? (
         <p className="mono mt-3 text-[11px] uppercase tracking-[0.14em] text-[var(--color-ink-soft)]">
-          chat: !bet &lt;opcao&gt; &lt;valor&gt; ex.: !bet 1 100
+          chat: !bet &lt;opção&gt; &lt;valor&gt; ex.: !bet 1 100
         </p>
       ) : null}
 
@@ -283,11 +283,11 @@ export function BetCard({
           <p className="font-bold uppercase">Sua posicao</p>
           <p className="mt-1">
             {formatPipetz(bet.viewerPosition.amount)} em{" "}
-            {bet.options.find((option) => option.id === bet.viewerPosition?.optionId)?.label ?? "opcao"}
+            {bet.options.find((option) => option.id === bet.viewerPosition?.optionId)?.label ?? "opção"}
           </p>
           {isOpen && canBet ? (
             <p className="mt-1 text-[var(--color-ink-soft)]">
-              Voce pode adicionar mais pipetz nessa mesma opcao ate a janela fechar.
+              Você pode adicionar mais pipetz nessa mesma opção até a janela fechar.
             </p>
           ) : null}
           {bet.viewerPosition.payoutAmount !== null ? (
@@ -327,7 +327,7 @@ export function BetCard({
 
       {!loggedIn ? (
         <p className="mt-3 text-xs font-bold uppercase tracking-[0.16em] text-[var(--color-ink-soft)]">
-          faca login para apostar
+          faça login para apostar
         </p>
       ) : null}
       {loggedIn && !canBet && !bet.viewerPosition ? (

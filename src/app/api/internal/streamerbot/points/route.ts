@@ -12,11 +12,11 @@ function mapViewerBalanceReply(message: string, viewerName?: string) {
 
   switch (message) {
     case "viewer_external_id_required":
-      return "Nao consegui identificar seu canal do YouTube para consultar seus pipetz.";
+      return "Não consegui identificar seu canal do YouTube para consultar seus pipetz.";
     case "viewer_not_ready":
-      return `${prefix}ainda nao encontrei sua conta da live para consultar seus pipetz.`;
+      return `${prefix}ainda não encontrei sua conta da live para consultar seus pipetz.`;
     default:
-      return `${prefix}nao consegui consultar seus pipetz agora.`;
+      return `${prefix}não consegui consultar seus pipetz agora.`;
   }
 }
 
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: "Invalid signature.",
-        replyMessage: "Assinatura invalida no comando de saldo.",
+        replyMessage: "Assinatura inválida no comando de saldo.",
       },
       { status: 401 },
     );
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     const payload = streamerbotViewerBalanceCommandSchema.parse(JSON.parse(raw));
     const result = await getViewerBalanceFromChatCommand(payload);
     const viewerName = payload.youtubeDisplayName?.trim() || result.viewer.youtubeDisplayName;
-    const replyMessage = `${viewerName}, seu saldo atual e ${formatPipetz(result.balance.currentBalance)} pipetz.`;
+    const replyMessage = `${viewerName}, seu saldo atual é ${formatPipetz(result.balance.currentBalance)} pipetz.`;
 
     console.info("[streamerbot/points] Processed balance lookup.", {
       viewerId: result.viewer.id,

@@ -36,7 +36,7 @@ describe("admin live status route", () => {
 
   it("returns the schema guidance when the manual override cannot be persisted", async () => {
     setStreamerbotLivestreamManualOverrideMock.mockRejectedValue(
-      new Error("Schema dos contadores ainda nao foi aplicado. Rode npm run db:push."),
+      new Error("Schema dos contadores ainda não foi aplicado. Rode npm run db:push."),
     );
 
     const { POST } = await import("@/app/api/admin/live-status/route");
@@ -57,7 +57,7 @@ describe("admin live status route", () => {
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
       ok: false,
-      error: "Schema dos contadores ainda nao foi aplicado. Rode npm run db:push.",
+      error: "Schema dos contadores ainda não foi aplicado. Rode npm run db:push.",
     });
   });
 });

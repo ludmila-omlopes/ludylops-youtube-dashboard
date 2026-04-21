@@ -41,7 +41,7 @@ export function RedemptionGrid({
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="mono text-xs uppercase tracking-[0.32em] text-[var(--color-ink-soft)]">
-            Resgates disponiveis
+            Resgates disponíveis
           </p>
           <h2 className="mt-2 text-3xl font-bold uppercase" style={{ fontFamily: "var(--font-display)" }}>
             {expanded ? "Todos os resgates" : "Resgates em destaque"}
@@ -109,7 +109,7 @@ export function RedemptionGrid({
                     }`}
                   >
                     {canAfford
-                      ? "Da pra resgatar!"
+                      ? "Dá pra resgatar!"
                       : `Faltam ${formatPipetz(item.cost - viewerBalance!)} pipetz`}
                   </div>
                 ) : null}

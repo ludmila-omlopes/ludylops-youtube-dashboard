@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Politica de Privacidade | Pipetz",
+  title: "Política de Privacidade | Pipetz",
   description:
     "Como o Pipetz coleta, usa e protege dados de login Google e dados vinculados ao canal do YouTube.",
 };
@@ -19,55 +19,55 @@ const sections: PolicySection[] = [
   {
     title: "Resumo",
     body: [
-      "O Pipetz e um painel da comunidade da live da Ludylops. Esta politica explica quais dados podem ser coletados quando voce usa o login Google, participa das funcoes da live e vincula sua conta ao seu canal do YouTube.",
-      "Os dados sao usados para autenticar voce, associar sua conta ao viewer correto, mostrar saldo e ranking, registrar apostas, resgates e sugestoes, e manter o funcionamento do app.",
+      "O Pipetz é um painel da comunidade da live da Ludylops. Esta política explica quais dados podem ser coletados quando você usa o login Google, participa das funções da live e vincula sua conta ao seu canal do YouTube.",
+      "Os dados são usados para autenticar você, associar sua conta ao viewer correto, mostrar saldo e ranking, registrar apostas, resgates e sugestões, e manter o funcionamento do app.",
     ],
   },
   {
     title: "Dados que podemos coletar",
     body: [
-      "Dados basicos de login Google: nome, email, foto de perfil e identificador da conta Google.",
-      "Quando voce concede permissao de YouTube ao app: identificador do canal, nome exibido e handle do canal retornados pela API do Google.",
-      "Dados de uso dentro do Pipetz: viewer vinculado, saldo, historico de pontos, apostas, resgates, sugestoes de jogos, canais associados e informacoes necessarias para diagnosticar problemas de vinculacao.",
-      "Dados tecnicos de sessao e seguranca, como cookies de autenticacao e logs basicos necessarios para manter o app funcionando e investigar falhas ou abuso.",
+      "Dados básicos de login Google: nome, email, foto de perfil e identificador da conta Google.",
+      "Quando você concede permissão de YouTube ao app: identificador do canal, nome exibido e handle do canal retornados pela API do Google.",
+      "Dados de uso dentro do Pipetz: viewer vinculado, saldo, histórico de pontos, apostas, resgates, sugestões de jogos, canais associados e informações necessárias para diagnosticar problemas de vinculação.",
+      "Dados técnicos de sessão e segurança, como cookies de autenticação e logs básicos necessários para manter o app funcionando e investigar falhas ou abuso.",
     ],
   },
   {
     title: "Como usamos esses dados",
     body: [
-      "Para autenticar sua conta e manter sua sessao ativa no Pipetz.",
+      "Para autenticar sua conta e manter sua sessão ativa no Pipetz.",
       "Para tentar vincular sua conta Google ao canal correto do YouTube e ao viewer correspondente no chat da live.",
-      "Para operar as funcionalidades do app, incluindo painel do viewer, ranking, apostas, resgates, catalogo e sugestoes.",
-      "Para corrigir erros de vinculacao, evitar duplicidade de viewers e prestar suporte quando voce reporta um problema.",
+      "Para operar as funcionalidades do app, incluindo painel do viewer, ranking, apostas, resgates, catálogo e sugestões.",
+      "Para corrigir erros de vinculação, evitar duplicidade de viewers e prestar suporte quando você reporta um problema.",
     ],
   },
   {
     title: "Compartilhamento",
     body: [
-      "Seus dados nao sao vendidos.",
-      "Eles podem ser processados por provedores tecnicos usados para operar o app, como Google para autenticacao e consulta do canal do YouTube, e servicos de hospedagem, banco de dados e observabilidade usados pelo Pipetz.",
-      "Se voce clicar para abrir uma issue manualmente no GitHub, o conteudo que voce enviar seguira tambem as regras de privacidade do GitHub.",
+      "Seus dados não são vendidos.",
+      "Eles podem ser processados por provedores técnicos usados para operar o app, como Google para autenticação e consulta do canal do YouTube, e serviços de hospedagem, banco de dados e observabilidade usados pelo Pipetz.",
+      "Se você clicar para abrir uma issue manualmente no GitHub, o conteúdo que você enviar seguirá também as regras de privacidade do GitHub.",
     ],
   },
   {
-    title: "Retencao e seguranca",
+    title: "Retenção e segurança",
     body: [
-      "Mantemos os dados pelo tempo necessario para operar o Pipetz, preservar o historico das interacoes da live, resolver problemas de conta e cumprir obrigacoes tecnicas ou legais.",
-      "Buscamos limitar o acesso aos dados ao necessario para operar o app, mas nenhum sistema conectado a internet oferece garantia absoluta de seguranca.",
+      "Mantemos os dados pelo tempo necessário para operar o Pipetz, preservar o histórico das interações da live, resolver problemas de conta e cumprir obrigações técnicas ou legais.",
+      "Buscamos limitar o acesso aos dados ao necessário para operar o app, mas nenhum sistema conectado à internet oferece garantia absoluta de segurança.",
     ],
   },
   {
     title: "Seus controles",
     body: [
-      "Voce pode parar de usar o login Google a qualquer momento e pode revogar o acesso do app nas configuracoes da sua Conta Google.",
-      "Se quiser solicitar remocao de conta, desvinculacao ou tirar duvidas sobre estes dados, entre em contato pelo email de suporte informado abaixo.",
+      "Você pode parar de usar o login Google a qualquer momento e pode revogar o acesso do app nas configurações da sua Conta Google.",
+      "Se quiser solicitar remoção de conta, desvinculação ou tirar dúvidas sobre estes dados, entre em contato pelo email de suporte informado abaixo.",
     ],
   },
   {
     title: "Contato",
     body: [
       `Email de suporte: ${SUPPORT_EMAIL}`,
-      "Se esta politica mudar de forma relevante, a versao publicada nesta pagina sera atualizada.",
+      "Se esta política mudar de forma relevante, a versão publicada nesta página será atualizada.",
     ],
   },
 ];
@@ -78,22 +78,22 @@ export default function PrivacyPage() {
       <section className="panel surface-hero p-6 sm:p-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <span className="retro-label accent-chip">documento publico</span>
+            <span className="retro-label accent-chip">documento público</span>
             <h1
               className="mt-4 text-4xl uppercase leading-[0.9] sm:text-5xl"
               style={{ fontFamily: "var(--font-display)" }}
             >
-              Politica de privacidade
+              Política de privacidade
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-8 text-[var(--color-ink-soft)]">
-              Esta pagina explica como o Pipetz acessa, usa e protege dados de autenticacao Google
-              e de vinculacao com canal do YouTube.
+              Esta página explica como o Pipetz acessa, usa e protege dados de autenticação Google
+              e de vinculação com canal do YouTube.
             </p>
           </div>
 
           <div className="card-poster bg-[var(--color-paper)] p-4">
             <p className="mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
-              ultima atualizacao
+              última atualização
             </p>
             <p className="mt-2 text-lg font-black uppercase">{LAST_UPDATED}</p>
           </div>
@@ -112,7 +112,7 @@ export default function PrivacyPage() {
           }`}
         >
           <p className="mono text-[11px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
-            secao {String(index + 1).padStart(2, "0")}
+            seção {String(index + 1).padStart(2, "0")}
           </p>
           <h2
             className="mt-3 text-3xl uppercase leading-none sm:text-4xl"
@@ -130,7 +130,7 @@ export default function PrivacyPage() {
 
       <section className="panel bg-[var(--color-pink)] p-6 sm:p-8">
         <p className="mono text-[11px] uppercase tracking-[0.24em] text-[var(--color-accent-ink)]">
-          links uteis
+          links úteis
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
           <Link href="/" className="btn-brutal bg-[var(--color-paper)] px-5 py-3 text-xs text-[var(--color-ink)]">

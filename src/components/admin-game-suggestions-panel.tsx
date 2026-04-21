@@ -24,7 +24,7 @@ const statusBgMap: Record<GameSuggestionWithMeta["status"], string> = {
 function mapSuggestionError(message: string) {
   switch (message) {
     case "suggestion_not_found":
-      return "Sugestao nao encontrada.";
+      return "Sugestão não encontrada.";
     default:
       return message;
   }
@@ -52,7 +52,7 @@ export function AdminGameSuggestionsPanel({
 
       const payload = (await response.json()) as { ok: boolean; error?: string };
       if (!response.ok || !payload.ok) {
-        setFeedback(mapSuggestionError(payload.error ?? "Falha ao atualizar sugestao."));
+        setFeedback(mapSuggestionError(payload.error ?? "Falha ao atualizar sugestão."));
         return;
       }
 
@@ -73,7 +73,7 @@ export function AdminGameSuggestionsPanel({
             className="mt-2 text-3xl uppercase"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            Fila de sugestoes
+            Fila de sugestões
           </h2>
         </div>
         {feedback ? (
@@ -86,7 +86,7 @@ export function AdminGameSuggestionsPanel({
         <div className="mt-6 grid gap-3">
         {suggestions.length === 0 ? (
           <div className="card-brutal-static p-4 text-sm font-bold text-[var(--color-ink-soft)]">
-            Nenhuma sugestao cadastrada.
+            Nenhuma sugestão cadastrada.
           </div>
         ) : null}
 

@@ -13,7 +13,7 @@ function mapStreamerbotCounterReply(message: string, requestedBy?: string) {
     case "reset_confirmation_required":
       return `${prefix}reset bloqueado. Reenvie o comando com confirmReset=true para zerar esse contador.`;
     default:
-      return `${prefix}nao consegui processar esse contador agora.`;
+      return `${prefix}não consegui processar esse contador agora.`;
   }
 }
 
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: "Invalid signature.",
-        replyMessage: "Assinatura invalida no comando de contador.",
+        replyMessage: "Assinatura inválida no comando de contador.",
       },
       { status: 401 },
     );
