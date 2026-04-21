@@ -26,7 +26,7 @@ function getViewerStatus(entry: AdminViewerDirectoryRecord) {
 
   if (entry.googleAccountId && entry.isSyntheticYoutubeChannel) {
     return {
-      label: "Nao vinculado",
+      label: "Não vinculado",
       tone: "var(--color-lavender)",
       note: "Conta Google sem canal final",
     };
@@ -34,14 +34,14 @@ function getViewerStatus(entry: AdminViewerDirectoryRecord) {
 
   if (!entry.googleAccountId && !entry.isSyntheticYoutubeChannel) {
     return {
-      label: "Nao vinculado",
+      label: "Não vinculado",
       tone: "var(--color-sky)",
       note: "Canal do YouTube sem conta Google",
     };
   }
 
   return {
-    label: entry.isLinked ? "Vinculado" : "Nao vinculado",
+    label: entry.isLinked ? "Vinculado" : "Não vinculado",
     tone: "var(--color-paper)",
     note: "Sem dados suficientes",
   };
@@ -89,11 +89,11 @@ export function AdminViewerLinksPanel({
 
   function submitLink() {
     if (!googleViewerId || !youtubeViewerId) {
-      setFeedback("Escolha um usuario Google e um usuario do YouTube.");
+      setFeedback("Escolha um usuário Google e um usuário do YouTube.");
       return;
     }
     if (!isConfirmationValid) {
-      setFeedback('Digite "VINCULAR" para liberar a operacao.');
+      setFeedback('Digite "VINCULAR" para liberar a operação.');
       return;
     }
 
@@ -114,7 +114,7 @@ export function AdminViewerLinksPanel({
 
         const payload = (await response.json()) as { ok?: boolean; error?: string };
         if (!response.ok || !payload.ok) {
-          setFeedback(payload.error ?? "Falha ao vincular usuarios.");
+          setFeedback(payload.error ?? "Falha ao vincular usuários.");
           return;
         }
 
@@ -124,7 +124,7 @@ export function AdminViewerLinksPanel({
         setConfirmationText("");
         router.refresh();
       } catch (error) {
-        setFeedback(error instanceof Error ? error.message : "Falha ao vincular usuarios.");
+        setFeedback(error instanceof Error ? error.message : "Falha ao vincular usuários.");
       }
     });
   }
@@ -141,11 +141,11 @@ export function AdminViewerLinksPanel({
               className="mt-2 text-3xl uppercase"
               style={{ fontFamily: "var(--font-display)" }}
             >
-              Viculos Google + YouTube
+              Vínculos Google + YouTube
             </h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--color-ink-soft)]">
-              Veja todos os usuarios, confira quem ja esta vinculado e use o fluxo abaixo para unir
-              com seguranca uma sessao Google ao canal certo do YouTube.
+              Veja todos os usuários, confira quem já está vinculado e use o fluxo abaixo para unir
+              com segurança uma sessão Google ao canal certo do YouTube.
             </p>
           </div>
           {feedback ? <div className="retro-label neutral-chip">{feedback}</div> : null}
@@ -164,13 +164,13 @@ export function AdminViewerLinksPanel({
                 </span>
                 <Select value={googleViewerId || null} onValueChange={(value) => setGoogleViewerId(value ?? "")}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Escolha a sessao Google">
+                    <SelectValue placeholder="Escolha a sessão Google">
                       {(value) =>
                         googleCandidates.find((entry) => entry.id === value)
                           ? buildGoogleCandidateLabel(
                               googleCandidates.find((entry) => entry.id === value)!,
                             )
-                          : "Escolha a sessao Google"
+                          : "Escolha a sessão Google"
                       }
                     </SelectValue>
                   </SelectTrigger>
@@ -183,7 +183,7 @@ export function AdminViewerLinksPanel({
                   </SelectContent>
                 </Select>
                 <span className="text-xs font-bold text-[var(--color-ink-soft)]">
-                  Mostro aqui apenas usuarios que ja tem conta Google, mas ainda nao foram ligados
+                  Mostro aqui apenas usuários que já têm conta Google, mas ainda não foram ligados
                   ao canal final do YouTube.
                 </span>
               </label>
@@ -219,14 +219,14 @@ export function AdminViewerLinksPanel({
 
               <div className="card-flat bg-[var(--color-paper)] p-4">
                 <p className="mono text-[10px] uppercase tracking-[0.2em] text-[var(--color-ink-soft)]">
-                  Revisao da operacao
+                  Revisão da operação
                 </p>
                 <div className="mt-3 grid gap-3 text-sm text-[var(--color-ink-soft)]">
                   <p>
                     <span className="font-black text-[var(--color-ink)]">Conta Google:</span>{" "}
                     {selectedGoogleViewer
                       ? buildGoogleCandidateLabel(selectedGoogleViewer)
-                      : "Escolha uma sessao Google"}
+                      : "Escolha uma sessão Google"}
                   </p>
                   <p>
                     <span className="font-black text-[var(--color-ink)]">Canal do YouTube:</span>{" "}
@@ -235,16 +235,16 @@ export function AdminViewerLinksPanel({
                       : "Escolha um canal do YouTube"}
                   </p>
                   <p>
-                    Essa acao transfere saldo, historico, sugestoes e a posse da conta Google para
-                    o canal do YouTube selecionado. Se houver conflito de apostas ou se o canal ja
-                    pertencer a outra conta Google, eu bloqueio a operacao.
+                    Essa ação transfere saldo, histórico, sugestões e a posse da conta Google para
+                    o canal do YouTube selecionado. Se houver conflito de apostas ou se o canal já
+                    pertencer a outra conta Google, eu bloqueio a operação.
                   </p>
                 </div>
               </div>
 
               <label className="grid gap-2">
                 <span className="text-sm font-black uppercase tracking-[0.14em] text-[var(--color-ink)]">
-                  Confirmacao
+                  Confirmação
                 </span>
                 <Input
                   value={confirmationText}
@@ -253,7 +253,7 @@ export function AdminViewerLinksPanel({
                   className="px-3 py-2"
                 />
                 <span className="text-xs font-bold text-[var(--color-ink-soft)]">
-                  Essa confirmacao existe para evitar vinculos acidentais.
+                  Essa confirmação existe para evitar vínculos acidentais.
                 </span>
               </label>
 
@@ -264,7 +264,7 @@ export function AdminViewerLinksPanel({
                 size="sm"
                 className="w-full sm:w-fit"
               >
-                {isPending ? "Vinculando..." : "Vincular usuarios"}
+                {isPending ? "Vinculando..." : "Vincular usuários"}
               </Button>
             </div>
           </div>
@@ -277,7 +277,7 @@ export function AdminViewerLinksPanel({
               <p className="mt-2 text-3xl font-black" style={{ fontFamily: "var(--font-display)" }}>
                 {entries.length}
               </p>
-              <p className="mt-2 text-sm text-[var(--color-ink-soft)]">usuarios no diretorio</p>
+              <p className="mt-2 text-sm text-[var(--color-ink-soft)]">usuários no diretório</p>
             </div>
             <div className="card-brutal-static bg-[var(--color-mint)] p-5">
               <p className="mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-ink-soft)]">
@@ -336,7 +336,7 @@ export function AdminViewerLinksPanel({
                           ? "viewer ativo da conta"
                           : "viewer secundario da conta"
                         : entry.isSyntheticYoutubeChannel
-                          ? "sessao sem conta vinculada"
+                          ? "sessão sem conta vinculada"
                           : "canal sem conta Google"}
                     </p>
                   </div>

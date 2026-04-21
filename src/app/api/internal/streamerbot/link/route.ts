@@ -8,7 +8,7 @@ function buildReplyMessage(input: { displayName?: string; mergedSyntheticViewer:
   const prefix = input.displayName ? `${input.displayName}, ` : "";
 
   if (input.mergedSyntheticViewer) {
-    return `${prefix}conta vinculada com sucesso. Mantive seu saldo e historico da loja neste canal.`;
+    return `${prefix}conta vinculada com sucesso. Mantive seu saldo e histórico da loja neste canal.`;
   }
 
   return `${prefix}conta vinculada com sucesso.`;

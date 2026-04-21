@@ -33,15 +33,15 @@ function minLocalDateTimeInput() {
 function mapAdminBetError(message: string) {
   switch (message) {
     case "bet_not_open":
-      return "So e possivel travar apostas abertas.";
+      return "Só é possível travar apostas abertas.";
     case "bet_not_locked":
-      return "So e possivel resolver apostas travadas.";
+      return "Só é possível resolver apostas travadas.";
     case "bet_already_locked":
-      return "A aposta ja esta travada.";
+      return "A aposta já está travada.";
     case "bet_already_resolved":
-      return "A aposta ja foi resolvida.";
+      return "A aposta já foi resolvida.";
     case "bet_already_cancelled":
-      return "A aposta ja foi cancelada.";
+      return "A aposta já foi cancelada.";
     default:
       return message;
   }
@@ -51,7 +51,7 @@ export function AdminBetsPanel({ bets }: { bets: BetWithOptionsRecord[] }) {
   const router = useRouter();
   const [question, setQuestion] = useState("");
   const [closesAt, setClosesAt] = useState("");
-  const [optionsText, setOptionsText] = useState("Sim\nNao");
+  const [optionsText, setOptionsText] = useState("Sim\nNão");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [resolveSelections, setResolveSelections] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
@@ -86,7 +86,7 @@ export function AdminBetsPanel({ bets }: { bets: BetWithOptionsRecord[] }) {
         throw new Error(trimmed);
       }
 
-      throw new Error("Falha na operacao.");
+      throw new Error("Falha na operação.");
     }
   }
 
@@ -120,7 +120,7 @@ export function AdminBetsPanel({ bets }: { bets: BetWithOptionsRecord[] }) {
         });
         setQuestion("");
         setClosesAt("");
-        setOptionsText("Sim\nNao");
+        setOptionsText("Sim\nNão");
         setFeedback("Aposta criada.");
         router.refresh();
       } catch (error) {
@@ -138,7 +138,7 @@ export function AdminBetsPanel({ bets }: { bets: BetWithOptionsRecord[] }) {
         router.refresh();
       } catch (error) {
         setFeedback(
-          error instanceof Error ? mapAdminBetError(error.message) : "Falha ao executar operacao.",
+          error instanceof Error ? mapAdminBetError(error.message) : "Falha ao executar operação.",
         );
       }
     });
@@ -201,24 +201,24 @@ export function AdminBetsPanel({ bets }: { bets: BetWithOptionsRecord[] }) {
                 className="px-3 py-2"
               />
               <span className="text-xs font-bold text-[var(--color-ink-soft)]">
-                Data e hora locais em que a janela de apostas fecha. Depois desse horario, ninguem mais consegue apostar.
+                Data e hora locais em que a janela de apostas fecha. Depois desse horário, ninguém mais consegue apostar.
               </span>
             </label>
 
             <label className="grid gap-2">
               <span className="text-sm font-black uppercase tracking-[0.14em] text-[var(--color-ink)]">
-                Opcoes
+                Opções
               </span>
               <Textarea
                 value={optionsText}
                 onChange={(e) => setOptionsText(e.target.value)}
                 rows={5}
                 maxLength={1550}
-                placeholder={"Sim\nNao"}
+                placeholder={"Sim\nNão"}
                 className="min-h-32 px-3 py-2 font-bold"
               />
               <span className="text-xs font-bold text-[var(--color-ink-soft)]">
-                Use uma opcao por linha. Minimo de 2 e maximo de 6 opcoes.
+                Use uma opção por linha. Mínimo de 2 e máximo de 6 opções.
               </span>
             </label>
 

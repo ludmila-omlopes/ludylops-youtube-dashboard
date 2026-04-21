@@ -12,21 +12,21 @@ function mapChatBetReply(message: string, viewerName?: string) {
 
   switch (message) {
     case "saldo_insuficiente":
-      return `${prefix}voce nao tem pipetz suficientes para essa aposta.`;
+      return `${prefix}você não tem pipetz suficientes para essa aposta.`;
     case "aposta_ja_registrada":
-      return `${prefix}voce ja apostou nessa rodada.`;
+      return `${prefix}você já apostou nessa rodada.`;
     case "bet_not_open":
-      return "Essa aposta nao esta aberta no momento.";
+      return "Essa aposta não está aberta no momento.";
     case "bet_closed":
       return "A janela de aposta ja fechou.";
     case "invalid_option":
-      return "Opcao invalida. Use o numero ou nome exibido na aposta.";
+      return "Opção inválida. Use o número ou nome exibido na aposta.";
     case "multiple_open_bets":
       return "Ha mais de uma aposta aberta. Configure lojaneon.activeBetId ou envie betId no comando do Streamer.bot.";
-    case "Aposta nao encontrada.":
+    case "Aposta não encontrada.":
       return "Nenhuma aposta aberta foi encontrada para esse comando.";
     default:
-      return "Nao consegui registrar a aposta agora.";
+      return "Não consegui registrar a aposta agora.";
   }
 }
 
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: "Invalid signature.",
-        replyMessage: "Assinatura invalida no comando de aposta.",
+        replyMessage: "Assinatura inválida no comando de aposta.",
       },
       { status: 401 },
     );

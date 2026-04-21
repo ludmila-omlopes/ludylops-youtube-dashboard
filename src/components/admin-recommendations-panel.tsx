@@ -15,11 +15,11 @@ import type { ProductRecommendationRecord } from "@/lib/types";
 function mapRecommendationError(message: string) {
   switch (message) {
     case "recommendation_slug_exists":
-      return "Ja existe uma recomendacao com esse slug.";
+      return "Já existe uma recomendação com esse slug.";
     case "recommendation_not_found":
-      return "Recomendacao nao encontrada.";
+      return "Recomendação não encontrada.";
     case "invalid_slug":
-      return "Nao consegui gerar um slug valido para esse produto.";
+      return "Não consegui gerar um slug válido para esse produto.";
     default:
       return message;
   }
@@ -102,7 +102,7 @@ export function AdminRecommendationsPanel({
 
     const payload = (await response.json()) as { ok?: boolean; error?: string };
     if (!response.ok || !payload.ok) {
-      throw new Error(payload.error ?? "Falha ao salvar recomendacao.");
+      throw new Error(payload.error ?? "Falha ao salvar recomendação.");
     }
   }
 
@@ -137,7 +137,7 @@ export function AdminRecommendationsPanel({
         router.refresh();
       } catch (error) {
         setFeedback(
-          error instanceof Error ? mapRecommendationError(error.message) : "Falha ao criar recomendacao.",
+          error instanceof Error ? mapRecommendationError(error.message) : "Falha ao criar recomendação.",
         );
       }
     });
@@ -156,7 +156,7 @@ export function AdminRecommendationsPanel({
         router.refresh();
       } catch (error) {
         setFeedback(
-          error instanceof Error ? mapRecommendationError(error.message) : "Falha ao atualizar recomendacao.",
+          error instanceof Error ? mapRecommendationError(error.message) : "Falha ao atualizar recomendação.",
         );
       }
     });
@@ -173,7 +173,7 @@ export function AdminRecommendationsPanel({
         router.refresh();
       } catch (error) {
         setFeedback(
-          error instanceof Error ? mapRecommendationError(error.message) : "Falha ao excluir recomendacao.",
+          error instanceof Error ? mapRecommendationError(error.message) : "Falha ao excluir recomendação.",
         );
       }
     });
@@ -184,7 +184,7 @@ export function AdminRecommendationsPanel({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="mono text-xs uppercase tracking-[0.3em] text-[var(--color-ink-soft)]">
-            Indicacoes
+            Indicações
           </p>
           <h2
             className="mt-2 text-3xl uppercase"
@@ -347,7 +347,7 @@ export function AdminRecommendationsPanel({
                 onChange={(event) => setIsActive(event.target.checked)}
                 className="h-4 w-4"
               />
-              Mostrar na pagina publica
+              Mostrar na página pública
             </label>
 
             <button
@@ -364,7 +364,7 @@ export function AdminRecommendationsPanel({
         <div className="grid gap-3">
           {recommendations.length === 0 ? (
             <div className="card-brutal-static p-4 text-sm font-bold text-[var(--color-ink-soft)]">
-              Nenhuma recomendacao cadastrada.
+              Nenhuma recomendação cadastrada.
             </div>
           ) : null}
 
@@ -417,7 +417,7 @@ export function AdminRecommendationsPanel({
                         {confirmingDeleteId === item.id ? (
                           <div className="flex flex-wrap items-center justify-end gap-2 rounded-[var(--radius)] border-[3px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2">
                             <span className="text-[10px] font-black uppercase tracking-[0.14em]">
-                              Voce tem certeza?
+                              Você tem certeza?
                             </span>
                             <button
                               type="button"

@@ -10,7 +10,7 @@ import { formatPipetz } from "@/lib/utils";
 const statusLabels: Record<GameSuggestionWithMeta["status"], string> = {
   open: "Aberta",
   accepted: "Aceita",
-  played: "Ja joguei",
+  played: "Já joguei",
   rejected: "Fechada",
 };
 
@@ -35,9 +35,9 @@ function mapSuggestionError(message: string) {
     case "saldo_insuficiente":
       return "Saldo insuficiente.";
     case "suggestion_not_found":
-      return "Sugestao nao encontrada.";
+      return "Sugestão não encontrada.";
     case "suggestion_not_open":
-      return "So da para dar boost em sugestoes abertas.";
+      return "Só dá para dar boost em sugestões abertas.";
     case "invalid_amount":
       return "Digite um valor inteiro positivo.";
     default:
@@ -72,7 +72,7 @@ export function GameSuggestionCard({
     }
 
     if (!canBoost) {
-      setFeedback(loggedIn ? "Sua conta ainda nao esta pronta para dar boost." : "Faca login para dar boost.");
+      setFeedback(loggedIn ? "Sua conta ainda não está pronta para dar boost." : "Faça login para dar boost.");
       return;
     }
 
@@ -184,7 +184,7 @@ export function GameSuggestionCard({
 
       {!loggedIn ? (
         <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-[var(--color-ink-soft)]">
-          faca login para sugerir e dar boost
+          faça login para sugerir e dar boost
         </p>
       ) : null}
 

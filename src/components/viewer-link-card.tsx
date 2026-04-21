@@ -76,12 +76,12 @@ export function ViewerLinkCard({ isLinked }: { isLinked: boolean }) {
       };
 
       if (!response.ok || !payload.ok || !payload.data?.link) {
-        setFeedback(payload.error ?? "Nao foi possivel gerar o codigo.");
+        setFeedback(payload.error ?? "Não foi possível gerar o código.");
         return;
       }
 
       setLink(payload.data.link);
-      setFeedback("Codigo atualizado.");
+      setFeedback("Código atualizado.");
     });
   }
 
@@ -93,18 +93,18 @@ export function ViewerLinkCard({ isLinked }: { isLinked: boolean }) {
             Vinculo da live
           </p>
           <h2 className="mt-3 text-3xl uppercase" style={{ fontFamily: "var(--font-display)" }}>
-            {isLinked ? "Seu canal ja esta vinculado." : "Conecte sua conta do chat."}
+            {isLinked ? "Seu canal já está vinculado." : "Conecte sua conta do chat."}
           </h2>
           <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--color-ink-soft)] sm:text-base">
-            O login entra no site, mas o viewer da live agora e confirmado pelo chat do YouTube.
-            Gere um codigo curto e envie <span className="font-black">!link CODIGO</span> no chat
-            para provar que essa conta tambem e sua.
+            O login entra no site, mas o viewer da live agora é confirmado pelo chat do YouTube.
+            Gere um código curto e envie <span className="font-black">!link CÓDIGO</span> no chat
+            para provar que essa conta também é sua.
           </p>
 
           <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
             <div className="card-flat bg-[var(--color-sky)] p-5">
               <p className="mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
-                Codigo atual
+                Código atual
               </p>
               <p className="mt-3 text-4xl font-black tracking-[0.16em]" style={{ fontFamily: "var(--font-display)" }}>
                 {isLoading ? "......" : link?.linkCode ?? "------"}
@@ -112,13 +112,13 @@ export function ViewerLinkCard({ isLinked }: { isLinked: boolean }) {
               <p className="mt-3 text-sm leading-6 text-[var(--color-ink-soft)]">
                 {link
                   ? `Expira em ${formatExpiry(link.expiresAt)}.`
-                  : "Gere um codigo novo para fazer o vinculo pelo chat."}
+                  : "Gere um código novo para fazer o vínculo pelo chat."}
               </p>
             </div>
 
             <div className="flex flex-col gap-3">
               <Button type="button" onClick={generateCode} disabled={isPending} className="justify-center">
-                {isPending ? "Gerando..." : link ? "Gerar novo codigo" : "Gerar codigo"}
+                {isPending ? "Gerando..." : link ? "Gerar novo código" : "Gerar código"}
               </Button>
               {feedback ? (
                 <p className="text-sm font-bold text-[var(--color-ink-soft)]" aria-live="polite">
@@ -130,10 +130,10 @@ export function ViewerLinkCard({ isLinked }: { isLinked: boolean }) {
 
           <div className="mt-6 grid gap-3 text-sm text-[var(--color-ink-soft)] sm:grid-cols-3">
             <div className="card-flat bg-[var(--color-mint)] p-4">
-              1. Entre no site com o login que voce preferir.
+              1. Entre no site com o login que você preferir.
             </div>
             <div className="card-flat bg-[var(--color-yellow)] p-4">
-              2. Gere o codigo e mande <span className="font-black">!link CODIGO</span> no chat.
+              2. Gere o código e mande <span className="font-black">!link CÓDIGO</span> no chat.
             </div>
             <div className="card-flat bg-[var(--color-pink)] p-4">
               3. O bot vincula seu viewer e seu saldo passa a seguir esse canal.

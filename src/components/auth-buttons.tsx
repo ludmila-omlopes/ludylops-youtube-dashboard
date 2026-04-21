@@ -72,7 +72,7 @@ export function AuthButtons() {
             variant="neutral"
             size="sm"
           >
-            Limpar sessao
+            Limpar sessão
           </Button>
         ) : null}
       </div>

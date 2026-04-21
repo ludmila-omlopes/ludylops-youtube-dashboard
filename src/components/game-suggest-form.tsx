@@ -13,11 +13,11 @@ import { formatPipetz } from "@/lib/utils";
 function mapSuggestionError(message: string) {
   switch (message) {
     case "saldo_insuficiente":
-      return `Voce precisa de ${formatPipetz(GAME_SUGGESTION_CREATION_COST)} para criar uma sugestao.`;
+      return `Você precisa de ${formatPipetz(GAME_SUGGESTION_CREATION_COST)} para criar uma sugestão.`;
     case "suggestion_already_exists":
-      return "Esse jogo ja esta na lista aberta.";
+      return "Esse jogo já está na lista aberta.";
     case "invalid_name":
-      return "Escreva um nome valido para o jogo.";
+      return "Escreva um nome válido para o jogo.";
     default:
       return message;
   }
@@ -56,12 +56,12 @@ export function GameSuggestForm({
     }
 
     if (!canSuggest) {
-      setFeedback(loggedIn ? "Sua conta ainda nao esta pronta para sugerir." : "Faca login para sugerir.");
+      setFeedback(loggedIn ? "Sua conta ainda não está pronta para sugerir." : "Faça login para sugerir.");
       return;
     }
 
     if (hasInsufficientBalance) {
-      setFeedback(`Faltam ${formatPipetz(missingBalance)} para criar uma sugestao.`);
+      setFeedback(`Faltam ${formatPipetz(missingBalance)} para criar uma sugestão.`);
       return;
     }
 
@@ -80,13 +80,13 @@ export function GameSuggestForm({
 
       const payload = (await response.json()) as { ok: boolean; error?: string };
       if (!response.ok || !payload.ok) {
-        setFeedback(mapSuggestionError(payload.error ?? "Falha ao enviar sugestao."));
+        setFeedback(mapSuggestionError(payload.error ?? "Falha ao enviar sugestão."));
         return;
       }
 
       setName("");
       setDescription("");
-      setFeedback(`Sugestao enviada. ${formatPipetz(GAME_SUGGESTION_CREATION_COST)} debitados.`);
+      setFeedback(`Sugestão enviada. ${formatPipetz(GAME_SUGGESTION_CREATION_COST)} debitados.`);
       router.refresh();
     });
   }
@@ -108,10 +108,10 @@ export function GameSuggestForm({
               Sugira um jogo
             </h3>
             <p className="mt-2 text-sm text-[var(--color-ink-soft)]">
-              Se tiver algo que voce quer muito me ver jogando, manda aqui.
+              Se tiver algo que você quer muito me ver jogando, manda aqui.
             </p>
             <p className="mt-2 text-xs font-bold uppercase tracking-[0.12em] text-[var(--color-ink-soft)]">
-              cada nova sugestao custa {formatPipetz(GAME_SUGGESTION_CREATION_COST)}. boost continua separado.
+              cada nova sugestão custa {formatPipetz(GAME_SUGGESTION_CREATION_COST)}. boost continua separado.
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -152,19 +152,19 @@ export function GameSuggestForm({
           >
             {isPending
               ? "Enviando..."
-              : `Enviar sugestao por ${formatPipetz(GAME_SUGGESTION_CREATION_COST)}`}
+              : `Enviar sugestão por ${formatPipetz(GAME_SUGGESTION_CREATION_COST)}`}
           </Button>
         </div>
 
         {!loggedIn ? (
           <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-[var(--color-ink-soft)]">
-            faca login para sugerir e dar boost
+            faça login para sugerir e dar boost
           </p>
         ) : null}
 
         {loggedIn && hasInsufficientBalance ? (
           <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-[var(--color-ink-soft)]">
-            faltam {formatPipetz(missingBalance)} para liberar uma nova sugestao
+            faltam {formatPipetz(missingBalance)} para liberar uma nova sugestão
           </p>
         ) : null}
 

@@ -27,3 +27,7 @@ When working on features that touch this integration, agents should:
 - Assume Streamer.bot configuration may be required for the feature to work correctly.
 - Check the up-to-date Streamer.bot documentation before giving setup instructions, because Streamer.bot behavior and configuration steps may change over time.
 - Guide the user on the required Streamer.bot setup so the application and Streamer.bot are configured to work together correctly.
+
+# Branch Hygiene
+
+Before creating a new branch, always update the local code from the remote base branch first, usually `master` or the repository default branch, so the branch starts from the latest state.

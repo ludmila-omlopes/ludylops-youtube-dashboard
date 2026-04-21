@@ -23,21 +23,21 @@ const actionConfig: Record<
 > = {
   force_online: {
     keyword: "ONLINE",
-    label: "Forcar online",
-    pendingLabel: "Forcando online...",
-    successMessage: "Live forcada para online.",
+    label: "Forçar online",
+    pendingLabel: "Forçando online...",
+    successMessage: "Live forçada para online.",
     variant: "success",
   },
   force_offline: {
     keyword: "OFFLINE",
-    label: "Forcar offline",
-    pendingLabel: "Forcando offline...",
-    successMessage: "Live forcada para offline.",
+    label: "Forçar offline",
+    pendingLabel: "Forçando offline...",
+    successMessage: "Live forçada para offline.",
     variant: "danger",
   },
   clear_override: {
     keyword: "AUTO",
-    label: "Voltar ao automatico",
+    label: "Voltar ao automático",
     pendingLabel: "Limpando override...",
     successMessage: "Override manual removido.",
     variant: "neutral",
@@ -163,14 +163,14 @@ export function LiveStatusPanel({
               {status.isLive ? "Live online" : "Live offline"}
             </div>
             <div className="retro-label neutral-chip">
-              {status.source === "manual" ? "Modo manual" : "Modo automatico"}
+              {status.source === "manual" ? "Modo manual" : "Modo automático"}
             </div>
           </div>
         </div>
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <div className="card-brutal-static surface-card p-4">
             <p className="mono text-xs uppercase tracking-[0.28em] text-[var(--color-ink-soft)]">
-              Ultimo heartbeat
+              Último heartbeat
             </p>
             <p className="mt-2 text-lg font-bold">{formatDateTime(current?.lastSeenAt)}</p>
           </div>
@@ -188,7 +188,7 @@ export function LiveStatusPanel({
           </p>
           <p className="mt-2 text-sm leading-7 text-[var(--color-ink-soft)]">
             Esse override muda o estado efetivo usado pelos fluxos que dependem da live estar online,
-            mesmo se a deteccao automatica estiver atrasada ou indisponivel.
+            mesmo se a detecção automática estiver atrasada ou indisponível.
           </p>
 
           {status.manualOverride ? (
@@ -210,7 +210,7 @@ export function LiveStatusPanel({
               variant="success"
               size="sm"
             >
-              Forcar online
+              Forçar online
             </Button>
             <Button
               type="button"
@@ -219,7 +219,7 @@ export function LiveStatusPanel({
               variant="danger"
               size="sm"
             >
-              Forcar offline
+              Forçar offline
             </Button>
             <Button
               type="button"
@@ -228,7 +228,7 @@ export function LiveStatusPanel({
               variant="neutral"
               size="sm"
             >
-              Voltar ao automatico
+              Voltar ao automático
             </Button>
           </div>
 
