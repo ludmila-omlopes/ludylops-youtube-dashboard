@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getDbMock = vi.hoisted(() => vi.fn());
 const isStreamerbotLivestreamActiveMock = vi.hoisted(() => vi.fn());
+const getActiveDeathCounterGameMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/db/client", () => ({
   getDb: getDbMock,
@@ -38,6 +39,10 @@ vi.mock("@/lib/streamerbot/live-status", () => ({
 
     return true;
   },
+}));
+
+vi.mock("@/lib/streamerbot/death-counter-game", () => ({
+  getActiveDeathCounterGame: getActiveDeathCounterGameMock,
 }));
 
 import { demoBetRecords, demoQuotes } from "@/lib/demo-data";
@@ -85,6 +90,7 @@ import {
   listQuotes,
   registerGoogleRiscDelivery,
   runQuoteCommandFromChat,
+  runDeathCounterCommand,
   runStreamerbotCounterCommand,
   resolveBet,
   setActiveViewerForGoogleAccount,
@@ -627,13 +633,13 @@ function createStreamerbotCounterDb({
       return {
         from(table: unknown) {
           if (table === streamerbotCounters) {
-            return {
+            return Object.assign(rows, {
               where() {
                 return {
                   limit: async () => rows,
                 };
               },
-            };
+            });
           }
 
           throw new Error("Unexpected table in streamerbot counter tx stub.");
@@ -703,6 +709,8 @@ describe("listBets", () => {
   beforeEach(() => {
     getDbMock.mockReset();
     delete (globalThis as typeof globalThis & { __lojaDemoStore?: unknown }).__lojaDemoStore;
+    getActiveDeathCounterGameMock.mockReset();
+    getActiveDeathCounterGameMock.mockResolvedValue(null);
   });
 
   it("falls back to demo bets when the bets table query is unavailable", async () => {
@@ -1365,6 +1373,8 @@ describe("showQuoteOverlayForViewer", () => {
 describe("runStreamerbotCounterCommand", () => {
   beforeEach(() => {
     getDbMock.mockReset();
+    getActiveDeathCounterGameMock.mockReset();
+    getActiveDeathCounterGameMock.mockResolvedValue(null);
     delete (globalThis as typeof globalThis & { __lojaDemoStore?: unknown }).__lojaDemoStore;
   });
 
@@ -1504,13 +1514,6 @@ describe("runStreamerbotCounterCommand", () => {
       value: counter.value,
     }))).toEqual([
       {
-        key: "death_count",
-        label: "mortes",
-        scopeType: "global",
-        scopeKey: "global",
-        value: 0,
-      },
-      {
         key: "win_count",
         label: "vitorias",
         scopeType: "global",
@@ -1638,19 +1641,6 @@ describe("runStreamerbotCounterCommand", () => {
 
     expect(counters).toEqual([
       {
-        key: "death_count",
-        label: "mortes",
-        scopeType: "global",
-        scopeKey: "global",
-        scopeLabel: null,
-        value: 0,
-        lastResetAt: null,
-        updatedAt: new Date(0).toISOString(),
-        lastAction: null,
-        lastAmount: null,
-        source: null,
-      },
-      {
         key: "win_count",
         label: "vitorias",
         scopeType: "game",
@@ -1661,6 +1651,57 @@ describe("runStreamerbotCounterCommand", () => {
         updatedAt: "2026-04-07T11:00:00.000Z",
         lastAction: "increment",
         lastAmount: 2,
+        source: "streamerbot_chat",
+      },
+    ]);
+  });
+
+  it("hides technical counters from the public counter listing", async () => {
+    const { db } = createStreamerbotCounterDb({
+      counterRows: [
+        {
+          key: "livestream_override",
+          value: 1,
+          lastResetAt: null,
+          updatedAt: new Date("2026-04-07T11:00:00.000Z"),
+          metadata: {
+            updatedBy: "admin",
+          },
+        },
+        {
+          key: "death_count",
+          value: 154,
+          lastResetAt: null,
+          updatedAt: new Date("2026-04-07T11:05:00.000Z"),
+          metadata: {
+            counterKey: "death_count",
+            counterLabel: "mortes",
+            scopeType: "game",
+            scopeKey: "silksong",
+            scopeLabel: "Silksong",
+            lastAction: "increment",
+            lastAmount: 1,
+            source: "streamerbot_chat",
+          },
+        },
+      ],
+    });
+    getDbMock.mockReturnValue(db);
+
+    const counters = await listStreamerbotCounters();
+
+    expect(counters).toEqual([
+      {
+        key: "death_count",
+        label: "mortes",
+        scopeType: "game",
+        scopeKey: "silksong",
+        scopeLabel: "Silksong",
+        value: 154,
+        lastResetAt: null,
+        updatedAt: "2026-04-07T11:05:00.000Z",
+        lastAction: "increment",
+        lastAmount: 1,
         source: "streamerbot_chat",
       },
     ]);
@@ -1711,6 +1752,65 @@ describe("runStreamerbotCounterCommand", () => {
       },
     });
     expect(rows[0]?.lastResetAt?.toISOString()).toBe("2026-04-07T12:00:00.000Z");
+  });
+
+  it("routes death commands to the configured active game when no game scope is provided", async () => {
+    const { db, rows } = createStreamerbotCounterDb();
+    getDbMock.mockReturnValue(db);
+    getActiveDeathCounterGameMock.mockResolvedValue({
+      scopeType: "game",
+      scopeKey: "silksong",
+      scopeLabel: "Silksong",
+      updatedAt: "2026-04-07T10:00:00.000Z",
+      updatedBy: "admin@example.com",
+    });
+
+    const result = await runDeathCounterCommand({
+      action: "increment",
+      amount: 3,
+      requestedBy: "Mod",
+    });
+
+    expect(result).toMatchObject({
+      mode: "database",
+      action: "increment",
+      count: 3,
+      replyMessage: "Mod, contador de mortes em Silksong: 3 (+3).",
+    });
+    expect(rows[0]).toMatchObject({
+      key: "game::silksong::death_count",
+      value: 3,
+      metadata: {
+        counterKey: "death_count",
+        counterLabel: "mortes",
+        scopeType: "game",
+        scopeKey: "silksong",
+        scopeLabel: "Silksong",
+      },
+    });
+  });
+
+  it("preserves an explicit game scope even when an active game is configured", async () => {
+    const { db, rows } = createStreamerbotCounterDb();
+    getDbMock.mockReturnValue(db);
+    getActiveDeathCounterGameMock.mockResolvedValue({
+      scopeType: "game",
+      scopeKey: "silksong",
+      scopeLabel: "Silksong",
+      updatedAt: "2026-04-07T10:00:00.000Z",
+      updatedBy: "admin@example.com",
+    });
+
+    const result = await runDeathCounterCommand({
+      action: "increment",
+      scopeType: "game",
+      scopeKey: "hades_2",
+      scopeLabel: "Hades 2",
+      amount: 1,
+    });
+
+    expect(result.replyMessage).toBe("contador de mortes em Hades 2: 1.");
+    expect(rows[0]?.key).toBe("game::hades_2::death_count");
   });
 });
 

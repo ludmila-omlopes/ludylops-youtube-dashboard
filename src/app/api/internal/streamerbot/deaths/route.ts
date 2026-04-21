@@ -50,8 +50,8 @@ export async function POST(request: Request) {
 
     console.info("[streamerbot/deaths] Processed command.", {
       action: payload.action,
-      scopeType: payload.scopeType,
-      scopeKey: payload.scopeKey ?? "global",
+      scopeType: result.counter.scopeType,
+      scopeKey: result.counter.scopeKey ?? "global",
       amount: payload.amount,
       requestedBy: payload.requestedBy,
       count: result.count,

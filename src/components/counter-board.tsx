@@ -1,22 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { StreamerbotCounterSummaryRecord } from "@/lib/types";
-import { formatDateTime, formatPipetz } from "@/lib/utils";
+import { formatPipetz } from "@/lib/utils";
 
 function scopeHeading(scopeKey: string, scopeLabel: string | null) {
   return scopeLabel ?? scopeKey.replace(/[_-]+/g, " ");
-}
-
-function actionLabel(action: string | null) {
-  switch (action) {
-    case "increment":
-      return "ultima acao: incremento";
-    case "decrement":
-      return "ultima acao: decremento";
-    case "reset":
-      return "ultima acao: reset";
-    default:
-      return "sem historico recente";
-  }
 }
 
 function CounterCard({ counter }: { counter: StreamerbotCounterSummaryRecord }) {
@@ -24,10 +11,6 @@ function CounterCard({ counter }: { counter: StreamerbotCounterSummaryRecord }) 
     counter.scopeType === "global"
       ? "escopo global"
       : `jogo: ${scopeHeading(counter.scopeKey, counter.scopeLabel)}`;
-  const amountNote =
-    counter.lastAction === "increment" || counter.lastAction === "decrement"
-      ? ` . ajuste ${counter.lastAmount ?? 0}`
-      : "";
 
   return (
     <Card variant="poster" className="h-full bg-[var(--color-paper)] p-5">
@@ -51,22 +34,6 @@ function CounterCard({ counter }: { counter: StreamerbotCounterSummaryRecord }) 
           >
             {formatPipetz(counter.value)}
           </span>
-        </div>
-
-        <div className="mt-5 space-y-2 text-sm leading-6 text-[var(--color-ink-soft)]">
-          <p>{actionLabel(counter.lastAction)}{amountNote}</p>
-          <p>
-            {counter.lastAction
-              ? `atualizado em ${formatDateTime(counter.updatedAt)}`
-              : "ainda sem atualizacao vinda do chat"}
-          </p>
-          <p>
-            {counter.lastResetAt
-              ? `ultimo reset em ${formatDateTime(counter.lastResetAt)}`
-              : "ainda nao foi resetado"}
-          </p>
-          <p>chave tecnica: {counter.key}</p>
-          <p>origem: {counter.source ?? "manual / nao informado"}</p>
         </div>
       </CardContent>
     </Card>

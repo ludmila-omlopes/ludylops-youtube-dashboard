@@ -264,6 +264,14 @@ export interface LivestreamManualOverrideRecord {
   updatedBy: string | null;
 }
 
+export interface ActiveDeathCounterGameRecord {
+  scopeType: "game";
+  scopeKey: string;
+  scopeLabel: string;
+  updatedAt: string;
+  updatedBy: string | null;
+}
+
 export interface LivestreamStatusRecord {
   isLive: boolean;
   source: "automatic" | "manual";

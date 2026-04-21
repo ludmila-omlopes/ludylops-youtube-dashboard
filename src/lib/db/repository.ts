@@ -55,6 +55,7 @@ import {
   eventRequiresActiveLivestream,
   requireActiveLivestream,
 } from "@/lib/streamerbot/live-status";
+import { getActiveDeathCounterGame } from "@/lib/streamerbot/death-counter-game";
 import { normalizeYoutubeHandle } from "@/lib/youtube/identity";
 import { evaluateRedeemability } from "@/lib/redemptions/service";
 import {
@@ -399,36 +400,12 @@ function buildStreamerbotCounterSummary(counter: StreamerbotCounterRecord): Stre
   };
 }
 
-function ensureDefaultCounterSummaries(
+function sanitizePublicCounterSummaries(
   counters: StreamerbotCounterSummaryRecord[],
 ): StreamerbotCounterSummaryRecord[] {
-  const hasDefaultDeaths = counters.some(
-    (counter) =>
-      counter.key === DEFAULT_DEATH_COUNTER_KEY &&
-      counter.scopeType === GLOBAL_COUNTER_SCOPE_TYPE &&
-      counter.scopeKey === GLOBAL_COUNTER_SCOPE_KEY,
-  );
-
-  const source = hasDefaultDeaths
-    ? counters
-    : [
-        {
-          key: DEFAULT_DEATH_COUNTER_KEY,
-          label: DEFAULT_DEATH_COUNTER_LABEL,
-          scopeType: GLOBAL_COUNTER_SCOPE_TYPE as StreamerbotCounterSummaryRecord["scopeType"],
-          scopeKey: GLOBAL_COUNTER_SCOPE_KEY,
-          scopeLabel: null,
-          value: 0,
-          lastResetAt: null,
-          updatedAt: new Date(0).toISOString(),
-          lastAction: null,
-          lastAmount: null,
-          source: null,
-        },
-        ...counters,
-      ];
-
-  return [...source].sort((left, right) => {
+  return counters
+    .filter((counter) => counter.key !== "livestream_override")
+    .sort((left, right) => {
     if (left.scopeType !== right.scopeType) {
       return left.scopeType === GLOBAL_COUNTER_SCOPE_TYPE ? -1 : 1;
     }
@@ -1936,7 +1913,7 @@ function isMissingCounterSchemaError(error: unknown) {
 
 function listDemoStreamerbotCounters() {
   const store = getDemoStore();
-  return ensureDefaultCounterSummaries(store.streamerbotCounters.map(buildStreamerbotCounterSummary));
+  return sanitizePublicCounterSummaries(store.streamerbotCounters.map(buildStreamerbotCounterSummary));
 }
 
 async function withGoogleAccountById(googleAccountId: string) {
@@ -3274,12 +3251,12 @@ export async function listStreamerbotCounters() {
     rows = await db.select().from(streamerbotCounters);
   } catch (error) {
     if (isMissingCounterSchemaError(error)) {
-      return ensureDefaultCounterSummaries([]);
+      return [];
     }
     throw error;
   }
 
-  return ensureDefaultCounterSummaries(rows.map(serializeStreamerbotCounter).map(buildStreamerbotCounterSummary));
+  return sanitizePublicCounterSummaries(rows.map(serializeStreamerbotCounter).map(buildStreamerbotCounterSummary));
 }
 
 export async function listProductRecommendations(options?: {
@@ -4527,8 +4504,14 @@ export async function runDeathCounterCommand(input: {
   confirmReset?: boolean;
   resetReason?: string | null;
 }) {
+  const hasExplicitGameScope = input.scopeType === "game" && Boolean(input.scopeKey?.trim());
+  const activeGame = hasExplicitGameScope ? null : await getActiveDeathCounterGame();
+
   return runStreamerbotCounterCommand({
     ...input,
+    scopeType: hasExplicitGameScope ? input.scopeType : activeGame?.scopeType ?? input.scopeType,
+    scopeKey: hasExplicitGameScope ? input.scopeKey : activeGame?.scopeKey ?? input.scopeKey,
+    scopeLabel: hasExplicitGameScope ? input.scopeLabel : activeGame?.scopeLabel ?? input.scopeLabel,
     counterKey: DEFAULT_DEATH_COUNTER_KEY,
     counterLabel: DEFAULT_DEATH_COUNTER_LABEL,
   });

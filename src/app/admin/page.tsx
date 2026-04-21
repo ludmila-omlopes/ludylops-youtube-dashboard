@@ -1,5 +1,6 @@
 import { AdminObsOverlaysPanel } from "@/components/admin-obs-overlays-panel";
 import { AdminBetsPanel } from "@/components/admin-bets-panel";
+import { DeathCounterGamePanel } from "@/components/death-counter-game-panel";
 import { AdminGameSuggestionsPanel } from "@/components/admin-game-suggestions-panel";
 import { AdminRecommendationsPanel } from "@/components/admin-recommendations-panel";
 import { AdminViewerLinksPanel } from "@/components/admin-viewer-links-panel";
@@ -18,6 +19,7 @@ import {
   listAdminRedemptions,
 } from "@/lib/db/repository";
 import { getStreamerbotLivestreamStatus } from "@/lib/streamerbot/live-status";
+import { getActiveDeathCounterGame } from "@/lib/streamerbot/death-counter-game";
 import { formatDateTime, formatPipetz } from "@/lib/utils";
 
 const statusColorMap: Record<string, string> = {
@@ -30,11 +32,12 @@ const statusColorMap: Record<string, string> = {
 
 export default async function AdminPage() {
   await requireAdminSession();
-  const [catalog, leaderboard, bridge, liveStatus, redemptions, bets, suggestions, recommendations, viewers] = await Promise.all([
+  const [catalog, leaderboard, bridge, liveStatus, activeDeathCounterGame, redemptions, bets, suggestions, recommendations, viewers] = await Promise.all([
     getCatalog(),
     getLeaderboard(),
     getBridgeStatus(),
     getStreamerbotLivestreamStatus(),
+    getActiveDeathCounterGame(),
     listAdminRedemptions(),
     listAdminBets(),
     listAdminGameSuggestions(),
@@ -60,7 +63,10 @@ export default async function AdminPage() {
 
       <section className="landing-plane landing-divider bg-[var(--color-paper-pink)] py-8 sm:py-10">
         <div className="mx-auto grid w-full max-w-[1500px] gap-6 px-4 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-10">
-          <LiveStatusPanel bridge={bridge} initialStatus={liveStatus} />
+          <div className="space-y-6">
+            <LiveStatusPanel bridge={bridge} initialStatus={liveStatus} />
+            <DeathCounterGamePanel initialGame={activeDeathCounterGame} />
+          </div>
           <div className="panel surface-section p-6">
             <p className="mono text-xs uppercase tracking-[0.3em] text-[var(--color-ink-soft)]">
               Fila recente
