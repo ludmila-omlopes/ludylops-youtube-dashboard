@@ -49,7 +49,7 @@ type FeatureCard = {
 };
 
 const DEFAULT_GITHUB_ISSUES_URL =
-  "https://github.com/ludmila-omlopes/ludylops-youtube-dashboard/issues/new";
+  "https://github.com/ludmila-omlopes/ludylops-live/issues/new";
 const LUDYLOPS_PROFILE_IMAGE =
   "/selfie2.png";
 
