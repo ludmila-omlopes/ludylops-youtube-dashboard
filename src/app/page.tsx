@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+﻿import type { ReactNode } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -52,6 +52,12 @@ const DEFAULT_GITHUB_ISSUES_URL =
   "https://github.com/ludmila-omlopes/ludylops-live/issues/new";
 const LUDYLOPS_PROFILE_IMAGE =
   "/selfie2.png";
+
+function usesPastelSurface(bgClass: string) {
+  return ["--color-blue", "--color-purple", "--color-pink", "--color-yellow", "--color-mint"].some((token) =>
+    bgClass.includes(token),
+  );
+}
 
 function buildViewerLinkingIssueUrl(input: {
   isLinked: boolean;
@@ -131,7 +137,7 @@ function AccountProtectionNotice({ status }: { status: AccountProtectionStatus }
       : "Se estiver tudo certo na sua conta Google, você pode entrar novamente agora.";
 
   return (
-    <div className="card-poster mt-6 border-[3px] border-[var(--color-ink)] bg-[var(--color-blue)] p-4 text-[var(--color-ink)]">
+    <div className="card-poster mt-6 border-[3px] border-[var(--color-ink)] bg-[var(--color-blue)] p-4 text-[var(--color-accent-ink)]">
       <p className="mono text-[10px] uppercase tracking-[0.24em]">segurança da conta</p>
       <p className="mt-2 text-lg font-black uppercase leading-tight">{title}</p>
       <p className="mt-3 text-sm font-bold leading-6">{body}</p>
@@ -142,10 +148,20 @@ function AccountProtectionNotice({ status }: { status: AccountProtectionStatus }
 }
 
 function MetricCard({ metric, className }: { metric: HomeMetric; className?: string }) {
+  const usesPastelInk = usesPastelSurface(metric.bg);
+
   return (
-    <Card variant="poster" className={cn("p-4", metric.bg, className)}>
+    <Card
+      variant="poster"
+      className={cn("p-4", metric.bg, usesPastelInk && "text-[var(--color-accent-ink)]", className)}
+    >
       <CardHeader className="gap-0">
-        <CardDescription className="mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
+        <CardDescription
+          className={cn(
+            "mono text-[10px] uppercase tracking-[0.24em]",
+            usesPastelInk ? "text-[var(--color-accent-ink-soft)]" : "text-[var(--color-ink-soft)]",
+          )}
+        >
           {metric.label}
         </CardDescription>
         <CardTitle
@@ -156,22 +172,43 @@ function MetricCard({ metric, className }: { metric: HomeMetric; className?: str
         </CardTitle>
       </CardHeader>
       <CardContent className="mt-2">
-        <p className="text-sm font-bold leading-6 text-[var(--color-ink-soft)]">{metric.note}</p>
+        <p
+          className={cn(
+            "text-sm font-bold leading-6",
+            usesPastelInk ? "text-[var(--color-accent-ink-soft)]" : "text-[var(--color-ink-soft)]",
+          )}
+        >
+          {metric.note}
+        </p>
       </CardContent>
     </Card>
   );
 }
 
 function FeatureStoryCard({ feature }: { feature: FeatureCard }) {
+  const usesPastelInk = usesPastelSurface(feature.bg);
+
   return (
-    <Card variant="poster" className={`flex-row gap-4 p-4 sm:p-5 ${feature.bg}`}>
+    <Card
+      variant="poster"
+      className={cn(
+        "flex-row gap-4 p-4 sm:p-5",
+        feature.bg,
+        usesPastelInk && "text-[var(--color-accent-ink)]",
+      )}
+    >
       <CardContent className="flex h-14 w-14 shrink-0 items-center justify-center">
-        <div className="card-brutal flex h-14 w-14 items-center justify-center bg-[var(--color-paper)] text-xl font-black">
+        <div className="card-brutal micro-flat flex h-14 w-14 items-center justify-center bg-[var(--color-paper)] text-xl font-black text-[var(--color-ink)]">
           {feature.symbol}
         </div>
       </CardContent>
       <CardHeader className="gap-0">
-        <CardDescription className="mono text-[10px] uppercase tracking-[0.28em] text-[var(--color-ink-soft)]">
+        <CardDescription
+          className={cn(
+            "mono text-[10px] uppercase tracking-[0.28em]",
+            usesPastelInk ? "text-[var(--color-accent-ink-soft)]" : "text-[var(--color-ink-soft)]",
+          )}
+        >
           {feature.eyebrow}
         </CardDescription>
         <CardTitle
@@ -181,7 +218,14 @@ function FeatureStoryCard({ feature }: { feature: FeatureCard }) {
           {feature.title}
         </CardTitle>
         <CardContent className="mt-3">
-          <p className="text-sm leading-6 text-[var(--color-ink-soft)]">{feature.body}</p>
+          <p
+            className={cn(
+              "text-sm leading-6",
+              usesPastelInk ? "text-[var(--color-accent-ink-soft)]" : "text-[var(--color-ink-soft)]",
+            )}
+          >
+            {feature.body}
+          </p>
         </CardContent>
       </CardHeader>
     </Card>
@@ -199,14 +243,28 @@ function RankingLeaderCard({
   viewerName: string;
   balance: number;
 }) {
+  const usesPastelInk = usesPastelSurface(bgClass);
+
   return (
-    <Card variant="poster" className={`flex-row items-center justify-between gap-3 px-4 py-4 ${bgClass}`}>
+    <Card
+      variant="poster"
+      className={cn(
+        "flex-row items-center justify-between gap-3 px-4 py-4",
+        bgClass,
+        usesPastelInk && "text-[var(--color-accent-ink)]",
+      )}
+    >
       <CardContent className="flex min-w-0 items-center gap-3">
-        <div className="card-brutal flex min-w-[52px] items-center justify-center bg-[var(--color-paper)] px-3 py-2 text-sm font-black">
+        <div className="card-brutal micro-flat flex min-w-[52px] items-center justify-center bg-[var(--color-paper)] px-3 py-2 text-sm font-black text-[var(--color-ink)]">
           #{index + 1}
         </div>
         <CardHeader className="min-w-0 gap-0">
-          <CardDescription className="mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
+          <CardDescription
+            className={cn(
+              "mono text-[10px] uppercase tracking-[0.24em]",
+              usesPastelInk ? "text-[var(--color-accent-ink-soft)]" : "text-[var(--color-ink-soft)]",
+            )}
+          >
             viewer
           </CardDescription>
           <CardTitle className="truncate text-base font-black uppercase tracking-[0.04em]">
@@ -215,7 +273,12 @@ function RankingLeaderCard({
         </CardHeader>
       </CardContent>
       <CardFooter className="shrink-0">
-        <span className="mono text-xs font-black uppercase tracking-[0.18em] text-[var(--color-ink)]">
+        <span
+          className={cn(
+            "mono text-xs font-black uppercase tracking-[0.18em]",
+            usesPastelInk ? "text-[var(--color-accent-ink)]" : "text-[var(--color-ink)]",
+          )}
+        >
           {formatPipetz(balance)}
         </span>
       </CardFooter>
@@ -238,20 +301,36 @@ function SpotlightOptionCard({
     "bg-[var(--color-pink)]",
     "bg-[var(--color-paper)]",
   ];
+  const bgClass = colors[index % colors.length];
+  const usesPastelInk = usesPastelSurface(bgClass);
 
   return (
     <Card
       variant="poster"
-      className={`flex-row items-center justify-between gap-3 px-4 py-4 ${colors[index % colors.length]}`}
+      className={cn(
+        "flex-row items-center justify-between gap-3 px-4 py-4",
+        bgClass,
+        usesPastelInk && "text-[var(--color-accent-ink)]",
+      )}
     >
       <CardHeader className="min-w-0 gap-0">
-        <CardDescription className="mono text-[10px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
+        <CardDescription
+          className={cn(
+            "mono text-[10px] uppercase tracking-[0.24em]",
+            usesPastelInk ? "text-[var(--color-accent-ink-soft)]" : "text-[var(--color-ink-soft)]",
+          )}
+        >
           opção 0{index + 1}
         </CardDescription>
         <CardTitle className="mt-1 text-lg font-black uppercase leading-tight">{optionLabel}</CardTitle>
       </CardHeader>
       <CardFooter className="shrink-0">
-        <span className="mono text-xs font-black uppercase tracking-[0.18em] text-[var(--color-ink)]">
+        <span
+          className={cn(
+            "mono text-xs font-black uppercase tracking-[0.18em]",
+            usesPastelInk ? "text-[var(--color-accent-ink)]" : "text-[var(--color-ink)]",
+          )}
+        >
           {formatPipetz(poolAmount)}
         </span>
       </CardFooter>
@@ -290,11 +369,8 @@ function HeroPoster({
         {loggedIn ? (
           <>
             <div>
-              <p className="mono text-[11px] uppercase tracking-[0.3em] text-[var(--color-ink-soft)]">
-                painel da live . pontos . apostas . resgates
-              </p>
               <h2
-                className="mt-3 text-4xl uppercase leading-[0.88] sm:text-5xl"
+                className="text-4xl uppercase leading-[0.88] sm:text-5xl"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 {heading}
@@ -328,7 +404,7 @@ function HeroPoster({
             />
             <div className="relative min-h-[340px] overflow-visible sm:min-h-[400px]">
               <div className="mx-auto w-[72%] max-w-[420px] pt-[4.75rem] sm:pt-[5.5rem]">
-                <div className="relative aspect-video border-[4px] border-[var(--color-ink)] bg-[var(--color-purple)] shadow-[7px_7px_0_#000]">
+                <div className="relative aspect-video border-[4px] border-[var(--color-ink)] bg-[var(--color-purple)] shadow-[7px_7px_0_var(--shadow-color)]">
                   <div className="absolute bottom-0 left-1/2 z-10 w-[118%] -translate-x-1/2 sm:w-[122%]">
                   <Image
                     src={LUDYLOPS_PROFILE_IMAGE}
@@ -342,7 +418,7 @@ function HeroPoster({
                 </div>
               </div>
 
-              <div className="absolute bottom-3 right-3 z-20 flex h-20 w-20 items-center justify-center rounded-full border-[4px] border-[var(--color-ink)] bg-[var(--color-pink-hot)] shadow-[5px_5px_0_#000] sm:bottom-5 sm:right-5 sm:h-24 sm:w-24">
+              <div className="absolute bottom-3 right-3 z-20 flex h-20 w-20 items-center justify-center rounded-full border-[4px] border-[var(--color-ink)] bg-[var(--color-pink-hot)] shadow-[5px_5px_0_var(--shadow-color)] sm:bottom-5 sm:right-5 sm:h-24 sm:w-24">
                 <div className="flex rotate-[20deg] h-11 w-11 items-center justify-center rounded-full bg-[var(--color-yellow)] text-xl font-black text-[var(--color-accent-ink)]">
                 =D
                 </div>
@@ -357,27 +433,21 @@ function HeroPoster({
 
 function FeatureShowcase({
   features,
-  metrics,
-  loggedIn = false,
 }: {
   features: FeatureCard[];
-  metrics: HomeMetric[];
-  loggedIn?: boolean;
 }) {
-  const metricRotations = ["rotate-[1deg]", "rotate-[-1deg]", "rotate-[1.5deg]", "rotate-[-1.5deg]"];
-
   return (
     <section className="landing-plane landing-divider bg-[var(--color-paper-pink)] py-8 sm:py-10">
-      <div className="mx-auto grid w-full max-w-[1520px] gap-8 px-4 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-10">
+      <div className="mx-auto w-full max-w-[1520px] px-4 sm:px-6 lg:px-10">
         <div>
           <h2
             className="max-w-xl text-4xl uppercase leading-[0.9] sm:text-5xl"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            Você participa da minha live de verdade.
+            Voce participa da minha live de verdade.
           </h2>
           <p className="mt-4 max-w-xl text-base leading-7 text-[var(--color-ink-soft)]">
-            Eu abro a live, você junta pipetz, entra nas apostas e ainda solta resgates
+            Eu abro a live, voce junta pipetz, entra nas apostas e ainda solta resgates
             que aparecem comigo ao vivo.
           </p>
 
@@ -387,37 +457,47 @@ function FeatureShowcase({
             ))}
           </div>
         </div>
+      </div>
+    </section>
+  );
+}
 
-        <div className="landing-plane bg-[var(--color-sky)] p-6 sm:p-8">
-          <p className="mono text-[11px] uppercase tracking-[0.28em] text-[var(--color-ink-soft)]">
-            termômetro da live . comunidade agora
-          </p>
+function LiveThermometerSection({
+  metrics,
+  loggedIn = false,
+}: {
+  metrics: HomeMetric[];
+  loggedIn?: boolean;
+}) {
+  const metricRotations = ["rotate-[1deg]", "rotate-[-1deg]", "rotate-[1.5deg]", "rotate-[-1.5deg]"];
 
-          <h3
-            className="mt-4 max-w-md text-3xl uppercase leading-[0.92] sm:text-4xl"
-            style={{ fontFamily: "var(--font-display)" }}
+  return (
+    <section className="landing-plane landing-divider bg-[var(--color-sky)] py-8 sm:py-10">
+      <div className="mx-auto w-full max-w-[1520px] px-4 sm:px-6 lg:px-10">
+        <h2
+          className="max-w-md text-3xl uppercase leading-[0.92] sm:text-4xl"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          O que voces estao aprontando comigo agora.
+        </h2>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          {metrics.map((metric, index) => (
+            <MetricCard
+              key={metric.label}
+              metric={metric}
+              className={metricRotations[index % metricRotations.length]}
+            />
+          ))}
+        </div>
+
+        <div className="mt-6">
+          <Link
+            href={loggedIn ? "/apostas" : "/jogos"}
+            className="btn-brutal accent-button px-5 py-3 text-xs"
           >
-            O que vocês estão aprontando comigo agora.
-          </h3>
-
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            {metrics.map((metric, index) => (
-              <MetricCard
-                key={metric.label}
-                metric={metric}
-                className={metricRotations[index % metricRotations.length]}
-              />
-            ))}
-          </div>
-
-          <div className="mt-6">
-            <Link
-              href={loggedIn ? "/apostas" : "/jogos"}
-              className="btn-brutal accent-button px-5 py-3 text-xs"
-            >
-              {loggedIn ? "Entrar em apostas ->" : "Explorar a comunidade ->"}
-            </Link>
-          </div>
+            {loggedIn ? "Entrar em apostas ->" : "Explorar a comunidade ->"}
+          </Link>
         </div>
       </div>
     </section>
@@ -436,10 +516,8 @@ function RankingHeroCard({
 
   return (
     <aside className="p-6 sm:p-7">
-      <p className="mono text-[11px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">top da live</p>
-
       <h2
-        className="mt-4 max-w-[10ch] text-4xl uppercase leading-[0.88] sm:text-5xl"
+        className="max-w-[10ch] text-4xl uppercase leading-[0.88] sm:text-5xl"
         style={{ fontFamily: "var(--font-display)" }}
       >
         Liderando agora
@@ -639,14 +717,14 @@ export default async function Home({ searchParams }: HomePageProps) {
   const heroTitle: ReactNode = hasUsableSession ? (
     <>
       Você já está na minha live.{" "}
-      <span className="inline-block border-[3px] border-[var(--color-ink)] bg-[var(--color-pink)] px-3 py-1 shadow-[4px_4px_0_#000]">
+      <span className="micro-flat inline-block border-[3px] border-[var(--color-ink)] bg-[var(--color-pink)] px-3 py-1 text-[var(--color-accent-ink)] shadow-[4px_4px_0_var(--shadow-color)]">
         Agora vem jogar comigo.
       </span>
     </>
   ) : (
     <>
       Oi, eu sou a ludylops.{" "}
-      <span className="inline-block border-[3px] border-[var(--color-ink)] bg-[var(--color-pink)] px-3 py-1 shadow-[4px_4px_0_#000]">
+      <span className="micro-flat inline-block border-[3px] border-[var(--color-ink)] bg-[var(--color-pink)] px-3 py-1 text-[var(--color-accent-ink)] shadow-[4px_4px_0_var(--shadow-color)]">
         Bem-vindos à minha live.
       </span>
     </>
@@ -694,10 +772,7 @@ export default async function Home({ searchParams }: HomePageProps) {
 
         <div className="relative mx-auto grid w-full max-w-[1520px] gap-8 px-4 sm:px-6 lg:grid-cols-[1.02fr_0.98fr] lg:items-center lg:px-10">
           <div className="max-w-3xl">
-            <p className="mono text-[11px] uppercase tracking-[0.36em] text-[var(--color-ink-soft)]">
-              pontos . apostas . resgates . comunidade ao vivo
-            </p>
-            <div className="mt-4">
+            <div>
               <LivestreamIndicator isLive={isLive} />
             </div>
 
@@ -757,7 +832,9 @@ export default async function Home({ searchParams }: HomePageProps) {
         </div>
       </section>
 
-      <FeatureShowcase features={features} metrics={metrics} loggedIn={hasUsableSession} />
+      <FeatureShowcase features={features} />
+
+      <LiveThermometerSection metrics={metrics} loggedIn={hasUsableSession} />
 
       {false ? (
         <QuickNavGrid
@@ -790,7 +867,7 @@ export default async function Home({ searchParams }: HomePageProps) {
         />
       ) : null}
 
-      <section className="landing-plane landing-divider bg-[var(--color-sky)] py-8 sm:py-10">
+      <section className="landing-plane landing-divider bg-[var(--color-paper-pink)] py-8 sm:py-10">
         <div className="mx-auto w-full max-w-[1520px] px-4 sm:px-6 lg:px-10">
           <RankingHeroCard leaderboard={leaderboard} viewerRank={viewerRank} />
         </div>
@@ -807,3 +884,4 @@ export default async function Home({ searchParams }: HomePageProps) {
     </div>
   );
 }
+

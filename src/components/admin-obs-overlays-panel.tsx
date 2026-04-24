@@ -44,10 +44,10 @@ export function AdminObsOverlaysPanel() {
               <Card
                 key={overlay.id}
                 variant="poster"
-                className={`gap-4 p-5 ${index % 2 === 0 ? "bg-[var(--color-blue)]" : "bg-[var(--color-mint)]"}`}
+                className={`gap-4 p-5 text-[var(--color-accent-ink)] ${index % 2 === 0 ? "bg-[var(--color-blue)]" : "bg-[var(--color-mint)]"}`}
               >
                 <CardHeader className="gap-2">
-                  <CardDescription className="mono text-[10px] uppercase tracking-[0.28em] text-[var(--color-ink-soft)]">
+                  <CardDescription className="mono text-[10px] uppercase tracking-[0.28em] text-[var(--color-accent-ink-soft)]">
                     browser source
                   </CardDescription>
                   <CardTitle
@@ -59,7 +59,7 @@ export function AdminObsOverlaysPanel() {
                 </CardHeader>
 
                 <CardContent className="grid gap-4">
-                  <p className="text-sm leading-7 text-[var(--color-ink-soft)] sm:text-base">
+                  <p className="text-sm leading-7 text-[var(--color-accent-ink-soft)] sm:text-base">
                     {overlay.description}
                   </p>
 

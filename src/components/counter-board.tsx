@@ -1,4 +1,4 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { StreamerbotCounterSummaryRecord } from "@/lib/types";
 import { formatPipetz } from "@/lib/utils";
 
@@ -7,19 +7,11 @@ function scopeHeading(scopeKey: string, scopeLabel: string | null) {
 }
 
 function CounterCard({ counter }: { counter: StreamerbotCounterSummaryRecord }) {
-  const scopeText =
-    counter.scopeType === "global"
-      ? "escopo global"
-      : `jogo: ${scopeHeading(counter.scopeKey, counter.scopeLabel)}`;
-
   return (
     <Card variant="poster" className="h-full bg-[var(--color-paper)] p-5">
       <CardHeader className="gap-0">
-        <CardDescription className="mono text-[10px] uppercase tracking-[0.28em]">
-          {scopeText}
-        </CardDescription>
         <CardTitle
-          className="mt-3 text-3xl uppercase leading-none sm:text-4xl"
+          className="text-3xl uppercase leading-none sm:text-4xl"
           style={{ fontFamily: "var(--font-display)" }}
         >
           {counter.label}
@@ -27,9 +19,9 @@ function CounterCard({ counter }: { counter: StreamerbotCounterSummaryRecord }) 
       </CardHeader>
 
       <CardContent className="mt-6">
-        <div className="inline-flex border-[3px] border-[var(--color-ink)] bg-[var(--color-yellow)] px-4 py-2 shadow-[4px_4px_0_#000]">
+        <div className="micro-flat inline-flex border-[3px] border-[var(--color-ink)] bg-[var(--color-purple)] px-4 py-2 shadow-[4px_4px_0_var(--shadow-color)]">
           <span
-            className="text-3xl uppercase leading-none sm:text-4xl"
+            className="text-3xl uppercase leading-none text-[var(--color-accent-ink)] sm:text-4xl"
             style={{ fontFamily: "var(--font-display)" }}
           >
             {formatPipetz(counter.value)}
@@ -54,16 +46,7 @@ export function CounterBoard({ counters }: { counters: StreamerbotCounterSummary
   return (
     <div className="space-y-10">
       <section>
-        <div className="mb-4 flex items-center gap-2">
-          <span className="text-xl">Global</span>
-          <h2
-            className="text-2xl font-bold uppercase"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            Contadores da live inteira
-          </h2>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {globalCounters.map((counter) => (
             <CounterCard key={`${counter.scopeType}:${counter.scopeKey}:${counter.key}`} counter={counter} />
           ))}
@@ -72,37 +55,24 @@ export function CounterBoard({ counters }: { counters: StreamerbotCounterSummary
 
       {gameGroups.size > 0 ? (
         <section className="space-y-8">
-          <div className="mb-4 flex items-center gap-2">
-            <span className="text-xl">Jogos</span>
-            <h2
-              className="text-2xl font-bold uppercase"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              Contadores por jogo
-            </h2>
-          </div>
-
-          {Array.from(gameGroups.entries()).map(([scopeKey, entries]) => (
-            <div key={scopeKey} className="landing-plane bg-[var(--color-paper-pink)] p-5 sm:p-6">
-              <div className="mb-5">
-                <p className="mono text-[10px] uppercase tracking-[0.28em] text-[var(--color-ink-soft)]">
-                  jogo monitorado
-                </p>
+          <div className="grid gap-8 xl:grid-cols-2">
+            {Array.from(gameGroups.entries()).map(([scopeKey, entries]) => (
+              <div key={scopeKey} className="landing-plane h-full bg-[var(--color-paper-pink)] p-5 sm:p-6">
                 <h3
-                  className="mt-2 text-3xl uppercase leading-none"
+                  className="mb-5 text-3xl uppercase leading-none"
                   style={{ fontFamily: "var(--font-display)" }}
                 >
                   {scopeHeading(scopeKey, entries[0]?.scopeLabel ?? null)}
                 </h3>
-              </div>
 
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {entries.map((counter) => (
-                  <CounterCard key={`${counter.scopeType}:${counter.scopeKey}:${counter.key}`} counter={counter} />
-                ))}
+                <div className="grid gap-4">
+                  {entries.map((counter) => (
+                    <CounterCard key={`${counter.scopeType}:${counter.scopeKey}:${counter.key}`} counter={counter} />
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </section>
       ) : null}
     </div>

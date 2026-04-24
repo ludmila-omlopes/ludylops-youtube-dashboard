@@ -33,8 +33,8 @@ export function LeaderboardTable({
   compact?: boolean;
 }) {
   return (
-    <div className="overflow-hidden rounded-[var(--radius)] border-[3px] border-[var(--color-ink)] shadow-[4px_4px_0_#000]">
-      <div className="grid grid-cols-[60px_minmax(0,1fr)_110px] gap-3 border-b-[3px] border-[var(--color-ink)] bg-[var(--color-blue)] px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] sm:grid-cols-[60px_minmax(0,1fr)_110px_150px]">
+    <div className="overflow-hidden rounded-[var(--radius)] border-[3px] border-[var(--color-ink)] shadow-[4px_4px_0_var(--shadow-color)]">
+      <div className="grid grid-cols-[60px_minmax(0,1fr)_110px] gap-3 border-b-[3px] border-[var(--color-ink)] bg-[var(--color-blue)] px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-[var(--color-accent-ink)] sm:grid-cols-[60px_minmax(0,1fr)_110px_150px]">
         <span>#</span>
         <span>Viewer</span>
         <span>Pipetz</span>
@@ -52,16 +52,21 @@ export function LeaderboardTable({
                 youtubeHandle: viewer.youtubeHandle,
               });
           const podium = podiumClass(index);
+          const isPodium = podium.length > 0;
           return (
             <div
               key={viewer.id ?? `${viewer.youtubeDisplayName}-${index}`}
-              className={`grid grid-cols-[60px_minmax(0,1fr)_110px] gap-3 border-b-[3px] border-[var(--color-ink)] bg-[var(--color-paper)] px-4 py-3.5 text-sm sm:grid-cols-[60px_minmax(0,1fr)_110px_150px] ${podium}`}
+              className={`grid grid-cols-[60px_minmax(0,1fr)_110px] gap-3 border-b-[3px] border-[var(--color-ink)] bg-[var(--color-paper)] px-4 py-3.5 text-sm sm:grid-cols-[60px_minmax(0,1fr)_110px_150px] ${podium} ${isPodium ? "text-[var(--color-accent-ink)]" : ""}`}
             >
               <span className="mono self-center font-bold">#{index + 1}</span>
               <div>
                 <p className="font-black uppercase">{viewer.youtubeDisplayName}</p>
                 {handle ? (
-                  <p className="mt-0.5 text-xs tracking-[0.15em] text-[var(--color-ink-soft)]">
+                  <p
+                    className={`mt-0.5 text-xs tracking-[0.15em] ${
+                      isPodium ? "text-[var(--color-accent-ink-soft)]" : "text-[var(--color-ink-soft)]"
+                    }`}
+                  >
                     {handle}
                   </p>
                 ) : null}
@@ -70,7 +75,11 @@ export function LeaderboardTable({
                 {formatPipetz(balance.currentBalance)}
               </span>
               {!compact ? (
-                <span className="hidden self-center text-[var(--color-ink-soft)] sm:block">
+                <span
+                  className={`hidden self-center sm:block ${
+                    isPodium ? "text-[var(--color-accent-ink-soft)]" : "text-[var(--color-ink-soft)]"
+                  }`}
+                >
                   {formatDateTime(balance.lastSyncedAt)}
                 </span>
               ) : null}

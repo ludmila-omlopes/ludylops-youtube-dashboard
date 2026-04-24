@@ -1,8 +1,13 @@
-<!-- BEGIN:nextjs-agent-rules -->
+﻿<!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
+
+## Encoding Safety
+
+- Avoid round-tripping UTF-8 source files through PowerShell `Get-Content` / `Set-Content`, especially for `.ts`, `.tsx`, `.md`, and Portuguese copy with accents. On this machine that can turn `você` into `vocÃª` and `à` into `Ã `.
+- Prefer `apply_patch` for manual edits. For scripted rewrites, use .NET file APIs with explicit UTF-8 read/write settings instead of `Get-Content` / `Set-Content`.
 
 # GitHub PR Linking
 

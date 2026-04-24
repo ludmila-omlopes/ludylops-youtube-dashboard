@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -74,7 +74,7 @@ const sections: PolicySection[] = [
 
 export default function PrivacyPage() {
   return (
-    <div className="mx-auto flex w-full max-w-[980px] flex-col gap-6 px-4 pb-20 pt-8 sm:px-6 lg:px-8">
+    <div className="mx-auto flex w-full max-w-[980px] flex-col gap-6 px-4 pb-20 sm:px-6 lg:px-8">
       <section className="panel surface-hero p-6 sm:p-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -107,11 +107,11 @@ export default function PrivacyPage() {
             index % 3 === 0
               ? "bg-[var(--color-paper)]"
               : index % 3 === 1
-                ? "bg-[var(--color-blue)]"
-                : "bg-[var(--color-mint)]"
+                ? "bg-[var(--color-blue)] text-[var(--color-accent-ink)]"
+                : "bg-[var(--color-mint)] text-[var(--color-accent-ink)]"
           }`}
         >
-          <p className="mono text-[11px] uppercase tracking-[0.24em] text-[var(--color-ink-soft)]">
+          <p className={`mono text-[11px] uppercase tracking-[0.24em] ${ index % 3 === 0 ? "text-[var(--color-ink-soft)]" : "text-[var(--color-accent-ink-soft)]" }`}>
             seção {String(index + 1).padStart(2, "0")}
           </p>
           <h2
@@ -120,7 +120,7 @@ export default function PrivacyPage() {
           >
             {section.title}
           </h2>
-          <div className="mt-5 space-y-4 text-sm font-medium leading-7 text-[var(--color-ink-soft)] sm:text-base">
+          <div className={`mt-5 space-y-4 text-sm font-medium leading-7 sm:text-base ${ index % 3 === 0 ? "text-[var(--color-ink-soft)]" : "text-[var(--color-accent-ink-soft)]" }`}>
             {section.body.map((paragraph) => (
               <p key={paragraph}>{paragraph}</p>
             ))}
@@ -147,3 +147,4 @@ export default function PrivacyPage() {
     </div>
   );
 }
+

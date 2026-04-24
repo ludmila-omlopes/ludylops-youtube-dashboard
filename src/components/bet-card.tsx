@@ -8,22 +8,6 @@ import { Input } from "@/components/ui/input";
 import type { BetWithOptionsRecord } from "@/lib/types";
 import { formatPipetz } from "@/lib/utils";
 
-function timeLeft(closesAt: string, nowMs: number): string {
-  const diff = new Date(closesAt).getTime() - nowMs;
-  if (diff <= 0) return "Encerrada";
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  if (hours > 0) return `${hours}h ${mins}min restantes`;
-  return `${mins}min restantes`;
-}
-
-function statusLabel(bet: BetWithOptionsRecord, nowMs: number) {
-  if (bet.status === "resolved") return "Resolvida";
-  if (bet.status === "cancelled") return "Cancelada";
-  if (bet.status === "locked") return "Travada";
-  return timeLeft(bet.closesAt, nowMs);
-}
-
 function mapError(message: string) {
   switch (message) {
     case "saldo_insuficiente":
@@ -42,15 +26,6 @@ function mapError(message: string) {
       return message;
   }
 }
-
-const accentColors = [
-  "var(--color-purple-mid)",
-  "var(--color-blue)",
-  "var(--color-pink-hot)",
-  "var(--color-mint)",
-  "var(--color-yellow)",
-  "var(--color-periwinkle)",
-];
 
 const optionBgs = [
   "surface-card",
@@ -72,13 +47,11 @@ const barColors = [
 
 export function BetCard({
   bet,
-  index = 0,
   viewerBalance,
   loggedIn = false,
   canBet = false,
 }: {
   bet: BetWithOptionsRecord;
-  index?: number;
   viewerBalance?: number | null;
   loggedIn?: boolean;
   canBet?: boolean;
@@ -110,8 +83,6 @@ export function BetCard({
   const selectedOption = bet.viewerPosition?.optionId ?? draftSelectedOption;
   const selectedOptionLabel =
     bet.options.find((option) => option.id === selectedOption)?.label ?? "opção selecionada";
-  const accent = accentColors[index % accentColors.length];
-
   function handlePlace() {
     const parsed = Number.parseInt(amount, 10);
     if (!selectedOption || !Number.isInteger(parsed) || parsed <= 0) {
@@ -149,7 +120,6 @@ export function BetCard({
     <div
       className="panel-inset p-5"
       style={{
-        borderLeftColor: accent,
         backgroundColor: isResolved ? "var(--color-lilac)" : "var(--color-paper)",
       }}
     >
@@ -161,17 +131,9 @@ export function BetCard({
           >
             {bet.question}
           </h3>
-          <p className="mono mt-1 text-xs uppercase tracking-[0.15em] text-[var(--color-ink-soft)]">
-            {statusLabel(bet, nowMs)}
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div
-            className="badge-brutal px-3 py-1.5 text-xs text-[var(--color-ink)]"
-            style={{
-              backgroundColor: `color-mix(in srgb, ${accent} 18%, var(--color-paper-warm) 82%)`,
-            }}
-          >
+          <div className="px-3 py-1.5 text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-ink)]">
             Pool: {formatPipetz(bet.totalPool)}
           </div>
           {typeof viewerBalance === "number" ? (
@@ -210,7 +172,6 @@ export function BetCard({
         {bet.options.map((opt, i) => {
           const isWinner = isResolved && bet.winningOptionId === opt.id;
           const isViewerPick = bet.viewerPosition?.optionId === opt.id;
-          const pct = bet.totalPool > 0 ? Math.round((opt.poolAmount / bet.totalPool) * 100) : 0;
           const bgClass = optionBgs[i % optionBgs.length];
           const selectable = isOpen && canBet && !hasViewerBet;
 
@@ -220,26 +181,16 @@ export function BetCard({
               type="button"
               disabled={!selectable}
               onClick={() => setDraftSelectedOption(selectedOption === opt.id ? null : opt.id)}
-              className={`card-flat relative flex items-center justify-between overflow-hidden p-3 text-left ${
+              className={`card-flat relative flex items-center justify-between overflow-hidden !border !border-[1px] p-3 text-left ${
                 isWinner
-                  ? "border-[var(--color-ink)] bg-[var(--color-mint)] ring-2 ring-[var(--color-ink)]"
+                  ? "!border-[var(--color-ink)] bg-[var(--color-mint)] text-[var(--color-accent-ink)] ring-1 ring-[var(--color-ink)]"
                   : selectedOption === opt.id || isViewerPick
-                    ? "border-[var(--color-purple-bold)] bg-[var(--color-lavender)] ring-2 ring-[var(--color-purple-bold)]"
+                    ? "!border-[var(--color-purple-bold)] bg-[var(--color-lavender)] ring-1 ring-[var(--color-purple-bold)]"
                     : bgClass
               } ${selectable ? "cursor-pointer" : "cursor-default"}`}
             >
-              {!isWinner && selectedOption !== opt.id && !isViewerPick ? (
-                <div
-                  className="pointer-events-none absolute inset-y-0 left-0 opacity-[0.12]"
-                  style={{
-                    width: `${pct}%`,
-                    backgroundColor: barColors[i % barColors.length],
-                  }}
-                />
-              ) : null}
-
               <div className="relative flex items-center gap-2">
-                <span className="rounded-[var(--radius)] border-2 border-[var(--color-ink)] bg-[var(--color-paper)] px-2 py-0.5 text-[10px] font-black uppercase">
+                <span className="rounded-[var(--radius)] border-2 border-[var(--color-ink)] bg-transparent px-2 py-0.5 text-[10px] font-black uppercase">
                   #{i + 1}
                 </span>
                 <span
@@ -260,10 +211,7 @@ export function BetCard({
                     sua aposta
                   </span>
                 ) : null}
-                <span className="mono text-xs font-bold text-[var(--color-ink-soft)]">
-                  {pct}%
-                </span>
-                <span className="rounded-[var(--radius)] border-2 border-[var(--color-ink)] bg-[var(--color-paper)] px-2 py-0.5 text-xs font-bold">
+                <span className="text-xs font-bold">
                   {formatPipetz(opt.poolAmount)}
                 </span>
               </div>

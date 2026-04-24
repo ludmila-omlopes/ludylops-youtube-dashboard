@@ -121,7 +121,7 @@ export function GameSuggestionCard({
               {suggestion.name}
             </h3>
             <span
-              className="sticker px-2 py-0.5 text-[10px] text-[var(--color-ink)]"
+              className="sticker micro-flat px-2 py-0.5 text-[10px] text-[var(--color-ink)]"
               style={{ backgroundColor: statusColors[suggestion.status] }}
             >
               {statusLabels[suggestion.status]}
@@ -142,7 +142,7 @@ export function GameSuggestionCard({
           ) : null}
         </div>
 
-        <div className="rounded-[var(--radius)] border-[3px] border-[var(--color-ink)] bg-[var(--color-paper)] px-4 py-2 text-center shadow-purple">
+        <div className="micro-flat rounded-[var(--radius)] border-[3px] border-[var(--color-ink)] bg-[var(--color-paper)] px-4 py-2 text-center shadow-purple">
           <p
             className="text-2xl font-bold text-[var(--color-purple-bold)]"
             style={{ fontFamily: "var(--font-display)" }}

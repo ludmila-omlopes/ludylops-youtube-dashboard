@@ -46,23 +46,14 @@ export function BetList({
 
   const header = (
     <>
-      <div className="flex items-center gap-3">
-        <span className="mono text-[11px] font-black uppercase tracking-[0.18em] text-[var(--color-ink-soft)]">
-          {title.toLowerCase().includes("encerrada") ? "encerradas" : "ao vivo"}
-        </span>
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "var(--font-display)" }}>
-          {title}
-        </h2>
-      </div>
-      <p className="mono mt-1 text-xs uppercase tracking-[0.2em] text-[var(--color-ink-soft)]">
-        {bets.length} {bets.length === 1 ? "aposta" : "apostas"}
-      </p>
+      <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "var(--font-display)" }}>
+        {title}
+      </h2>
       <div className="mt-5 grid gap-4">
-        {bets.map((bet, i) => (
+        {bets.map((bet) => (
           <BetCard
             key={bet.id}
             bet={bet}
-            index={i}
             viewerBalance={viewerBalance}
             loggedIn={loggedIn}
             canBet={canBet}

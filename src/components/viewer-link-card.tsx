@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useTransition } from "react";
 
@@ -129,13 +129,13 @@ export function ViewerLinkCard({ isLinked }: { isLinked: boolean }) {
           </div>
 
           <div className="mt-6 grid gap-3 text-sm text-[var(--color-ink-soft)] sm:grid-cols-3">
-            <div className="card-flat bg-[var(--color-mint)] p-4">
+            <div className="card-flat bg-[var(--color-mint)] p-4 text-[var(--color-accent-ink)]">
               1. Entre no site com o login que você preferir.
             </div>
-            <div className="card-flat bg-[var(--color-yellow)] p-4">
+            <div className="card-flat bg-[var(--color-yellow)] p-4 text-[var(--color-accent-ink)]">
               2. Gere o código e mande <span className="font-black">!link CÓDIGO</span> no chat.
             </div>
-            <div className="card-flat bg-[var(--color-pink)] p-4">
+            <div className="card-flat bg-[var(--color-pink)] p-4 text-[var(--color-accent-ink)]">
               3. O bot vincula seu viewer e seu saldo passa a seguir esse canal.
             </div>
           </div>
@@ -144,3 +144,4 @@ export function ViewerLinkCard({ isLinked }: { isLinked: boolean }) {
     </section>
   );
 }
+

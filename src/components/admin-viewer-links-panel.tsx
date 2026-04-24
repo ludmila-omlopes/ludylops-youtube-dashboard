@@ -48,15 +48,29 @@ function getViewerStatus(entry: AdminViewerDirectoryRecord) {
 }
 
 function buildGoogleCandidateLabel(entry: AdminViewerDirectoryRecord) {
-  const parts = [entry.googleAccountEmail, entry.youtubeDisplayName];
+  const parts = [maskEmail(entry.googleAccountEmail), entry.youtubeDisplayName];
   if (entry.email && entry.email !== entry.googleAccountEmail) {
-    parts.push(entry.email);
+    parts.push(maskEmail(entry.email));
   }
   return parts.filter(Boolean).join(" . ");
 }
 
 function buildYoutubeCandidateLabel(entry: AdminViewerDirectoryRecord) {
-  return [entry.youtubeDisplayName, entry.youtubeHandle, entry.email].filter(Boolean).join(" . ");
+  return [entry.youtubeDisplayName, entry.youtubeHandle, maskEmail(entry.email)].filter(Boolean).join(" . ");
+}
+
+function maskEmail(email: string | null | undefined) {
+  if (!email) {
+    return null;
+  }
+
+  const [localPart, domain] = email.split("@");
+  if (!localPart || !domain) {
+    return email;
+  }
+
+  const visibleLocal = localPart.length <= 3 ? localPart.slice(0, 1) : localPart.slice(0, 3);
+  return `${visibleLocal}...@${domain}`;
 }
 
 export function AdminViewerLinksPanel({
@@ -279,14 +293,14 @@ export function AdminViewerLinksPanel({
               </p>
               <p className="mt-2 text-sm text-[var(--color-ink-soft)]">usuários no diretório</p>
             </div>
-            <div className="card-brutal-static bg-[var(--color-mint)] p-5">
-              <p className="mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-ink-soft)]">
+            <div className="card-brutal-static bg-[var(--color-mint)] p-5 text-[var(--color-accent-ink)]">
+              <p className="mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent-ink-soft)]">
                 Vinculados
               </p>
               <p className="mt-2 text-3xl font-black" style={{ fontFamily: "var(--font-display)" }}>
                 {totalLinked}
               </p>
-              <p className="mt-2 text-sm text-[var(--color-ink-soft)]">Google + YouTube unidos</p>
+              <p className="mt-2 text-sm text-[var(--color-accent-ink-soft)]">Google + YouTube unidos</p>
             </div>
             <div className="card-brutal-static bg-[var(--color-sky)] p-5">
               <p className="mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-ink-soft)]">
@@ -300,7 +314,7 @@ export function AdminViewerLinksPanel({
           </div>
         </div>
 
-        <div className="mt-6 overflow-hidden rounded-[var(--radius)] border-[3px] border-[var(--color-ink)] shadow-[4px_4px_0_#000]">
+        <div className="mt-6 overflow-hidden rounded-[var(--radius)] border-[3px] border-[var(--color-ink)] shadow-[4px_4px_0_var(--shadow-color)]">
           <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_120px_120px] gap-3 border-b-[3px] border-[var(--color-ink)] bg-[var(--color-blue)] px-4 py-3 text-xs font-bold uppercase tracking-[0.18em]">
             <span>Usuario</span>
             <span>Conta Google</span>
@@ -328,7 +342,7 @@ export function AdminViewerLinksPanel({
 
                   <div className="min-w-0">
                     <p className="truncate font-bold">
-                      {entry.googleAccountEmail ?? entry.email ?? "Sem conta Google"}
+                      {maskEmail(entry.googleAccountEmail) ?? maskEmail(entry.email) ?? "Sem conta Google"}
                     </p>
                     <p className="mt-0.5 text-xs text-[var(--color-ink-soft)]">
                       {entry.googleAccountId

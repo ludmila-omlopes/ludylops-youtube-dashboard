@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+﻿import { auth } from "@/auth";
 import { BetList } from "@/components/bet-list";
 import { getViewerDashboard, listBets } from "@/lib/db/repository";
 
@@ -14,16 +14,13 @@ export default async function ApostasPage() {
   const canBet = Boolean(activeViewerId && dashboard?.viewer.isLinked);
 
   return (
-    <div className="flex w-full flex-col pb-20 pt-8">
+    <div className="flex w-full flex-col pb-20">
       <section className="landing-plane surface-hero relative overflow-hidden py-8 sm:py-10">
         <div className="bg-dots-light pointer-events-none absolute inset-0 opacity-20" />
-        <div className="relative mx-auto flex w-full max-w-[1500px] items-start justify-between gap-4 px-4 sm:px-6 lg:px-10">
+        <div className="relative mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-10">
           <div>
-            <p className="mono text-xs font-bold uppercase tracking-[0.32em] text-[var(--color-ink-soft)]">
-              🎲 Apostas
-            </p>
             <h1
-              className="mt-3 text-4xl uppercase sm:text-6xl lg:text-7xl"
+              className="text-4xl uppercase sm:text-6xl lg:text-7xl"
               style={{ fontFamily: "var(--font-display)" }}
             >
               Aposte pipetz nos desafios da live.
@@ -31,9 +28,6 @@ export default async function ApostasPage() {
             <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--color-ink-soft)] sm:text-base">
               Escolha um lado, coloque seus pipetz e torça. Se acertar, leva uma parte do pool!
             </p>
-          </div>
-          <div className="sticker sticker-tilt-right hidden accent-chip-strong px-4 py-2 text-sm sm:inline-flex">
-            🔥 Ao vivo
           </div>
         </div>
       </section>
@@ -64,3 +58,4 @@ export default async function ApostasPage() {
     </div>
   );
 }
+

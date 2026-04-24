@@ -1,35 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useSyncExternalStore } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  getPreferredTheme,
+  persistTheme,
+  themeStorageKey,
+  type ThemeMode,
+} from "@/lib/theme";
 
-const storageKey = "pipetz-theme";
+const themeChangeEvent = "pipetz-theme-change";
 
-type ThemeMode = "light" | "dark";
+function subscribe(onStoreChange: () => void) {
+  if (typeof window === "undefined") {
+    return () => undefined;
+  }
 
-function applyTheme(theme: ThemeMode) {
-  document.documentElement.dataset.theme = theme;
-  document.documentElement.style.colorScheme = theme;
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key === null || event.key === themeStorageKey) {
+      onStoreChange();
+    }
+  };
+  const handleThemeChange = () => onStoreChange();
+
+  window.addEventListener("storage", handleStorage);
+  window.addEventListener(themeChangeEvent, handleThemeChange);
+
+  return () => {
+    window.removeEventListener("storage", handleStorage);
+    window.removeEventListener(themeChangeEvent, handleThemeChange);
+  };
 }
 
-export function ThemeToggle() {
-  const [theme, setTheme] = useState<ThemeMode>(() => {
-    if (typeof document !== "undefined") {
-      const rootTheme = document.documentElement.dataset.theme;
-      if (rootTheme === "dark" || rootTheme === "light") {
-        return rootTheme;
-      }
-    }
-
-    return "light";
-  });
+export function ThemeToggle({ initialTheme = null }: { initialTheme?: ThemeMode | null }) {
+  const theme = useSyncExternalStore(
+    subscribe,
+    getPreferredTheme,
+    () => initialTheme ?? "light",
+  );
 
   function handleToggle() {
     const nextTheme = theme === "dark" ? "light" : "dark";
-    window.localStorage.setItem(storageKey, nextTheme);
-    applyTheme(nextTheme);
-    setTheme(nextTheme);
+    persistTheme(nextTheme);
+    window.dispatchEvent(new Event(themeChangeEvent));
   }
 
   const isDark = theme === "dark";
