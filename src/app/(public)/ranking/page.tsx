@@ -5,10 +5,10 @@ export default async function RankingPage() {
   const leaderboard = await getLeaderboard();
 
   return (
-    <div className="flex w-full flex-col pb-20 pt-8">
+    <div className="flex w-full flex-col pb-20">
       <section className="landing-plane surface-hero relative overflow-hidden py-8 sm:py-10">
         <div className="bg-dots-light pointer-events-none absolute inset-0 opacity-15" />
-        <div className="relative mx-auto flex w-full max-w-[1500px] items-start justify-between gap-4 px-4 sm:px-6 lg:px-10">
+        <div className="relative mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-10">
           <div>
             <p className="mono text-xs font-bold uppercase tracking-[0.32em]">
               🏆 Ranking de pipetz
@@ -19,9 +19,6 @@ export default async function RankingPage() {
             >
               Quem ta mandando na live.
             </h1>
-          </div>
-          <div className="sticker hidden accent-chip-strong px-4 py-2 text-sm sm:inline-flex">
-            {leaderboard.length} viewers
           </div>
         </div>
       </section>

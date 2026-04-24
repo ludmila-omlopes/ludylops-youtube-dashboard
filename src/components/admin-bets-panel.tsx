@@ -145,11 +145,11 @@ export function AdminBetsPanel({ bets }: { bets: BetWithOptionsRecord[] }) {
   }
 
   return (
-    <section className="landing-plane landing-divider bg-[var(--color-mint)] py-8 sm:py-10">
+    <section className="landing-plane landing-divider bg-[var(--color-mint)] py-8 text-[var(--color-accent-ink)] sm:py-10">
       <div className="mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-10">
         <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="mono text-xs uppercase tracking-[0.3em] text-[var(--color-ink)]/50">
+          <p className="mono text-xs uppercase tracking-[0.3em] text-[var(--color-accent-ink-soft)]">
             Apostas
           </p>
           <h2

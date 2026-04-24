@@ -8,16 +8,19 @@ import { useEffect, useState } from "react";
 import { AuthButtons } from "@/components/auth-buttons";
 import { LivestreamIndicator } from "@/components/livestream-indicator";
 import { hasUsableAppSession } from "@/lib/auth/session-state";
+import type { ThemeMode } from "@/lib/theme";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 
 export function AppChrome({
   children,
+  initialTheme = null,
   isAdmin = false,
   isLive = false,
   session,
 }: {
   children: React.ReactNode;
+  initialTheme?: ThemeMode | null;
   isAdmin?: boolean;
   isLive?: boolean;
   session: Session | null;
@@ -82,7 +85,7 @@ export function AppChrome({
         <div className="mx-auto flex w-full max-w-[1500px] items-center gap-4 px-4 py-3 sm:px-6 lg:px-10">
           <div className="shrink-0">
             <Link href="/" className="group flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-[var(--radius)] border-[3px] border-[var(--color-ink)] bg-[var(--color-pink)] text-lg font-bold text-[var(--color-accent-ink)] shadow-[4px_4px_0_#000] transition-transform group-hover:rotate-[-4deg]">
+              <div className="flex h-12 w-12 items-center justify-center rounded-[var(--radius)] border-[3px] border-[var(--color-ink)] bg-[var(--color-pink)] text-lg font-bold text-[var(--color-accent-ink)] shadow-[4px_4px_0_var(--shadow-color)] transition-transform group-hover:rotate-[-4deg]">
                 Pz
               </div>
               <p
@@ -102,7 +105,7 @@ export function AppChrome({
                   href={link.href}
                   className={`rounded-[var(--radius)] border px-3.5 py-1.5 text-xs font-extrabold uppercase tracking-[0.1em] transition-colors duration-[var(--snap)] ${
                     pathname === link.href
-                      ? "border-[2px] border-[var(--color-ink)] bg-[var(--color-purple)] text-[var(--color-ink)] shadow-[4px_4px_0_#000]"
+                      ? "pastel-action border-[2px] border-[var(--color-ink)] bg-[var(--color-purple)] text-[var(--color-accent-ink)] shadow-[4px_4px_0_var(--shadow-color)]"
                       : "border-transparent text-[var(--color-ink-soft)] hover:border-[var(--color-ink)] hover:bg-[var(--color-paper)] hover:text-[var(--color-ink)]"
                   }`}
                 >
@@ -116,7 +119,7 @@ export function AppChrome({
             <div className="hidden md:block">
               <LivestreamIndicator isLive={isLive} compact />
             </div>
-            <ThemeToggle />
+            <ThemeToggle initialTheme={initialTheme} />
             <div className="hidden md:block">
               <AuthButtons />
             </div>
@@ -148,7 +151,7 @@ export function AppChrome({
                   onClick={() => setMobileOpen(false)}
                   className={`rounded-[var(--radius)] border px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] transition-colors duration-[var(--snap)] ${
                     pathname === link.href
-                      ? "border-[2px] border-[var(--color-ink)] bg-[var(--color-purple)] text-[var(--color-ink)] shadow-[4px_4px_0_#000]"
+                      ? "pastel-action border-[2px] border-[var(--color-ink)] bg-[var(--color-purple)] text-[var(--color-accent-ink)] shadow-[4px_4px_0_var(--shadow-color)]"
                       : "border-[2px] border-transparent text-[var(--color-ink-soft)] hover:border-[var(--color-ink)] hover:bg-[var(--color-paper)] hover:text-[var(--color-ink)] active:border-[var(--color-ink)] active:bg-[var(--color-paper)] active:text-[var(--color-ink)]"
                   }`}
                 >

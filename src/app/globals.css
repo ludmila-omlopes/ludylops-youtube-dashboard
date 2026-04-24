@@ -16,7 +16,7 @@
   --color-yellow: #40a9ff;
   --color-lavender: #f0e8f8;
   --color-sky: #d8efff;
-  --color-mint: #95ff82;
+  --color-mint: #00beae;
   --color-periwinkle: #e8dcfb;
   --color-rose: #ffd7ef;
   --color-lilac: #f5effd;
@@ -59,6 +59,7 @@
   --shadow-hover: 2px 2px 0 var(--shadow-color);
 
   --color-accent-ink: #000000;
+  --color-accent-ink-soft: #1d1822;
   --color-on-yellow: #000000;
 
   --shadow-purple: 4px 4px 0 var(--shadow-color);
@@ -102,49 +103,50 @@
 }
 
 html[data-theme="dark"] {
-  --color-ink: #ffffff;
-  --color-paper: #241237;
-  --color-purple: #c7a2e9;
-  --color-purple-mid: #c7a2e9;
-  --color-purple-bold: #e3c8ff;
-  --color-pink: #ff79c6;
-  --color-pink-hot: #ff79c6;
-  --color-blue: #40a9ff;
-  --color-yellow: #40a9ff;
-  --color-lavender: #2e1745;
-  --color-sky: #17344c;
-  --color-mint: #21422a;
-  --color-periwinkle: #36224f;
-  --color-rose: #4b1e42;
-  --color-lilac: #241237;
-  --color-muted: #ffffff;
-  --color-cream: #140c1d;
-  --color-paper-warm: #30184a;
-  --color-paper-pink: #4a1d44;
-  --color-ink-soft: #f3e9ff;
-  --color-surface-strong: #241237;
+  --color-ink: #f8f8f8;
+  --color-paper: #090909;
+  --color-purple: #b998ff;
+  --color-purple-mid: #d0b6ff;
+  --color-purple-bold: #eadcff;
+  --color-pink: #ff78bf;
+  --color-pink-hot: #ff5fa8;
+  --color-blue: #54c7ff;
+  --color-yellow: #ffd44d;
+  --color-lavender: #151515;
+  --color-sky: #101d25;
+  --color-mint: #00beae;
+  --color-periwinkle: #1a1630;
+  --color-rose: #26141c;
+  --color-lilac: #111111;
+  --color-muted: #f8f8f8;
+  --color-cream: #020202;
+  --color-paper-warm: #141414;
+  --color-paper-pink: #1a0f17;
+  --color-ink-soft: #d7d7d7;
+  --color-surface-strong: #111111;
 
-  --bg-page: #140c1d;
-  --surface-hero: #30184a;
-  --surface-section: #241237;
-  --surface-card: #241237;
-  --surface-card-alt: #30184a;
-  --surface-card-accent: #17344c;
-  --color-header-surface: #241237;
+  --bg-page: #000000;
+  --surface-hero: #0c0c0c;
+  --surface-section: #080808;
+  --surface-card: #111111;
+  --surface-card-alt: #1a1a1a;
+  --surface-card-accent: #101d25;
+  --color-header-surface: rgba(0, 0, 0, 0.94);
   --color-ticker-bg: #000000;
-  --color-window-bar: #c7a2e9;
+  --color-window-bar: #131313;
   --color-backdrop: rgba(0, 0, 0, 0.65);
-  --color-grid-line: rgba(255, 255, 255, 0.08);
-  --color-halftone-dot: rgba(255, 121, 198, 0.24);
+  --color-grid-line: rgba(255, 255, 255, 0.12);
+  --color-halftone-dot: rgba(84, 199, 255, 0.2);
   --color-dot: #ffffff;
   --color-dot-soft: #ffffff;
-  --color-podium-gold: #40a9ff;
-  --color-podium-silver: #c7a2e9;
-  --color-podium-bronze: #ff79c6;
+  --color-podium-gold: #ffd44d;
+  --color-podium-silver: #b998ff;
+  --color-podium-bronze: #ff78bf;
   --color-on-yellow: #000000;
+  --color-accent-ink-soft: #161616;
 
-  --shadow-color: #000000;
-  --shadow-soft-color: #000000;
+  --shadow-color: #ffffff;
+  --shadow-soft-color: rgba(255, 255, 255, 0.88);
 
   --background: var(--bg-page);
   --foreground: var(--color-ink);
@@ -254,17 +256,33 @@ button {
 }
 
 .panel {
-  background: var(--color-paper);
   border: var(--border-strong);
-  box-shadow: var(--shadow);
+  box-shadow: none;
   border-radius: var(--radius);
+  transition: box-shadow var(--snap), filter var(--snap);
+}
+
+.panel:not([class*="bg-"]):not([class*="surface-"]) {
+  background: var(--color-paper);
+}
+
+.panel:hover {
+  box-shadow: var(--shadow);
 }
 
 .panel-soft {
-  background: var(--color-paper);
   border: var(--border-strong);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   border-radius: var(--radius);
+  transition: box-shadow var(--snap), filter var(--snap);
+}
+
+.panel-soft:not([class*="bg-"]):not([class*="surface-"]) {
+  background: var(--color-paper);
+}
+
+.panel-soft:hover {
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-brutal {
@@ -298,26 +316,31 @@ button {
 
 .card-brutal {
   border: var(--border-strong);
-  box-shadow: var(--shadow);
+  box-shadow: none;
   border-radius: var(--radius);
+  transition: box-shadow var(--snap), filter var(--snap);
+}
+
+.card-brutal:not([class*="bg-"]):not([class*="surface-"]) {
   background: var(--color-paper);
-  transition: transform var(--snap), box-shadow var(--snap);
 }
 
 .card-brutal:hover {
-  transform: translate(3px, 3px);
-  box-shadow: var(--shadow-hover);
+  box-shadow: var(--shadow);
 }
 
 .card-brutal-static {
   border: var(--border-strong);
-  box-shadow: var(--shadow);
+  box-shadow: none;
   border-radius: var(--radius);
+  transition: box-shadow var(--snap), filter var(--snap);
+}
+
+.card-brutal-static:not([class*="bg-"]):not([class*="surface-"]) {
   background: var(--color-paper);
 }
 
 .card-brutal-static:hover {
-  transform: none;
   box-shadow: var(--shadow);
 }
 
@@ -328,15 +351,17 @@ button {
 
 .card-poster {
   border: var(--border-strong);
-  box-shadow: var(--shadow);
+  box-shadow: none;
   border-radius: var(--radius);
+  transition: box-shadow var(--snap), filter var(--snap);
+}
+
+.card-poster:not([class*="bg-"]):not([class*="surface-"]) {
   background: var(--color-paper);
-  transition: transform var(--snap), box-shadow var(--snap), filter var(--snap);
 }
 
 .card-poster:hover {
-  transform: translate(3px, 3px);
-  box-shadow: var(--shadow-hover);
+  box-shadow: var(--shadow);
   filter: saturate(1.02);
 }
 
@@ -348,11 +373,16 @@ button {
 .card-flat {
   border: var(--border-strong);
   border-radius: var(--radius);
+  box-shadow: none;
+  transition: background-color var(--snap), box-shadow var(--snap), filter var(--snap);
+}
+
+.card-flat:not([class*="bg-"]):not([class*="surface-"]) {
   background: var(--color-paper);
-  transition: background-color var(--snap);
 }
 
 .card-flat:hover {
+  box-shadow: var(--shadow);
   filter: brightness(0.96);
 }
 
@@ -361,17 +391,40 @@ button {
   outline-offset: 2px;
 }
 
+/* Secondary badges and micro-panels inside an already framed card stay flat. */
+.micro-flat {
+  box-shadow: none !important;
+}
+
+.micro-flat:hover {
+  box-shadow: none !important;
+  filter: none;
+  transform: none;
+}
+
 .panel-inset {
-  background: var(--color-paper);
   border: var(--border-strong);
   border-radius: var(--radius);
   border-left-width: 6px;
 }
 
-.panel-flat {
+.panel-inset:not([class*="bg-"]):not([class*="surface-"]) {
   background: var(--color-paper);
+}
+
+.panel-flat {
   border: var(--border-strong);
   border-radius: var(--radius);
+  box-shadow: none;
+  transition: box-shadow var(--snap), filter var(--snap);
+}
+
+.panel-flat:not([class*="bg-"]):not([class*="surface-"]) {
+  background: var(--color-paper);
+}
+
+.panel-flat:hover {
+  box-shadow: var(--shadow);
 }
 
 .landing-plane {
@@ -382,7 +435,7 @@ button {
 }
 
 .landing-divider {
-  border-top: 6px solid var(--color-ink);
+  border-top: 1px solid var(--color-ink);
 }
 
 .surface-hero {
@@ -550,6 +603,21 @@ button {
   background: var(--color-purple);
   color: var(--color-accent-ink);
   box-shadow: var(--shadow);
+}
+
+/* Pastel action surfaces should keep dark ink in both light and dark themes. */
+.pastel-action {
+  color: var(--color-accent-ink);
+}
+
+.btn-brutal[class*="bg-[var(--color-blue)]"],
+.btn-brutal[class*="bg-[var(--color-purple)]"],
+.btn-brutal[class*="bg-[var(--color-pink)]"],
+.btn-brutal[class*="bg-[var(--color-yellow)]"],
+.btn-brutal[class*="bg-[var(--color-sky)]"],
+.btn-brutal[class*="bg-[var(--color-lavender)]"],
+.btn-brutal[class*="bg-[var(--color-mint)]"] {
+  color: var(--color-accent-ink);
 }
 
 .marquee-strip {

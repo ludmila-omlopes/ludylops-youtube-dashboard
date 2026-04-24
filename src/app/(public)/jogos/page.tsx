@@ -15,10 +15,10 @@ export default async function JogosPage() {
   const canInteract = Boolean(activeViewerId);
 
   return (
-    <div className="flex w-full flex-col pb-20 pt-8">
+    <div className="flex w-full flex-col pb-20">
       <section className="landing-plane surface-hero relative overflow-hidden py-8 sm:py-10">
         <div className="bg-dots-light pointer-events-none absolute inset-0 opacity-20" />
-        <div className="relative mx-auto flex w-full max-w-[1500px] items-start justify-between gap-4 px-4 sm:px-6 lg:px-10">
+        <div className="relative mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-10">
           <div>
             <p className="mono text-xs font-bold uppercase tracking-[0.32em] text-[var(--color-ink-soft)]">
               Sugestoes de jogos
@@ -32,9 +32,6 @@ export default async function JogosPage() {
             <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--color-ink-soft)] sm:text-base">
               Sugere um jogo e, se quiser empurrar sua ideia, gasta pipetz pra dar boost nela.
             </p>
-          </div>
-          <div className="sticker hidden accent-chip-strong px-4 py-2 text-sm sm:inline-flex">
-            boost real
           </div>
         </div>
       </section>

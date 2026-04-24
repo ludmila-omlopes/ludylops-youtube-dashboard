@@ -13,7 +13,7 @@ const buttonVariants = cva(
         default: "ink-button text-[var(--color-accent-ink)]",
         accent: "accent-button text-[var(--color-accent-ink)]",
         neutral: "bg-[var(--color-paper)] text-[var(--color-ink)]",
-        success: "bg-[var(--color-mint)] text-[var(--color-ink)]",
+        success: "bg-[var(--color-mint)] text-[var(--color-accent-ink)]",
         info: "bg-[var(--color-sky)] text-[var(--color-ink)]",
         danger: "bg-[var(--color-rose)] text-[var(--color-ink)]",
         pink: "bg-[var(--color-pink)] text-[var(--color-accent-ink)]",

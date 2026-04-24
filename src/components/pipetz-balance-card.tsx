@@ -3,14 +3,10 @@ import { formatPipetz } from "@/lib/utils";
 export function PipetzBalanceCard({
   displayName,
   currentBalance,
-  lifetimeEarned,
-  lifetimeSpent,
   compact = false,
 }: {
   displayName: string;
   currentBalance: number;
-  lifetimeEarned: number;
-  lifetimeSpent: number;
   compact?: boolean;
 }) {
   return (
@@ -48,16 +44,6 @@ export function PipetzBalanceCard({
           </div>
         </div>
 
-        {!compact ? (
-          <div className="relative mt-5 flex flex-wrap gap-3">
-            <span className="accent-chip rounded-[var(--radius)] border-2 border-[var(--color-ink)] px-3 py-1.5 text-sm font-bold">
-              Ganhos: {formatPipetz(lifetimeEarned)}
-            </span>
-            <span className="surface-card-accent rounded-[var(--radius)] border-2 border-[var(--color-ink)] px-3 py-1.5 text-sm font-bold">
-              Gastos: {formatPipetz(lifetimeSpent)}
-            </span>
-          </div>
-        ) : null}
       </div>
     </section>
   );

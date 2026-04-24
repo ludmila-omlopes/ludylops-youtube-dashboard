@@ -41,7 +41,7 @@ function SelectTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "flex w-fit min-w-40 items-center justify-between gap-3 rounded-[var(--radius)] border-[3px] border-[var(--color-ink)] bg-[var(--color-paper)] px-4 text-left font-bold text-[var(--color-ink)] shadow-[3px_3px_0_var(--shadow-color)] outline-none transition-transform data-placeholder:text-[var(--color-ink-soft)] data-[size=default]:py-3 data-[size=default]:text-sm data-[size=sm]:px-3 data-[size=sm]:py-2 data-[size=sm]:text-xs focus-visible:outline-[3px] focus-visible:outline-[var(--color-purple-mid)] focus-visible:outline-offset-[1px] disabled:cursor-not-allowed disabled:opacity-60 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        "flex w-fit min-w-40 items-center justify-between gap-3 rounded-[var(--radius)] border-[3px] border-[var(--color-ink)] bg-[var(--color-paper)] px-4 text-left font-bold text-[var(--color-ink)] outline-none transition-transform data-placeholder:text-[var(--color-ink-soft)] data-[size=default]:py-3 data-[size=default]:text-sm data-[size=sm]:px-3 data-[size=sm]:py-2 data-[size=sm]:text-xs focus-visible:outline-[3px] focus-visible:outline-[var(--color-purple-mid)] focus-visible:outline-offset-[1px] disabled:cursor-not-allowed disabled:opacity-60 [&_svg]:pointer-events-none [&_svg]:shrink-0",
         className,
       )}
       {...props}

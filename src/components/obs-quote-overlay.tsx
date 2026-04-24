@@ -154,16 +154,16 @@ export function ObsQuoteOverlay() {
           aria-live="polite"
         >
           <div className="absolute inset-0 opacity-25">
-            <div className="h-full w-full bg-[radial-gradient(circle_at_20%_20%,#ff66b3_0,transparent_24%),radial-gradient(circle_at_80%_30%,#41d1ff_0,transparent_20%),radial-gradient(circle_at_50%_80%,#b6ff3b_0,transparent_22%)]" />
+            <div className="h-full w-full bg-[radial-gradient(circle_at_20%_20%,#ff66b3_0,transparent_24%),radial-gradient(circle_at_80%_30%,#41d1ff_0,transparent_20%),radial-gradient(circle_at_50%_80%,#00beae_0,transparent_22%)]" />
           </div>
-          <div className="absolute inset-x-0 top-0 h-5 border-b-[4px] border-black bg-[repeating-linear-gradient(90deg,#000_0_28px,#ff66b3_28px_56px,#41d1ff_56px_84px,#b6ff3b_84px_112px)]" />
+          <div className="absolute inset-x-0 top-0 h-5 border-b-[4px] border-black bg-[repeating-linear-gradient(90deg,#000_0_28px,#ff66b3_28px_56px,#41d1ff_56px_84px,#00beae_84px_112px)]" />
           <div className="relative flex flex-col gap-6 px-6 pb-6 pt-10 sm:px-10 sm:pb-10 sm:pt-12">
             <div className="flex flex-col items-start gap-3 text-[11px] font-black uppercase tracking-[0.22em] sm:text-xs">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="border-[3px] border-black bg-black px-3 py-1 text-white">
                   Quote #{overlay.quoteNumber}
                 </span>
-                <span className="border-[3px] border-black bg-[#b6ff3b] px-3 py-1">
+                <span className="border-[3px] border-black bg-[#00beae] px-3 py-1">
                   criado por {overlay.createdByDisplayName}
                 </span>
               </div>
