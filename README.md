@@ -360,7 +360,7 @@ Assinatura:
 - HMAC SHA-256 de `timestamp.body`
 - Secret: `STREAMERBOT_SHARED_SECRET`
 
-Payload recomendado para `!pontos`, `!saldo` ou `!pipetz`:
+Payload recomendado para `!pontos`, `!saldo`, `!pipetz` ou `!points`:
 
 ```json
 {
@@ -434,7 +434,7 @@ Notas:
 2. Crie um comando do YouTube com regex:
 
 ```regex
-^!(?:pontos|saldo|pipetz)$
+^!(?:pontos|saldo|pipetz|points)$
 ```
 
 3. Na action desse comando, adicione `Core > C# > Execute C# Code`.
